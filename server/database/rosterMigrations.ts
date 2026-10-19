@@ -307,6 +307,32 @@ const migrations: Migration[] = [
       ALTER TABLE classes DROP COLUMN chinese_teacher;
     `
   }
+  ,{
+    version: 12,
+    sql: `
+      CREATE TABLE classroom_tasks (id TEXT PRIMARY KEY, class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT, data_json TEXT NOT NULL);
+      CREATE INDEX classroom_tasks_class_idx ON classroom_tasks(class_id);
+      CREATE TABLE classroom_task_participants (
+        id TEXT PRIMARY KEY, task_id TEXT NOT NULL REFERENCES classroom_tasks(id) ON DELETE RESTRICT,
+        student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT, data_json TEXT NOT NULL, UNIQUE(task_id,student_id)
+      );
+      CREATE INDEX classroom_task_participants_student_idx ON classroom_task_participants(student_id);
+      CREATE TABLE classroom_task_operations (
+        id TEXT PRIMARY KEY, task_id TEXT NOT NULL REFERENCES classroom_tasks(id) ON DELETE RESTRICT,
+        fingerprint TEXT NOT NULL, data_json TEXT NOT NULL, result_json TEXT NOT NULL
+      );
+      CREATE TABLE classroom_task_events (
+        id TEXT PRIMARY KEY, task_id TEXT NOT NULL REFERENCES classroom_tasks(id) ON DELETE RESTRICT,
+        participant_id TEXT REFERENCES classroom_task_participants(id) ON DELETE RESTRICT,
+        operation_id TEXT NOT NULL REFERENCES classroom_task_operations(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED, data_json TEXT NOT NULL
+      );
+      CREATE INDEX classroom_task_events_task_idx ON classroom_task_events(task_id);
+      CREATE TRIGGER classroom_task_event_identity BEFORE INSERT ON classroom_task_events
+      WHEN NEW.participant_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1 FROM classroom_task_participants WHERE id = NEW.participant_id AND task_id = NEW.task_id
+      ) BEGIN SELECT RAISE(ABORT, 'TASK_PARTICIPANT_MISMATCH'); END;
+    `
+  }
 ];
 
 export const runRosterMigrations = (database: Database.Database) => {

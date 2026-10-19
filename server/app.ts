@@ -21,6 +21,7 @@ import { logEvent } from './observability/logger';
 import gradingTasksRouter from './routes/gradingTasks';
 import rosterRouter from './routes/roster';
 import classroomRouter from './routes/classroom';
+import classroomTasksRouter from './routes/classroomTasks';
 import gradingTaskManagementRouter from './routes/gradingTaskManagement';
 import resourcesRouter from './routes/resources';
 import materialPoolRouter from './routes/materialPool';
@@ -108,6 +109,7 @@ export const createApp = (config: RuntimeConfig = runtimeConfig) => {
 
   app.use('/api', rosterRouter);
   app.use('/api', classroomRouter);
+  app.use('/api', classroomTasksRouter);
   app.use('/api', gradingTaskManagementRouter);
   app.use('/api/grading-tasks', gradingTasksRouter);
   app.use('/api', resourcesRouter);

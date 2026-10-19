@@ -43,6 +43,7 @@ interface VirtualClassroomProps {
   selectedClassId: string;
   onSelectClass: (classId: string) => void;
   onCreateClass: () => void;
+  onOpenClassroomTasks: (classId: string) => void;
   onManageStudent: (studentId: string) => void;
   onViewStudentProfile: (studentId: string) => void;
   onAddObservation: (studentId: string, text: string) => Promise<void>;
@@ -69,6 +70,7 @@ export default function VirtualClassroom({
   selectedClassId,
   onSelectClass,
   onCreateClass,
+  onOpenClassroomTasks,
   onManageStudent,
   onViewStudentProfile,
   onAddObservation,
@@ -582,6 +584,7 @@ export default function VirtualClassroom({
             {activeClass.name}座位图
           </h2>
           <p className="mt-1 text-xs text-slate-500">已安排 {activeLayout?.seats.length ?? 0} 人 · 待安排 {unassignedStudents.length} 人</p>
+          {!editMode && <button type="button" onClick={() => onOpenClassroomTasks(effectiveClassId)} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200"><BookOpen className="h-4 w-4" />记录本班课堂任务</button>}
         </div>
         <div className={`grid w-full items-center gap-2 md:flex md:w-auto ${editMode ? 'grid-cols-2' : 'grid-cols-[minmax(0,1fr)_44px_auto]'}`}>
           <button

@@ -87,3 +87,31 @@ test('restores a snapshot when the workspaces root contains metadata files', asy
   assert.equal((restoredDb.prepare('SELECT disk_path FROM pool_items WHERE id = ?').get('pool-1') as { disk_path: string }).disk_path, path.join(restored, 'workspaces', 'workspace-test', 'uploads', 'resource.pdf'));
   restoredDb.close();
 });
+
+test('online product snapshot restores classroom task operations and event-derived retest results',async()=>{
+ const {source}=await createFixture();
+ const dataDirectory=path.join(source,'workspaces','workspace-test','data');await mkdir(dataDirectory,{recursive:true});
+ const {runWithWorkspace}=await import('../../context/workspaceContext');
+ const {getRosterDatabase,closeRosterDatabase}=await import('../../database/rosterDatabase');
+ const service=await import('../classroom/classroomTaskService');
+ const context={userId:'teacher-snapshot',workspaceId:'workspace-test',role:'teacher' as const,root:path.join(source,'workspaces','workspace-test'),dataDirectory,uploadDirectory:path.join(source,'workspaces','workspace-test','uploads')};
+ let taskId='';
+ runWithWorkspace(context,()=>{
+  const db=getRosterDatabase();db.exec("INSERT INTO classes(id,name,grade,term,head_teacher,textbook_version,default_submit_time,status,created_at,updated_at) VALUES('class','班级','','','','','','active','now','now'); INSERT INTO students VALUES('student','学生','male','good','{}','now','now'); INSERT INTO class_memberships(id,class_id,student_id,student_no,status,joined_at) VALUES('membership','class','student','1','active','now');");
+  const input={classId:'class',name:'背诵过关',mode:'pass' as const,checkDate:'2026-10-20'};const preview=service.previewTaskCreation(input);
+  const detail=service.createClassroomTask({...input,previewToken:preview.previewToken,operationId:'snapshot-create'});taskId=detail.task.id;
+  service.applyClassroomOperation(taskId,{operationId:'snapshot-first',kind:'initial',participantId:detail.participants[0].id,expectedVersion:0,result:'negative'});
+  service.applyClassroomOperation(taskId,{operationId:'snapshot-retest',kind:'retest',participantId:detail.participants[0].id,expectedVersion:1,result:'positive'});
+ });
+ const before=runWithWorkspace(context,()=>service.requireTask(taskId));
+ const counts=runWithWorkspace(context,()=>['classroom_tasks','classroom_task_participants','classroom_task_operations','classroom_task_events'].map(table=>(getRosterDatabase().prepare('SELECT COUNT(*) AS count FROM '+table).get() as {count:number}).count));
+ const snapshot=path.join(path.dirname(source),'task-snapshot');const restored=path.join(path.dirname(source),'task-restored');
+ await createProductSnapshot(source,snapshot);await restoreProductSnapshot(snapshot,restored);
+ const restoredContext={...context,root:path.join(restored,'workspaces','workspace-test'),dataDirectory:path.join(restored,'workspaces','workspace-test','data'),uploadDirectory:path.join(restored,'workspaces','workspace-test','uploads')};
+ runWithWorkspace(restoredContext,()=>{
+  const after=service.requireTask(taskId);assert.deepEqual(after,before);assert.equal(after.participants[0].firstResult,'negative');assert.equal(after.participants[0].result,'positive');
+  assert.deepEqual(['classroom_tasks','classroom_task_participants','classroom_task_operations','classroom_task_events'].map(table=>(getRosterDatabase().prepare('SELECT COUNT(*) AS count FROM '+table).get() as {count:number}).count),counts);
+  assert.deepEqual(getRosterDatabase().pragma('foreign_key_check'),[]);
+ });
+ closeRosterDatabase();
+});

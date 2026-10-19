@@ -3,6 +3,7 @@ import {
   BookOpen,
   BriefcaseBusiness,
   Calendar,
+  ClipboardCheck,
   Database,
   FileText,
   FolderOpen,
@@ -29,6 +30,7 @@ export type PageId =
   | 'class-mgmt'
   | 'student-mgmt'
   | 'classroom'
+  | 'classroom-tasks'
   | 'schedule'
   | 'tag-mgmt'
   | 'career-open-class'
@@ -71,6 +73,7 @@ export function createNavGroups(activeGradingTaskCount: number): NavGroup[] {
       label: '教学工作',
       icon: BookOpen,
       items: [
+        { id: 'classroom-tasks', label: '课堂任务', icon: ClipboardCheck },
         { id: 'lesson-plan', label: 'AI 教案', icon: FileText },
         { id: 'grading-workspace', label: 'AI 批改', icon: Workflow, badge: activeGradingTaskCount },
         { id: 'diagnosis-workspace', label: '学情诊断', icon: BarChart3 }

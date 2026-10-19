@@ -1,0 +1,45 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowLeft, Plus, RefreshCw } from 'lucide-react';
+import ResponsiveChoiceDialog from '../../components/ResponsiveChoiceDialog';
+import type { SchoolClass } from '../../domain/types';
+import type { CreateTaskInput, CreationPreview, TaskListItem } from '../../domain/classroomTasks';
+import { ClassroomTaskError, taskApi } from '../../services/classroomTaskApi';
+import { CreateTaskDialog, action, control, primary } from './ClassroomTaskDialogs';
+import { useClassroomTasks } from './useClassroomTasks';
+import ClassroomTaskDetail from './ClassroomTaskDetail';
+export default function ClassroomTasksWorkspace({ classes, initialClassId, initialTaskId, initialStudentId, identityKey, onOpenTask, onBack, onNavigate }: { classes: SchoolClass[]; initialClassId: string; initialTaskId?: string; initialStudentId?: string; identityKey: string; onOpenTask: (id: string) => void; onBack: () => void; onNavigate: (id: string) => void }) {
+  const state = useClassroomTasks(identityKey, initialTaskId);
+  const [classId, setClassId] = useState(initialClassId); const [lifecycle, setLifecycle] = useState('active'); const [query, setQuery] = useState('');
+  const [items, setItems] = useState<TaskListItem[]>([]); const [total, setTotal] = useState(0); const [offset, setOffset] = useState(0); const [loading, setLoading] = useState(false); const [create, setCreate] = useState(false); const [picker, setPicker] = useState(false);
+  const [seed, setSeed] = useState<Partial<CreateTaskInput>>();
+  const creation = useRef<{ fingerprint: string; operationId: string }>();
+  const loadSequence = useRef(0);
+  const load = useCallback(async () => { const sequence = ++loadSequence.current; setLoading(true); try { const params = new URLSearchParams({ lifecycle, offset:String(offset), limit:'30', ...(classId ? {classId} : {}), ...(query ? {search:query} : {}) }); const data = await taskApi.list(params); if (sequence === loadSequence.current) { setItems(data.tasks); setTotal(data.total); } } catch(e) { if (sequence === loadSequence.current) state.setError(e instanceof Error ? e.message : '任务列表读取失败，请重试。'); } finally { if (sequence === loadSequence.current) setLoading(false); } }, [classId, lifecycle, offset, query]);
+  useEffect(() => { if (!initialTaskId) void load(); return () => { loadSequence.current++; }; }, [initialTaskId, load]);
+  useEffect(() => { const refresh = () => { if (initialTaskId) void state.reload().catch(e => state.setError(e.message)); else void load(); }; window.addEventListener('focus',refresh); return () => window.removeEventListener('focus',refresh); }, [initialTaskId, load, state.reload]);
+  const createTask = async (input: CreateTaskInput, preview: CreationPreview) => {
+    const fingerprint = JSON.stringify(input);
+    const unresolved = state.pending.find(p => p.kind === 'create');
+    if (unresolved && (!creation.current || creation.current.fingerprint !== fingerprint)) { throw new Error('前一次建任务结果尚未确认，请先关闭表单核对，避免重复建立任务。'); }
+    if (!creation.current || creation.current.fingerprint !== fingerprint) creation.current = {fingerprint,operationId:crypto.randomUUID()};
+    const id = creation.current.operationId;
+    try { state.register(id, '', 'create'); } catch { state.setError('浏览器不能保存核对标识，任务尚未发送。'); return false; }
+    try { const detail = await taskApi.create({...input,previewToken:preview.previewToken,operationId:id}); state.clear(id); creation.current = undefined; onOpenTask(detail.task.id); return true; }
+    catch(e) { if (e instanceof ClassroomTaskError && [400,409,422].includes(e.status)) { state.clear(id); creation.current = undefined; } state.setError(e instanceof Error ? e.message : '尚未确认任务是否创建，请核对。'); throw e; }
+  };
+  return <section id="classroom-tasks-page" className="mx-auto w-full min-w-0 max-w-6xl space-y-4 text-slate-900 dark:text-slate-100">
+    <header className="flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><button className={action} onClick={onBack} aria-label="返回来源页面"><ArrowLeft className="h-5 w-5" /></button><div><p className="text-xs text-slate-500">教学工作</p><h2 className="text-xl font-bold">课堂任务</h2></div></div>{!initialTaskId && <button className={primary + ' flex items-center gap-2'} disabled={!classes.some(c=>c.status==='active')} onClick={()=>{setSeed(undefined);setCreate(true);}}><Plus className="h-4 w-4"/>新建任务</button>}</header>
+    {state.error && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{state.error}<button className={action + ' ml-2'} onClick={()=>{state.setError(''); void (initialTaskId ? state.reload() : load()).catch(e=>state.setError(e.message));}}>重新读取</button></div>}
+    {state.pending.length > 0 && <aside className="space-y-2 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"><h3 className="font-bold">{state.pending.length}笔结果待核对</h3>{state.pending.map(p=><div key={p.id} className="flex flex-wrap items-center gap-2"><span>{p.kind === 'create' ? '新建任务' : '任务记录'} · {new Date(p.at).toLocaleString('zh-CN')}</span><button className={action} onClick={()=>void state.reconcile(p.id).then(result=>{if(result && p.kind==='create')onOpenTask(result.taskId);})}>核对保存状态</button><button className={action} onClick={()=>void state.retry(p.id)}>原操作重试</button><button className={action} onClick={()=>{if(window.confirm('仅在已核对确认未保存后清除。若先前请求仍在处理，后续仍可能保存；请核对任务和历史。确认清除核对标识吗？'))state.clear(p.id);}}>确认后清除</button></div>)}</aside>}
+    {initialTaskId ? state.detail ? <div key={state.detail.task.id}><ClassroomTaskDetail detail={state.detail} initialStudentId={initialStudentId} state={state} onList={()=>onOpenTask('')} onRepeat={()=>{setSeed({name:state.detail!.task.name,mode:state.detail!.task.mode,description:state.detail!.task.description});setCreate(true);}}/></div> : <p role="status" className="p-6 text-sm">{state.error ? '任务暂时无法读取。' : '正在读取任务与名册…'}</p> : <>
+      <div className="flex flex-wrap gap-2"><button className={action} onClick={()=>setPicker(true)}>{classes.find(c=>c.id===classId)?.name ?? '全部班级'}</button><div className="flex flex-wrap gap-1" aria-label="任务状态">{[['active','进行中'],['ended','已结束'],['archived','已归档']].map(([value,label])=><button key={value} aria-pressed={lifecycle===value} className={lifecycle===value?primary:action} onClick={()=>{setLifecycle(value);setOffset(0);}}>{label}</button>)}</div></div>
+      <div className="flex gap-2"><input className={control} aria-label="搜索任务" placeholder="搜索任务名称" value={query} onChange={e=>{setQuery(e.target.value);setOffset(0);}}/><button className={action} aria-label="刷新任务列表" onClick={()=>void load()}><RefreshCw className="h-5 w-5"/></button></div>
+      <p role="status" className="text-sm text-slate-500">{loading?'正在刷新…':'共'+total+'项任务'}</p>
+      {!loading && !items.length && <div className="rounded-2xl border border-dashed p-8 text-center"><h3 className="font-bold">{classes.length?'当前条件下没有任务':'先创建班级'}</h3><p className="mt-2 text-sm text-slate-500">任务结果将在记录保存后形成，不会自动补成全班完成。</p>{!classes.length&&<button className={primary+' mt-4'} onClick={()=>onNavigate('class-mgmt')}>创建班级</button>}</div>}
+      <div className="grid gap-3">{items.map(item=><button key={item.id} onClick={()=>onOpenTask(item.id)} className="min-h-24 w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-emerald-400 dark:border-zinc-700 dark:bg-zinc-900"><div className="flex flex-wrap justify-between gap-2"><h3 className="break-words text-base font-bold">{item.name}</h3><span className="text-sm text-slate-500">{item.mode==='pass'?'过关情况':'完成情况'}</span></div><p className="mt-1 text-sm text-slate-500">{item.className} · {item.checkDate}{item.dueDate?' · 截止'+item.dueDate:''}</p><p className="mt-3 text-sm">{item.mode==='pass'?'通过':'完成'} {item.counts.positive} · 待跟进 {item.counts.negative} · 未记录 {item.counts.unrecorded} · 免做 {item.counts.exempt}</p></button>)}</div>
+      {total>30&&<div className="flex items-center justify-between gap-2"><button className={action} disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-30))}>上一页</button><span className="text-sm">{Math.floor(offset/30)+1} / {Math.ceil(total/30)}</span><button className={action} disabled={offset+30>=total} onClick={()=>setOffset(offset+30)}>下一页</button></div>}
+    </>}
+    {picker&&<ResponsiveChoiceDialog title="筛选班级" value={classId} options={[{value:'',label:'全部班级'},...classes.map(c=>({value:c.id,label:c.name}))]} onChange={id=>{setClassId(id);setOffset(0);}} onClose={()=>setPicker(false)}/>}
+    {create&&<CreateTaskDialog classes={classes.filter(c=>c.status==='active')} initialClassId={state.detail?.task.classId??classId} seed={seed} onClose={()=>setCreate(false)} onCreate={createTask}/>}
+  </section>;
+}

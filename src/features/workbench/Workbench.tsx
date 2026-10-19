@@ -3,14 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Upload, FileSearch, Sparkles, CheckSquare, FileText, AlertTriangle, 
   Clock, ArrowRight, BookOpen, Calendar, UserMinus, ShieldAlert, Award, MessageSquare 
 } from 'lucide-react';
 import { Student, SchoolClass, WorkbenchTask, ScheduleItem, TimerReminder } from '../../domain/types';
+import { taskApi, type TaskSummary } from '../../services/classroomTaskApi';
 
 interface WorkbenchProps {
+  active: boolean;
+  onOpenClassroomTask: (taskId: string, classId: string) => void;
   tasks: WorkbenchTask[];
   classes: SchoolClass[];
   students: Student[];
@@ -24,6 +27,8 @@ interface WorkbenchProps {
 }
 
 export default function Workbench({
+  active,
+  onOpenClassroomTask,
   tasks,
   classes,
   students,
@@ -35,6 +40,29 @@ export default function Workbench({
   onSelectTask,
   onTriggerTask
 }: WorkbenchProps) {
+  const [classroomTasks, setClassroomTasks] = useState<TaskSummary[] | null>(null);
+  const [classroomTaskError, setClassroomTaskError] = useState(false);
+  const [summaryRetry, setSummaryRetry] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    let current = true;
+    let request = 0;
+    const refresh = async () => {
+      const latest = ++request;
+      try {
+        const result = await taskApi.summary();
+        if (!current || latest !== request) return;
+        setClassroomTasks(result);
+        setClassroomTaskError(false);
+      } catch {
+        if (current && latest === request) setClassroomTaskError(true);
+      }
+    };
+    void refresh();
+    window.addEventListener('focus', refresh);
+    return () => { current = false; window.removeEventListener('focus', refresh); };
+  }, [active, summaryRetry]);
+  const followUpTasks = classroomTasks?.filter(task => task.lifecycle === 'active' && (task.counts.negative > 0 || task.counts.unrecorded > 0)) ?? [];
   // Group tasks by node
   const pendingTasks = tasks.filter(t => t.status !== 'completed');
   const completedTasks = tasks.filter(t => t.status === 'completed');
@@ -82,6 +110,22 @@ export default function Workbench({
 
   return (
     <div className="space-y-6 animate-fade-in" id="workbench-page">
+      <section className="glass-panel rounded-2xl p-4 sm:p-5" aria-labelledby="classroom-followup-heading">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="classroom-followup-heading" className="text-base font-bold">课堂任务 · 待跟进</h2>
+          <button type="button" onClick={() => onNavigate('classroom-tasks')} className="min-h-11 rounded-xl px-3 text-sm font-semibold text-emerald-700 dark:text-emerald-300">全部课堂任务 →</button>
+        </div>
+        {classroomTaskError && <div role="status" className="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">课堂任务摘要暂时读取失败，已保存记录未改变。{classroomTasks !== null ? '下方保留上次结果，请刷新核对。' : '请重新读取后再核对待跟进名单。'}<button type="button" onClick={() => setSummaryRetry(value => value + 1)} className="ml-2 min-h-11 px-2 font-bold underline">重试</button></div>}
+        {classroomTasks === null && !classroomTaskError && <p className="py-3 text-sm text-slate-500">正在读取课堂任务…</p>}
+        {classroomTasks !== null && !followUpTasks.length && <p className="py-3 text-sm text-slate-500">当前活动任务暂无待跟进或未记录学生。</p>}
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {followUpTasks.map(task => <button key={task.id} type="button" onClick={() => onOpenClassroomTask(task.id, task.classId)} className="min-h-11 min-w-0 rounded-xl border border-slate-200 p-3 text-left hover:border-emerald-400 dark:border-zinc-700">
+            <span className="block break-words text-sm font-bold">{task.name}</span>
+            <span className="mt-1 block text-xs text-slate-500">{task.className} · {task.mode === 'pass' ? '过关检查' : '完成检查'} · {task.checkDate}</span>
+            <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm"><span className="font-semibold text-amber-700 dark:text-amber-300">待跟进 {task.counts.negative} 人</span><span className="text-slate-500">未记录 {task.counts.unrecorded} 人</span></span>
+          </button>)}
+        </div>
+      </section>
       {/* Main Grid: Pending Tasks VS Alerts Sidebar */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.7fr)]">
         
