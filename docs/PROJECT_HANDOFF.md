@@ -1,19 +1,19 @@
 # 青松教师 项目当前交接
 
 > 本文是当前统一交接入口。历史专项文档只用于追溯当时的决策，不再代表当前 Git、数据路径或部署状态。
-> 更新时间：2026-10-16；当前应用生产提交：`88bf9f5`（PR #48）。
+> 更新时间：2026-10-20；当前应用生产提交：bb87221542e70fe5651a62e3d0ab2a854efdabdd（PR #57）。
 
-> 改名进度：中文品牌「青松教师」，英文项目名 `qingsong`；GitHub 仓库为 `CXC0515/qingsong`，母文件夹已迁至 `/Users/cxc/Projects/qingsong`。品牌代码经 PR #55 合并，尚未部署服务器；实际切换与验证见 [改名记录](./QINGSONG_RENAME.md)。
+> 改名进度：中文品牌「青松教师」，英文项目名 `qingsong`；GitHub 仓库为 `CXC0515/qingsong`，母文件夹已迁至 `/Users/cxc/Projects/qingsong`。品牌代码经 PR #55 合并，已随PR #57部署服务器；实际切换与验证见 [改名记录](./QINGSONG_RENAME.md)。
 
 ## 1. 当前阶段与产品边界
 
-### 2026-10-20 课堂任务专项（本地已验收，待PR审阅）
+### 2026-10-20 课堂任务专项（已上线，待真实教师验收）
 
 - 基线：origin/main fddf8ef；独立分支 codex/classroom-tasks，worktree /Users/cxc/Projects/qingsong-classroom-tasks。母文件夹原有方案和数据未改动。
 - 已实现：任务固定名册、单人／批量预览与保存、补测／纠错／撤销、历史、免做与参与调整、生命周期、首页／教室／学生画像入口。
 - 持久化：在工作区roster.sqlite追加迁移12的四张表；沿用工作区鉴权及在线快照恢复，不回填旧观察。
 - 已验证：78项领域／HTTP／迁移／隔离／认证／备份等测试、TypeScript与构建；临时账号40人名册的真实应用壳层流程、断网确认丢失核对及防重复、8种尺寸和200%缩放。详情见CLASSROOM_TASKS_DESIGN.md第15节。
-- 边界：仅使用/tmp隔离构造数据；真实教师、真机软键盘／触控尚未验收。未合并、未部署、未迁移生产数据；本文原生产版本记录未在本轮远程重验。
+- 发布：PR #57已合并并上线，入口https://td.unreached.top/?page=classroom-tasks，使用原账号。真实教师及真机操作待用户验收，发布证据见文末。
 
 青松教师 已进入少量受邀教师使用的海外单实例生产阶段。
 
@@ -42,7 +42,7 @@ flowchart LR
 - DNS：阿里云 `td` A 记录指向 `43.172.77.153`，TTL 10 分钟。
 - 公网只使用 80/443；80 自动跳转 HTTPS，应用端口 4317 只监听回环。
 - 服务：`teacher-dashboard.service`；每日备份：`teacher-dashboard-backup.timer`。
-- 代码：2026-10-12 核对 `/opt/teacher-dashboard/current` 指向 `/opt/teacher-dashboard/releases/88bf9f5`，`releases` 下只保留该运行目录。GitHub `main@d0c0e87` 相比运行提交仅有交接文档变更，应用代码相同。旧提交仍可从 Git 历史重建，但不再有可立即切换的旧发布目录。
+- 代码：2026-10-20核对current指向/opt/teacher-dashboard/releases/bb87221，对应main合并提交bb87221542e70fe5651a62e3d0ab2a854efdabdd。旧版4f26912保留，未清理其他发布目录。
 - 数据：`/var/lib/teacher-dashboard/product-2026-09-16-r2`。
 - 证书：Let's Encrypt，当前证书到期日 2026-12-15，Certbot 自动续期。
 - 健康检查：`/api/health/live` 与 `/api/health/ready`。
@@ -124,3 +124,12 @@ flowchart LR
 | v3.7 | 2026-09-23 | 历史 | PR #46 材料池发布为 54b3159；记录迁移前手工恢复点、三个工作区 schema v9 验证、线上健康边界与真实账号待验收项。 |
 | v3.8 | 2026-09-23 | 历史 | PR #48 手机壳层滚动与快速整理预览高度修正发布为 88bf9f5；本地 lint/build、服务器 build、回环与公网健康通过，真实账号手机操作待复测。 |
 | v3.9 | 2026-10-12 | 当前 | 按用户批准清理 15 个旧发布目录，仅保留运行中的 88bf9f5；发布目录由约 7.2 GB 降至 484 MB，服务和公网健康正常；生产数据与备份未触及。 |
+
+## 2026-10-20 课堂任务生产发布证据
+
+- PR #57合并为bb87221542e70fe5651a62e3d0ab2a854efdabdd；母文件夹同步main后打包，SHA256 a7cc7e439007bec5a81ff736e35f8a24192bbf18750f06f53c391e6ac95c8d13。
+- 服务器current由实际旧版4f26912切换至/opt/teacher-dashboard/releases/bb87221；服务器独立npm ci、lint、build及17项专项测试通过。
+- 停写后在线恢复点/var/lib/teacher-dashboard/backups/manual/product-2026-10-20-pre-classroom-bb87221已校验，1285文件／7 SQLite；3个工作区roster 11→12，7库完整性、外键及旧表计数一致。
+- 回环／公网live、ready、首页200及匿名任务API401通过；服务active/running，NRestarts=0，备份timer active。首页和JS哈希与服务器一致。
+- 测试入口https://td.unreached.top/?page=classroom-tasks，用原账号；真实教师及真机触控待用户验收。保留旧release及恢复点，不改域名、密钥，不清理真实数据。
+- 发布前路径核查拦住一次错误构建命令；改为服务器脚本后真正构建通过。迁移遇非工作区项时中止并恢复旧服务，收紧至实际数据库后重新核验恢复点并完成迁移。
