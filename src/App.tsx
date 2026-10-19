@@ -31,6 +31,7 @@ import {
 
 // Import Custom Sub-Components
 import Workbench from './features/workbench/Workbench';
+import ClassroomTasksWorkspace from './features/classroom-tasks/ClassroomTasksWorkspace';
 import VirtualClassroom from './features/classroom/VirtualClassroom';
 import ClassManagement from './features/classes/ClassManagement';
 import StudentManagement from './features/students/StudentManagement';
@@ -68,12 +69,31 @@ const createInitialWorkflowState = (task: WorkbenchTask) => {
   return createEmptyWorkflowState(task);
 };
 
+type TaskSourcePage = 'workbench' | 'classroom' | 'diagnosis-workspace';
+interface TaskNavigationContext {
+  sourcePage: TaskSourcePage;
+  classId: string;
+  studentId: string;
+  scrollTop: number;
+}
+const readTaskRoute = () => {
+  const url = new URL(window.location.href);
+  return url.pathname === '/' && url.searchParams.get('page') === 'classroom-tasks'
+    ? { taskId: url.searchParams.get('taskId') || undefined }
+    : null;
+};
+
 export default function App() {
   const authState = useAuth();
   const [adminRoute, setAdminRoute] = useState(() => window.location.pathname.startsWith('/admin'));
   const teacherReturnPage = useRef<PageId>('workbench');
   // Navigation & View State
-  const [activePage, setActivePage] = useState<PageId>('workbench');
+  const [activePage, setActivePageState] = useState<PageId>(() => readTaskRoute() ? 'classroom-tasks' : 'workbench');
+  const [classroomTaskId, setClassroomTaskId] = useState<string | undefined>(() => readTaskRoute()?.taskId);
+  const [classroomTaskStudentId, setClassroomTaskStudentId] = useState<string | undefined>();
+  const [taskNavigation, setTaskNavigation] = useState<TaskNavigationContext | null>(null);
+  const lastTeacherUrl = useRef(window.location.href);
+  const taskSourceFocus = useRef<HTMLElement | null>(null);
   const [libraryResourceRequest, setLibraryResourceRequest] = useState<{ id: string; sequence: number } | null>(null);
   const [scheduleSection, setScheduleSection] = useState<'schedule' | 'reminders'>('schedule');
   const [scheduleToolsRequest, setScheduleToolsRequest] = useState(0);
@@ -112,14 +132,113 @@ export default function App() {
   const knowledgeGraphRequestRef = useRef<Promise<KnowledgeGraphSnapshot> | null>(null);
   const [teacherProfile, setTeacherProfile] = useState<TeacherProfile>(authState.profile);
 
+  const canLeaveTask = () => activePage !== 'classroom-tasks'
+    || window.dispatchEvent(new Event('classroom-task-before-leave', { cancelable: true }));
+
+  const signOut = () => {
+    if (!canLeaveTask()) return;
+    try {
+      sessionStorage.removeItem('qingsong:classroom-pending:' + authState.user.id);
+    } catch {
+      // Storage can be unavailable; server-confirmed records remain saved.
+    }
+    void authState.signOut();
+  };
+
+  const writeTaskUrl = (taskId?: string, replace = false) => {
+    const url = new URL(window.location.href);
+    if (url.pathname !== '/') return;
+    url.searchParams.set('page', 'classroom-tasks');
+    if (taskId) url.searchParams.set('taskId', taskId);
+    else url.searchParams.delete('taskId');
+    window.history[replace ? 'replaceState' : 'pushState']({}, '', url);
+    lastTeacherUrl.current = url.href;
+  };
+
+  const setActivePage = (pageId: PageId) => {
+    if (pageId === activePage || !canLeaveTask()) return;
+    if (pageId === 'classroom-tasks') {
+      setTaskNavigation(null);
+      setClassroomTaskId(undefined);
+      setClassroomTaskStudentId(undefined);
+      writeTaskUrl();
+    } else if (window.location.pathname === '/') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('page');
+      url.searchParams.delete('taskId');
+      window.history.replaceState({}, '', url);
+      lastTeacherUrl.current = url.href;
+      setTaskNavigation(null);
+    }
+    setActivePageState(pageId);
+  };
+
+  const openClassroomTask = (taskId?: string, classId = selectedClassId, studentId = '') => {
+    if (!canLeaveTask()) return;
+    if (activePage !== 'classroom-tasks') {
+      taskSourceFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const sourcePage = activePage === 'workbench' || activePage === 'classroom' || activePage === 'diagnosis-workspace' ? activePage : null;
+      setTaskNavigation(sourcePage ? { sourcePage, classId: selectedClassId, studentId: selectedStudentId, scrollTop: document.querySelector<HTMLElement>('.app-shell-main')?.scrollTop ?? 0 } : null);
+    }
+    if (classId) setSelectedClassId(classId);
+    if (studentId) setSelectedStudentId(studentId);
+    if (activePage !== 'classroom-tasks') setClassroomTaskStudentId(studentId || undefined);
+    setClassroomTaskId(taskId);
+    writeTaskUrl(taskId);
+    setActivePageState('classroom-tasks');
+  };
+
+  const returnFromClassroomTask = () => {
+    if (!canLeaveTask()) return;
+    if (!taskNavigation) {
+      setClassroomTaskId(undefined);
+      writeTaskUrl(undefined, true);
+      return;
+    }
+    setSelectedClassId(taskNavigation.classId);
+    setSelectedStudentId(taskNavigation.studentId);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('page');
+    url.searchParams.delete('taskId');
+    window.history.replaceState({}, '', url);
+    lastTeacherUrl.current = url.href;
+    setActivePageState(taskNavigation.sourcePage);
+    const scrollTop = taskNavigation.scrollTop;
+    requestAnimationFrame(() => {
+      const main = document.querySelector<HTMLElement>('.app-shell-main');
+      if (main) main.scrollTop = scrollTop;
+      taskSourceFocus.current?.focus({ preventScroll: true });
+    });
+  };
+
   useEffect(() => {
-    const syncRoute = () => setAdminRoute(window.location.pathname.startsWith('/admin'));
+    const syncRoute = () => {
+      if (activePage === 'classroom-tasks' && !window.dispatchEvent(new Event('classroom-task-before-leave', { cancelable: true }))) {
+        window.history.pushState({}, '', lastTeacherUrl.current);
+        return;
+      }
+      setAdminRoute(window.location.pathname.startsWith('/admin'));
+      if (window.location.pathname.startsWith('/admin')) return;
+      const route = readTaskRoute();
+      setClassroomTaskId(route?.taskId);
+      setActivePageState(route ? 'classroom-tasks' : taskNavigation?.sourcePage ?? 'workbench');
+      if (!route && taskNavigation) {
+        setSelectedClassId(taskNavigation.classId);
+        setSelectedStudentId(taskNavigation.studentId);
+        requestAnimationFrame(() => {
+          const main = document.querySelector<HTMLElement>('.app-shell-main');
+          if (main) main.scrollTop = taskNavigation.scrollTop;
+          taskSourceFocus.current?.focus({ preventScroll: true });
+        });
+      }
+      lastTeacherUrl.current = window.location.href;
+    };
     window.addEventListener('popstate', syncRoute);
     return () => window.removeEventListener('popstate', syncRoute);
-  }, []);
+  }, [activePage, taskNavigation]);
 
   const enterAdmin = () => {
-    if (authState.role !== 'owner') return;
+    if (authState.role !== 'owner' || !canLeaveTask()) return;
     teacherReturnPage.current = activePage;
     window.history.pushState({}, '', '/admin/accounts');
     setAdminRoute(true);
@@ -127,7 +246,8 @@ export default function App() {
 
   const returnToTeacher = () => {
     window.history.replaceState({}, '', '/');
-    setActivePage(teacherReturnPage.current);
+    if (teacherReturnPage.current === 'classroom-tasks') writeTaskUrl(classroomTaskId, true);
+    setActivePageState(teacherReturnPage.current);
     setAdminRoute(false);
   };
 
@@ -512,13 +632,15 @@ export default function App() {
       setActivePage('diagnosis-workspace');
       return;
     }
-    setActivePage(pageId as PageId);
     if (pageId === 'library' && subPageId === 'editor') {
       setActivePage('library-editor');
+      return;
     }
     if (pageId === 'library' && subPageId === 'graph') {
       setActivePage('knowledge-graph');
+      return;
     }
+    setActivePage(pageId as PageId);
   };
 
   const toggleGroup = (groupId: string) => {
@@ -529,7 +651,7 @@ export default function App() {
     if (authState.role !== 'owner' || window.location.pathname !== '/admin/accounts') {
       return <main className="grid min-h-dvh place-items-center bg-slate-50 px-4 text-center"><div className="max-w-md rounded-2xl border border-slate-200 bg-white p-6"><h1 className="text-xl font-black">{authState.role === 'owner' ? '管理页面不存在' : '无权访问管理后台'}</h1><p className="mt-2 text-sm text-slate-500">{authState.role === 'owner' ? '请从教师工作台重新进入管理后台。' : '此页面仅供管理员使用，你的工作区数据没有改变。'}</p><button type="button" onClick={returnToTeacher} className="mt-5 min-h-11 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white">返回教师工作台</button></div></main>;
     }
-    return <AdminConsole accountEmail={authState.user.email} onReturn={returnToTeacher} onSignOut={() => void authState.signOut()} />;
+    return <AdminConsole accountEmail={authState.user.email} onReturn={returnToTeacher} onSignOut={signOut} />;
   }
 
   if (rosterLoading) {
@@ -579,7 +701,7 @@ export default function App() {
       scheduleSection={scheduleSection}
       isOwner={authState.role === 'owner'}
       onEnterAdmin={enterAdmin}
-      onSignOut={() => void authState.signOut()}
+      onSignOut={signOut}
       onSelectClass={setSelectedClassId}
       onSelectPage={setActivePage}
       onSelectScheduleSection={setScheduleSection}
@@ -587,8 +709,22 @@ export default function App() {
       onToggleGroup={toggleGroup}
     >
       {/* Page Router */}
-          {activePage === 'workbench' && (
+          {activePage === 'classroom-tasks' && (
+            <ClassroomTasksWorkspace
+              classes={classes}
+              initialClassId={selectedClassId}
+              initialTaskId={classroomTaskId}
+              initialStudentId={classroomTaskStudentId}
+              identityKey={authState.user.id}
+              onOpenTask={taskId => openClassroomTask(taskId)}
+              onBack={returnFromClassroomTask}
+              onNavigate={handleNavigate}
+            />
+          )}
+          {(activePage === 'workbench' || (activePage === 'classroom-tasks' && taskNavigation?.sourcePage === 'workbench')) && (
+            <div className={activePage === 'workbench' ? 'contents' : 'hidden'} aria-hidden={activePage !== 'workbench'}>
             <Workbench
+              active={activePage === 'workbench'}
               tasks={tasks}
               classes={classes}
               students={students}
@@ -596,6 +732,7 @@ export default function App() {
               reminders={reminders}
               selectedClassId={selectedClassId}
               onNavigate={handleNavigate}
+              onOpenClassroomTask={(taskId, classId) => openClassroomTask(taskId, classId)}
               onEnterClass={(classId) => {
                 setSelectedClassId(classId);
                 handleNavigate('classroom');
@@ -607,13 +744,15 @@ export default function App() {
                 handleNavigate('grading-workspace');
               }}
             />
+            </div>
           )}
 
           {activePage === 'lesson-plan' && (
             <LessonPlanWorkspace onShowToast={triggerToast} />
           )}
 
-          {activePage === 'classroom' && (
+          {(activePage === 'classroom' || (activePage === 'classroom-tasks' && taskNavigation?.sourcePage === 'classroom')) && (
+            <div className={activePage === 'classroom' ? 'contents' : 'hidden'} aria-hidden={activePage !== 'classroom'}>
             <VirtualClassroom
               students={students}
               classes={classes}
@@ -621,6 +760,7 @@ export default function App() {
               layoutCache={classroomLayoutCache}
               selectedClassId={selectedClassId}
               onSelectClass={setSelectedClassId}
+              onOpenClassroomTasks={classId => openClassroomTask(undefined, classId)}
               onCreateClass={() => setActivePage('class-mgmt')}
               onManageStudent={(studentId) => {
                 setSelectedStudentId(studentId);
@@ -643,6 +783,7 @@ export default function App() {
               }}
               onUpdateStudent={handleUpdateStudent}
             />
+            </div>
           )}
 
           {activePage === 'class-mgmt' && (
@@ -767,8 +908,10 @@ export default function App() {
             />
           )}
 
-          {activePage === 'diagnosis-workspace' && (
+          {(activePage === 'diagnosis-workspace' || (activePage === 'classroom-tasks' && taskNavigation?.sourcePage === 'diagnosis-workspace')) && (
+            <div className={activePage === 'diagnosis-workspace' ? 'contents' : 'hidden'} aria-hidden={activePage !== 'diagnosis-workspace'}>
             <DiagnosisWorkspace
+              active={activePage === 'diagnosis-workspace'}
               students={students}
               classes={classes}
               committeeRoles={committeeRoles}
@@ -776,6 +919,7 @@ export default function App() {
               selectedStudentId={selectedStudentId}
               onSelectClass={setSelectedClassId}
               onSelectStudent={setSelectedStudentId}
+              onOpenClassroomTask={(taskId, studentId) => openClassroomTask(taskId, selectedClassId, studentId)}
               onEditStudent={(studentId) => {
                 setSelectedStudentId(studentId);
                 setStudentManagementTargetId(studentId);
@@ -789,6 +933,7 @@ export default function App() {
               requestedTab={diagnosisRequestedTab}
               onRequestedTabHandled={() => setDiagnosisRequestedTab(null)}
             />
+            </div>
           )}
 
           <div className={activePage === 'knowledge-graph' || activePage === 'library-editor' ? 'contents' : 'hidden'} aria-hidden={activePage !== 'knowledge-graph' && activePage !== 'library-editor'}>

@@ -11,6 +11,7 @@ import ClassDiagnosis from './ClassDiagnosis';
 import StudentProfile from '../students/StudentProfileV2';
 
 interface DiagnosisWorkspaceProps {
+  active: boolean;
   students: Student[];
   classes: SchoolClass[];
   committeeRoles: CommitteeRole[];
@@ -18,6 +19,7 @@ interface DiagnosisWorkspaceProps {
   selectedStudentId: string;
   onSelectClass: (classId: string) => void;
   onSelectStudent: (studentId: string) => void;
+  onOpenClassroomTask: (taskId: string, studentId: string) => void;
   onEditStudent: (studentId: string) => void;
   onAddObservation: (studentId: string, note: TeacherObservation) => void;
   onUpdateStudent: (student: Student) => Promise<boolean>;
@@ -35,6 +37,7 @@ const tabs: { id: DiagnosisTab; label: string; icon: React.ElementType }[] = [
 ];
 
 export default function DiagnosisWorkspace({
+  active,
   students,
   classes,
   committeeRoles,
@@ -42,6 +45,7 @@ export default function DiagnosisWorkspace({
   selectedStudentId,
   onSelectClass,
   onSelectStudent,
+  onOpenClassroomTask,
   onEditStudent,
   onAddObservation,
   onUpdateStudent,
@@ -124,11 +128,13 @@ export default function DiagnosisWorkspace({
 
       {activeTab === 'student' && (
         <StudentProfile
+          active={active}
           students={students}
           committeeRoles={committeeRoles}
           selectedClassId={selectedClassId}
           selectedStudentId={selectedStudentId}
           onSelectStudent={onSelectStudent}
+          onOpenClassroomTask={onOpenClassroomTask}
           onEditStudent={onEditStudent}
           onAddObservation={onAddObservation}
           onUpdateStudent={onUpdateStudent}

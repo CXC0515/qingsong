@@ -40,3 +40,20 @@ test('multipart continuation restores the authenticated workspace and upload roo
   });
   assert.equal(observedWorkspaceId, context.workspaceId);
 });
+
+test('classroom task ids and operation ids resolve only in the authenticated workspace',async()=>{
+ const {previewTaskCreation,createClassroomTask,requireTask,queryClassroomOperation}=await import('../services/classroom/classroomTaskService');
+ const first=createWorkspaceContext('user-task-first','workspace-task-first','teacher');
+ const second=createWorkspaceContext('user-task-second','workspace-task-second','teacher');
+ const task=runWithWorkspace(first,()=>{
+  const db=getRosterDatabase();db.exec("INSERT INTO classes(id,name,grade,term,head_teacher,textbook_version,default_submit_time,status,created_at,updated_at) VALUES('class','班级','','','','','','active','now','now'); INSERT INTO students VALUES('student','学生','male','good','{}','now','now'); INSERT INTO class_memberships(id,class_id,student_id,student_no,status,joined_at) VALUES('membership','class','student','1','active','now');");
+  const input={classId:'class',name:'课堂任务',mode:'completion' as const,checkDate:'2026-10-20'};
+  return createClassroomTask({...input,previewToken:previewTaskCreation(input).previewToken,operationId:'same-operation'});
+ });
+ runWithWorkspace(second,()=>{
+  assert.throws(()=>requireTask(task.task.id),(error:unknown)=>(error as {status:number}).status===404);
+  assert.throws(()=>queryClassroomOperation('same-operation'),(error:unknown)=>(error as {status:number}).status===404);
+ });
+ runWithWorkspace(first,()=>assert.equal(queryClassroomOperation('same-operation').detail.task.id,task.task.id));
+ closeRosterDatabase();
+});

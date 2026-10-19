@@ -8,8 +8,11 @@ import { ArrowLeft, ArrowUpDown, Edit3, Eye, MessageSquare, Search, TrendingUp }
 import { CommitteeRole, Student, TeacherObservation } from '../../domain/types';
 import { SortDirection, sortStudents, StudentSortKey } from '../../domain/studentSorting';
 import BehaviorTagEditor from './BehaviorTagEditor';
+import { taskApi } from '../../services/classroomTaskApi';
 
 interface StudentProfileV2Props {
+  active: boolean;
+  onOpenClassroomTask: (taskId: string, studentId: string) => void;
   students: Student[];
   committeeRoles: CommitteeRole[];
   selectedClassId: string;
@@ -38,6 +41,8 @@ const statusStyle = {
 };
 
 export default function StudentProfileV2({
+  active,
+  onOpenClassroomTask,
   students,
   committeeRoles,
   selectedClassId,
@@ -65,6 +70,30 @@ export default function StudentProfileV2({
   const toggleSort=(key:StudentSortKey)=>{if(sortKey===key)setSortDirection(value=>value==='asc'?'desc':'asc');else{setSortKey(key);setSortDirection('asc')}};
 
   const selectedStudent = students.find(s => s.id === selectedStudentId) ?? classStudents[0] ?? students[0];
+  const taskStudentId = selectedStudent?.id;
+  const [studentTasks, setStudentTasks] = useState<{ studentId: string; tasks: Awaited<ReturnType<typeof taskApi.studentTasks>> } | null>(null);
+  const [taskReadError, setTaskReadError] = useState<string | null>(null);
+  const [taskRetry, setTaskRetry] = useState(0);
+  useEffect(() => {
+    if (!active || !detailMode || !taskStudentId) return;
+    let current = true;
+    let request = 0;
+    const refresh = async () => {
+      const latest = ++request;
+      try {
+        const tasks = await taskApi.studentTasks(taskStudentId);
+        if (!current || latest !== request) return;
+        setStudentTasks({ studentId: taskStudentId, tasks });
+        setTaskReadError(null);
+      } catch {
+        if (current && latest === request) setTaskReadError(taskStudentId);
+      }
+    };
+    void refresh();
+    window.addEventListener('focus', refresh);
+    return () => { current = false; window.removeEventListener('focus', refresh); };
+  }, [active, detailMode, taskRetry, taskStudentId]);
+  const visibleTasks = studentTasks?.studentId === taskStudentId ? studentTasks.tasks : null;
 
   const openDetail = (studentId: string) => {
     onSelectStudent(studentId);
@@ -112,6 +141,16 @@ export default function StudentProfileV2({
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
           <section className="space-y-5">
+            <div className="glass-panel rounded-[24px] p-5">
+              <h3 className="mb-3 text-sm font-black">课堂任务参与记录</h3>
+              {taskReadError === taskStudentId && <p role="status" className="mb-3 text-sm text-amber-800 dark:text-amber-200">任务摘要读取失败，已保存的记录未改变。{visibleTasks ? '保留上次结果，请重新读取核对。' : '请重试读取。'}<button type="button" onClick={() => setTaskRetry(value => value + 1)} className="ml-2 min-h-11 px-2 font-bold underline">重试</button></p>}
+              {visibleTasks === null && taskReadError !== taskStudentId && <p className="text-sm text-slate-500">正在读取任务记录…</p>}
+              {visibleTasks?.length === 0 && <p className="text-sm text-slate-500">该学生暂无课堂任务参与记录。</p>}
+              <div className="space-y-2">{visibleTasks?.map(task => <button type="button" key={task.id} onClick={() => onOpenClassroomTask(task.id, selectedStudent.id)} className="flex min-h-11 w-full min-w-0 items-start justify-between gap-3 rounded-xl border border-slate-200 p-3 text-left hover:border-emerald-400 dark:border-zinc-700">
+                <span className="min-w-0"><span className="block break-words text-sm font-semibold">{task.name}</span><span className="mt-1 block text-xs text-slate-500">{task.checkDate} · {task.mode === 'pass' ? '过关检查' : '完成检查'} · {task.lifecycle === 'active' ? '进行中' : task.lifecycle === 'ended' ? '已结束' : '已归档'}</span><span className="mt-2 block text-sm text-slate-600 dark:text-slate-300">{!task.participant.included ? '不参与' : task.participant.exempt ? '免做' : `首次：${task.participant.firstResult === 'positive' ? (task.mode === 'pass' ? '已通过' : '已完成') : task.participant.firstResult === 'negative' ? (task.mode === 'pass' ? '未通过' : '未完成') : '未记录'} · 当前：${task.participant.result === 'positive' ? (task.mode === 'pass' ? '已通过' : '已完成') : task.participant.result === 'negative' ? (task.mode === 'pass' ? '未通过' : '未完成') : '未记录'}`}</span></span>
+                <span className="shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-300">查看记录 →</span>
+              </button>)}</div>
+            </div>
             <div className="glass-panel rounded-[24px] p-5">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                 <div className="rounded-2xl bg-slate-50/80 dark:bg-zinc-900/50 p-3">
