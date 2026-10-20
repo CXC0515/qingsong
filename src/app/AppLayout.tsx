@@ -59,7 +59,7 @@ export default function AppLayout({
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [accountMenuOpen]);
   const isLibraryWorkspace = activePage === 'knowledge-graph' || activePage === 'library-editor';
-  const isImmersiveWorkspace = isLibraryWorkspace || activePage === 'classroom-tasks' || activePage === 'material-pool' || activePage.startsWith('career-');
+  const isImmersiveWorkspace = isLibraryWorkspace || activePage === 'material-pool' || activePage.startsWith('career-');
   const selectPage = (pageId: PageId) => {
     onSelectPage(pageId);
     setMobileNavOpen(false);

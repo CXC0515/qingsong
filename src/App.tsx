@@ -711,6 +711,7 @@ export default function App() {
       {/* Page Router */}
           {activePage === 'classroom-tasks' && (
             <ClassroomTasksWorkspace
+              students={students}
               classes={classes}
               initialClassId={selectedClassId}
               initialTaskId={classroomTaskId}
