@@ -7,6 +7,7 @@ const root=mkdtempSync(path.join(os.tmpdir(),'qingsong-behavior-'));process.env.
 const {createWorkspaceContext,runWithWorkspace}=await import('../../context/workspaceContext');
 const {getRosterDatabase,closeRosterDatabase}=await import('../../database/rosterDatabase');
 const service=await import('./classroomBehaviorService');
+const serviceForProjects=await import('./classroomTaskService');
 const context=createWorkspaceContext('teacher-behavior','workspace-behavior','teacher');
 after(()=>{closeRosterDatabase();rmSync(root,{recursive:true,force:true});});
 test('behavior events repeat intentionally, replay once, retract without erasing and count full period',()=>runWithWorkspace(context,()=>{
@@ -31,4 +32,16 @@ test('behavior events repeat intentionally, replay once, retract without erasing
   assert.equal(service.listBehavior(filter).total,0);
   assert.throws(()=>service.recordBehavior({...input,operationId:'foreign'}));
  });
+}));
+
+test('custom behavior projects preserve labels in profile counts and source history',()=>runWithWorkspace(context,()=>{
+ const db=getRosterDatabase();db.prepare("UPDATE class_memberships SET status='active' WHERE student_id='student'").run();
+ const {createRecordProject}=serviceForProjects;
+ const project=createRecordProject({operationId:'custom-project',name:'认真倾听',category:'behavior',mode:'event'});
+ const event=service.recordBehavior({operationId:'custom-event',studentId:'student',classId:'class',kind:project.key,note:'小组讨论',occurredDate:'2026-10-20'});
+ assert.equal(event.projectLabel,'认真倾听');
+ const result=service.listBehavior({studentId:'student',from:'2026-10-20',to:'2026-10-20'});
+ assert.equal(result.counts[project.key],1);assert.equal(result.labels[project.key],'认真倾听');
+ service.recordBehavior({operationId:'custom-undo',studentId:'student',classId:'class',kind:project.key,note:'误点',occurredDate:'2026-10-20',targetId:event.id});
+ assert.equal(service.listBehavior({studentId:'student',from:'2026-10-20',to:'2026-10-20'}).counts[project.key]??0,0);
 }));

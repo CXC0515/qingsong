@@ -355,6 +355,18 @@ const migrations: Migration[] = [
     `
   }
 
+  ,{
+    version: 14,
+    sql: `
+      CREATE TABLE classroom_record_projects (
+        project_key TEXT PRIMARY KEY, category TEXT NOT NULL CHECK(category IN ('study','behavior')),
+        label TEXT NOT NULL COLLATE NOCASE, mode TEXT NOT NULL CHECK(mode IN ('completion','pass','event')),
+        operation_id TEXT NOT NULL UNIQUE, fingerprint TEXT NOT NULL, created_at TEXT NOT NULL,
+        UNIQUE(category,label)
+      );
+    `
+  }
+
 ];
 
 export const runRosterMigrations = (database: Database.Database) => {

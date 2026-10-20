@@ -44,3 +44,12 @@ test('quick and behavior HTTP contracts reject anonymous reads and preserve idem
  assert.equal((await request('/classroom-behavior',{...event,occurredDate:'2026-02-30'})).status,400);
  const history=await request('/classroom-behavior?studentId=student&from=2026-10-20&to=2026-10-20');assert.equal((await history.json()).counts.participation,1);
 });
+
+test('project HTTP creation validates modes and resolves retries by operation id',async()=>{
+ assert.equal((await request('/classroom-tasks/projects',undefined,false)).status,401);
+ const input={operationId:'project-http',name:'每日阅读',category:'study',mode:'completion'};
+ const response=await request('/classroom-tasks/projects',input);assert.equal(response.status,200);const project=await response.json();
+ assert.equal((await (await request('/classroom-tasks/projects/operations/project-http')).json()).key,project.key);
+ assert.equal((await request('/classroom-tasks/projects',{...input,operationId:'bad-project',category:'behavior'})).status,400);
+ assert.equal((await request('/classroom-tasks/projects',{...input,operationId:'duplicate-project'})).status,409);
+});
