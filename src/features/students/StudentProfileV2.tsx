@@ -8,6 +8,9 @@ import { ArrowLeft, ArrowUpDown, Edit3, Eye, MessageSquare, Search, TrendingUp }
 import { CommitteeRole, Student, TeacherObservation } from '../../domain/types';
 import { SortDirection, sortStudents, StudentSortKey } from '../../domain/studentSorting';
 import BehaviorTagEditor from './BehaviorTagEditor';
+import { behaviorApi } from '../../services/classroomBehaviorApi';
+import { behaviorKinds, type BehaviorList } from '../../domain/classroomBehavior';
+import { today, action } from '../classroom-tasks/ClassroomTaskDialogs';
 import { taskApi } from '../../services/classroomTaskApi';
 
 interface StudentProfileV2Props {
@@ -19,7 +22,7 @@ interface StudentProfileV2Props {
   selectedStudentId: string;
   onSelectStudent: (studentId: string) => void;
   onEditStudent: (studentId: string) => void;
-  onAddObservation: (studentId: string, note: TeacherObservation) => void;
+  onAddObservation: (studentId: string, note: TeacherObservation) => Promise<void>;
   onUpdateStudent: (student: Student) => Promise<boolean>;
   onShowToast: (message: string) => void;
   targetStudentId?: string | null;
@@ -58,6 +61,12 @@ export default function StudentProfileV2({
   const [query, setQuery] = useState('');
   const [detailMode, setDetailMode] = useState(false);
   const [note, setNote] = useState('');
+  const [noteBusy,setNoteBusy]=useState(false);
+  const [noteError,setNoteError]=useState('');
+  const [days,setDays]=useState(7);
+  const [behavior,setBehavior]=useState<{studentId:string;days:number;data:BehaviorList}|null>(null);
+  const [behaviorError,setBehaviorError]=useState('');
+  const [behaviorRetry,setBehaviorRetry]=useState(0);
   const [sortKey,setSortKey]=useState<StudentSortKey>('studentNo');
   const [sortDirection,setSortDirection]=useState<SortDirection>('asc');
 
@@ -94,6 +103,19 @@ export default function StudentProfileV2({
     return () => { current = false; window.removeEventListener('focus', refresh); };
   }, [active, detailMode, taskRetry, taskStudentId]);
   const visibleTasks = studentTasks?.studentId === taskStudentId ? studentTasks.tasks : null;
+  const endDate=today();
+  const start=new Date(endDate+'T12:00:00');start.setDate(start.getDate()-days+1);
+  const from=start.getFullYear()+'-'+String(start.getMonth()+1).padStart(2,'0')+'-'+String(start.getDate()).padStart(2,'0');
+  useEffect(()=>{
+    if(!active||!detailMode||!taskStudentId)return;let current=true;let sequence=0;setBehaviorError('');
+    const refresh=async()=>{const n=++sequence;try{const data=await behaviorApi.list({studentId:taskStudentId,from,to:endDate,limit:100});if(current&&n===sequence){setBehavior({studentId:taskStudentId,days,data});setBehaviorError('');}}catch{if(current&&n===sequence)setBehaviorError('表现记录读取失败，已保存数据未改变，请重试。');}};
+    void refresh();window.addEventListener('focus',refresh);return()=>{current=false;window.removeEventListener('focus',refresh);};
+  },[active,detailMode,taskStudentId,from,endDate,days,behaviorRetry]);
+  const currentBehavior=behavior?.studentId===taskStudentId&&behavior.days===days?behavior.data:null;
+  const periodTasks=visibleTasks?.filter(t=>t.checkDate>=from&&t.checkDate<=endDate&&t.participant.included&&!t.participant.exempt)??[];
+  const taskCounts={positive:0,negative:0,unrecorded:0,retest:0};
+  for(const t of periodTasks){if(t.participant.result==='positive'){taskCounts.positive++;if(t.participant.firstResult==='negative')taskCounts.retest++;}else if(t.participant.result==='negative')taskCounts.negative++;else taskCounts.unrecorded++;}
+
 
   const openDetail = (studentId: string) => {
     onSelectStudent(studentId);
@@ -106,17 +128,12 @@ export default function StudentProfileV2({
     onTargetStudentHandled?.();
   }, [onTargetStudentHandled, students, targetStudentId]);
 
-  const addNote = () => {
-    if (!note.trim()) return;
-    onAddObservation(selectedStudent.id, {
-      date: '2026-07-03',
-      type: 'neutral',
-      category: 'study',
-      content: note.trim(),
-      author: '王老师'
-    });
-    setNote('');
-    onShowToast('教师观察已写入学生画像');
+  const addNote = async () => {
+    if (!note.trim() || noteBusy) return;
+    setNoteBusy(true);setNoteError('');
+    try{await onAddObservation(selectedStudent.id,{date:today(),type:'neutral',category:'study',content:note.trim()});setNote('');onShowToast('教师观察已保存');}
+    catch{setNoteError('观察未确认保存，输入已保留。请重新读取核对后再保存。');}
+    finally{setNoteBusy(false);}
   };
 
   if (detailMode) {
@@ -141,6 +158,17 @@ export default function StudentProfileV2({
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
           <section className="space-y-5">
+            <div className="glass-panel space-y-3 rounded-[24px] p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold">近期学习与课堂记录</h3><div className="flex gap-2">{[7,30].map(n=><button key={n} className={action} aria-pressed={days===n} onClick={()=>setDays(n)}>近{n}天{days===n?' ✓':''}</button>)}</div></div>
+              <p className="text-xs text-slate-500">{from} 至 {endDate} · 只汇总教师记录，可查看来源；没有记录不代表没有表现。</p>
+              {visibleTasks&&<p className="text-sm">应参与检查 {periodTasks.length}次 · 当前完成／通过 {taskCounts.positive}次（其中后来补做／补测通过 {taskCounts.retest}次） · 明确未完成／未过 {taskCounts.negative}次 · 未记录 {taskCounts.unrecorded}次</p>}
+              {behaviorError&&<p role="alert" className="text-sm text-amber-800">{behaviorError}<button className={action+' ml-2'} onClick={()=>setBehaviorRetry(n=>n+1)}>重试</button></p>}
+              {!currentBehavior&&!behaviorError&&<p role="status" className="text-sm text-slate-500">正在读取表现记录…</p>}
+              {currentBehavior&&<><div className="flex flex-wrap gap-2">{behaviorKinds.map(k=><span key={k.key} className="rounded-xl bg-slate-50 p-3 text-sm dark:bg-zinc-900">{k.label} · 已记录 {currentBehavior.counts[k.key]??0}次</span>)}</div><details><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">查看表现来源记录（共{currentBehavior.total}笔，含已撤销）</summary><div className="space-y-2">{currentBehavior.events.map(e=><div key={e.id} className="rounded-xl border p-3 text-sm"><strong>{e.occurredDate} · {behaviorKinds.find(k=>k.key===e.kind)?.label}{e.retracted?' · 已撤销':''}</strong><p className="mt-1 break-words">{e.note||'未填写说明'}</p><p className="mt-1 break-all text-xs text-slate-500">记录于 {new Date(e.recordedAt).toLocaleString('zh-CN')} · 操作者 {e.actorUserId}</p></div>)}{currentBehavior.total>currentBehavior.events.length&&<p className="text-sm text-slate-500">仅显示最近100笔；上方次数按完整日期范围计算。</p>}</div></details></>}
+              <h4 className="text-sm font-semibold">仍待跟进（所有日期）</h4>
+              {visibleTasks?.filter(t=>t.lifecycle==='active'&&t.participant.included&&!t.participant.exempt&&t.participant.result==='negative').map(t=><button key={t.id} className={action+' block w-full text-left'} onClick={()=>onOpenClassroomTask(t.id,selectedStudent.id)}>{t.checkDate} · {t.name} →</button>)}
+            </div>
+
             <div className="glass-panel rounded-[24px] p-5">
               <h3 className="mb-3 text-sm font-black">课堂任务参与记录</h3>
               {taskReadError === taskStudentId && <p role="status" className="mb-3 text-sm text-amber-800 dark:text-amber-200">任务摘要读取失败，已保存的记录未改变。{visibleTasks ? '保留上次结果，请重新读取核对。' : '请重试读取。'}<button type="button" onClick={() => setTaskRetry(value => value + 1)} className="ml-2 min-h-11 px-2 font-bold underline">重试</button></p>}
@@ -235,7 +263,7 @@ export default function StudentProfileV2({
             <div className="glass-panel rounded-[24px] p-5 space-y-3">
               <h3 className="text-sm font-black flex items-center gap-2"><MessageSquare className="w-4 h-4 text-emerald-700" />教师观察</h3>
               <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={6} placeholder="记录课堂表现、作业习惯或家校沟通要点..." className="w-full p-3 rounded-2xl bg-slate-50/80 dark:bg-zinc-900/60 border border-slate-200/70 dark:border-zinc-800/80 text-sm resize-none focus:outline-none" />
-              <button onClick={addNote} className="w-full py-2.5 rounded-2xl bg-emerald-700 text-white text-xs font-bold active:scale-95 transition-all">保存观察</button>
+              <button disabled={noteBusy} onClick={()=>void addNote()} className="w-full py-2.5 rounded-2xl bg-emerald-700 text-white text-xs font-bold active:scale-95 transition-all">{noteBusy?'正在保存…':'保存观察'}</button>{noteError&&<p role="alert" className="text-sm text-red-700">{noteError}</p>}
             </div>
             <div className="glass-panel rounded-[24px] p-5">
               <h3 className="text-sm font-black mb-3">历史观察</h3>

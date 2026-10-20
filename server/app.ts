@@ -1,3 +1,4 @@
+import classroomBehaviorRouter from './routes/classroomBehavior';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -110,6 +111,7 @@ export const createApp = (config: RuntimeConfig = runtimeConfig) => {
   app.use('/api', rosterRouter);
   app.use('/api', classroomRouter);
   app.use('/api', classroomTasksRouter);
+  app.use('/api', classroomBehaviorRouter);
   app.use('/api', gradingTaskManagementRouter);
   app.use('/api/grading-tasks', gradingTasksRouter);
   app.use('/api', resourcesRouter);

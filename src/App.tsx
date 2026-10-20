@@ -139,6 +139,8 @@ export default function App() {
     if (!canLeaveTask()) return;
     try {
       sessionStorage.removeItem('qingsong:classroom-pending:' + authState.user.id);
+      sessionStorage.removeItem('qingsong:quick-pending:' + authState.user.id);
+      sessionStorage.removeItem('qingsong:behavior-pending:' + authState.user.id);
     } catch {
       // Storage can be unavailable; server-confirmed records remain saved.
     }
@@ -558,10 +560,8 @@ export default function App() {
     setStudents(current => current.map(item => item.id === studentId ? saved : item));
   };
 
-  const handleAddObservation = (studentId: string, note: TeacherObservation) => {
-    setStudents(current => current.map(student => student.id === studentId
-      ? { ...student, observationHistory: [note, ...student.observationHistory] }
-      : student));
+  const handleAddObservation = async (studentId: string, note: TeacherObservation) => {
+    await persistObservation(studentId,{...note,date:getLocalDate(),author:teacherProfile.nickname||teacherProfile.realName||authState.user.email});
   };
 
   // 7. Review Queue Actions
@@ -778,7 +778,7 @@ export default function App() {
                   type: 'neutral',
                   category: 'behavior',
                   content: text,
-                  author: '王老师'
+                  author: teacherProfile.nickname||teacherProfile.realName||authState.user.email
                 });
               }}
               onUpdateStudent={handleUpdateStudent}

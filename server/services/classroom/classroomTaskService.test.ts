@@ -122,3 +122,30 @@ test('same day and name can create distinct tasks and never share results',()=>r
  const again=service.previewTaskCreation(input);assert.equal(again.duplicates.length,1);const second=service.createClassroomTask({...input,operationId:randomUUID(),previewToken:again.previewToken});
  assert.notEqual(first.task.id,second.task.id);service.applyClassroomOperation(first.task.id,operation(first,0));assert.equal(service.requireTask(second.task.id).counts.negative,0);
 }));
+
+test('quick browsing creates no task; first records share a round, replay resolves original and another round stays separate',()=>runWithWorkspace(context,()=>{
+ const input=seed();const quick={classId:input.classId,projectKey:'collection',checkDate:input.checkDate};
+ const a=service.readQuickContext(quick);const b=service.readQuickContext(quick);
+ assert.equal(a.detail,null);assert.equal(service.listClassroomTasks({classId:input.classId}).total,0);
+ const first={...quick,round:1,contextToken:a.contextToken,operationId:randomUUID(),expectedMetadataVersion:0,members:[{studentId:a.participants[0].studentId,expectedVersion:0,result:'negative' as const}]};
+ const saved=service.recordQuick(first);
+ const second=service.recordQuick({...first,contextToken:b.contextToken,operationId:randomUUID(),members:[{studentId:b.participants[1].studentId,expectedVersion:0,result:'positive'}]});
+ assert.equal(saved.taskId,second.taskId);assert.equal(second.detail.counts.negative,1);assert.equal(second.detail.counts.positive,1);
+ assert.equal(service.recordQuick({...first,contextToken:'expired'}).taskId,saved.taskId);
+ assert.equal(service.listClassroomTasks({classId:input.classId,negativeOnly:true}).total,1);
+ const next=service.readQuickContext({...quick,round:2});assert.equal(next.detail,null);
+ const other=service.recordQuick({...first,round:2,operationId:randomUUID(),contextToken:next.contextToken});assert.notEqual(other.taskId,saved.taskId);
+ const tomorrow=service.readQuickContext({...quick,checkDate:'2026-10-21'});assert.equal(tomorrow.detail,null);
+ assert.equal(service.queryClassroomOperation(first.operationId).detail.task.checkDate,'2026-10-20');
+}));
+test('quick batch snapshot rejects roster changes and invalid members roll back first task',()=>runWithWorkspace(context,()=>{
+ const input=seed();const quick={classId:input.classId,projectKey:'recitation',checkDate:input.checkDate};const c=service.readQuickContext(quick);
+ const request={...quick,round:1,contextToken:c.contextToken,operationId:randomUUID(),expectedMetadataVersion:0,members:[{studentId:'foreign',expectedVersion:0,result:'positive' as const}]};
+ assert.throws(()=>service.recordQuick(request));assert.equal(service.listClassroomTasks({classId:input.classId}).total,0);
+ getRosterDatabase().prepare('UPDATE students SET name=? WHERE id=?').run('姓名变化',c.participants[0].studentId);
+ assert.throws(()=>service.recordQuick({...request,members:[{studentId:c.participants[0].studentId,expectedVersion:0,result:'positive'}]}),(e:unknown)=>(e as {code:string}).code==='PREVIEW_CHANGED');
+ assert.equal(service.listClassroomTasks({classId:input.classId}).total,0);
+ const fresh=service.readQuickContext(quick);const saved=service.recordQuick({...request,contextToken:fresh.contextToken,members:fresh.participants.map((p,i)=>({studentId:p.studentId,expectedVersion:0,result:i?'positive':'negative'}))});
+ assert.equal(saved.detail.counts.positive,2);assert.equal(saved.detail.counts.negative,1);
+ runWithWorkspace(createWorkspaceContext('other','other-quick','teacher'),()=>assert.throws(()=>service.queryClassroomOperation(request.operationId),(e:unknown)=>(e as {status:number}).status===404));
+}));

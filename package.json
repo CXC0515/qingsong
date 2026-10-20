@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test:classroom-tasks": "node --import tsx --test src/domain/classroomTasks.test.ts server/repositories/classroomTaskRepository.test.ts server/services/classroom/classroomTaskService.test.ts server/routes/classroomTasks.test.ts",
+    "test:classroom-tasks": "node --import tsx --test src/domain/classroomTasks.test.ts server/repositories/classroomTaskRepository.test.ts server/services/classroom/classroomTaskService.test.ts server/routes/classroomTasks.test.ts server/services/classroom/classroomBehaviorService.test.ts",
     "test:roster": "node --import tsx --test server/database/rosterMigrations.test.ts server/repositories/rosterRepository.test.ts server/services/roster/rosterImportService.test.ts src/domain/studentSorting.test.ts",
     "test:classroom": "node --import tsx --test server/repositories/classroomRepository.test.ts server/services/classroom/classroomWorkbook.test.ts",
     "test:schedule": "node --import tsx --test server/repositories/scheduleRepository.test.ts server/services/schedule/classEntityMatcher.test.ts server/services/schedule/scheduleImportService.test.ts server/services/schedule/reminderImportService.test.ts src/domain/scheduleTime.test.ts",

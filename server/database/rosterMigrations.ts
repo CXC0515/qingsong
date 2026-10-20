@@ -333,6 +333,28 @@ const migrations: Migration[] = [
       ) BEGIN SELECT RAISE(ABORT, 'TASK_PARTICIPANT_MISMATCH'); END;
     `
   }
+  ,{
+    version: 13,
+    sql: `
+      CREATE TABLE classroom_quick_rounds (
+        class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT,
+        project_key TEXT NOT NULL, check_date TEXT NOT NULL, round INTEGER NOT NULL CHECK(round > 0),
+        task_id TEXT NOT NULL UNIQUE REFERENCES classroom_tasks(id) ON DELETE RESTRICT,
+        PRIMARY KEY(class_id,project_key,check_date,round)
+      );
+      CREATE TABLE classroom_quick_requests (id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, task_id TEXT NOT NULL REFERENCES classroom_tasks(id) ON DELETE RESTRICT);
+      CREATE TABLE classroom_behavior_events (
+        id TEXT PRIMARY KEY, operation_id TEXT NOT NULL UNIQUE, fingerprint TEXT NOT NULL,
+        student_id TEXT NOT NULL REFERENCES students(id) ON DELETE RESTRICT,
+        class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT,
+        target_id TEXT UNIQUE REFERENCES classroom_behavior_events(id) ON DELETE RESTRICT,
+        occurred_date TEXT NOT NULL, data_json TEXT NOT NULL
+      );
+      CREATE INDEX classroom_behavior_student_date ON classroom_behavior_events(student_id,occurred_date);
+      CREATE INDEX classroom_behavior_class_date ON classroom_behavior_events(class_id,occurred_date);
+    `
+  }
+
 ];
 
 export const runRosterMigrations = (database: Database.Database) => {

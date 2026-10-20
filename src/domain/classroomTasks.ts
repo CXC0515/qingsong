@@ -57,3 +57,18 @@ export const countTaskParticipants = (participants: TaskParticipant[]): TaskCoun
   const negative = required.filter(participant => participant.result === 'negative').length;
   return {positive, negative, unrecorded: required.length - positive - negative, exempt: included.length - required.length, total: included.length, required: required.length, rate: required.length ? positive / required.length : null};
 };
+
+export const quickProjects = [
+  { key: 'collection', label: '作业收交', mode: 'completion', positive: '已交', negative: '未交' },
+  { key: 'correction', label: '练习订正', mode: 'completion', positive: '完成', negative: '未完' },
+  { key: 'recitation', label: '背诵检查', mode: 'pass', positive: '通过', negative: '未过' },
+] as const;
+export interface QuickContextInput { classId: string; projectKey: string; checkDate: string; round?: number; }
+export interface QuickContext {
+  round: number; latestRound: number; detail: TaskDetail | null; participants: PreviewStudent[]; contextToken: string;
+}
+export interface QuickRecordInput extends QuickContextInput {
+  round: number; operationId: string; contextToken: string; content?: string;
+  expectedMetadataVersion: number;
+  members: Array<{ studentId: string; expectedVersion: number; result: TaskResult }>;
+}

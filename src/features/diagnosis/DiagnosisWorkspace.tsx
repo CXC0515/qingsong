@@ -21,7 +21,7 @@ interface DiagnosisWorkspaceProps {
   onSelectStudent: (studentId: string) => void;
   onOpenClassroomTask: (taskId: string, studentId: string) => void;
   onEditStudent: (studentId: string) => void;
-  onAddObservation: (studentId: string, note: TeacherObservation) => void;
+  onAddObservation: (studentId: string, note: TeacherObservation) => Promise<void>;
   onUpdateStudent: (student: Student) => Promise<boolean>;
   onNavigate: (pageId: string, subPageId?: string) => void;
   onShowToast: (message: string) => void;

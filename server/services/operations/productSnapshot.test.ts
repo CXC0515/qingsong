@@ -103,14 +103,22 @@ test('online product snapshot restores classroom task operations and event-deriv
   service.applyClassroomOperation(taskId,{operationId:'snapshot-first',kind:'initial',participantId:detail.participants[0].id,expectedVersion:0,result:'negative'});
   service.applyClassroomOperation(taskId,{operationId:'snapshot-retest',kind:'retest',participantId:detail.participants[0].id,expectedVersion:1,result:'positive'});
  });
+ const behaviorService=await import('../classroom/classroomBehaviorService');
+ runWithWorkspace(context,()=>{
+  const quick=service.readQuickContext({classId:'class',projectKey:'collection',checkDate:'2026-10-20'});
+  service.recordQuick({classId:'class',projectKey:'collection',checkDate:'2026-10-20',round:1,contextToken:quick.contextToken,operationId:'snapshot-quick',expectedMetadataVersion:0,members:[{studentId:'student',expectedVersion:0,result:'positive'}]});
+  behaviorService.recordBehavior({operationId:'snapshot-behavior',studentId:'student',classId:'class',kind:'focus',note:'课堂专注',occurredDate:'2026-10-20'});
+ });
  const before=runWithWorkspace(context,()=>service.requireTask(taskId));
- const counts=runWithWorkspace(context,()=>['classroom_tasks','classroom_task_participants','classroom_task_operations','classroom_task_events'].map(table=>(getRosterDatabase().prepare('SELECT COUNT(*) AS count FROM '+table).get() as {count:number}).count));
+ const counts=runWithWorkspace(context,()=>['classroom_tasks','classroom_task_participants','classroom_task_operations','classroom_task_events','classroom_quick_rounds','classroom_quick_requests','classroom_behavior_events'].map(table=>(getRosterDatabase().prepare('SELECT COUNT(*) AS count FROM '+table).get() as {count:number}).count));
  const snapshot=path.join(path.dirname(source),'task-snapshot');const restored=path.join(path.dirname(source),'task-restored');
  await createProductSnapshot(source,snapshot);await restoreProductSnapshot(snapshot,restored);
  const restoredContext={...context,root:path.join(restored,'workspaces','workspace-test'),dataDirectory:path.join(restored,'workspaces','workspace-test','data'),uploadDirectory:path.join(restored,'workspaces','workspace-test','uploads')};
  runWithWorkspace(restoredContext,()=>{
   const after=service.requireTask(taskId);assert.deepEqual(after,before);assert.equal(after.participants[0].firstResult,'negative');assert.equal(after.participants[0].result,'positive');
-  assert.deepEqual(['classroom_tasks','classroom_task_participants','classroom_task_operations','classroom_task_events'].map(table=>(getRosterDatabase().prepare('SELECT COUNT(*) AS count FROM '+table).get() as {count:number}).count),counts);
+  assert.deepEqual(['classroom_tasks','classroom_task_participants','classroom_task_operations','classroom_task_events','classroom_quick_rounds','classroom_quick_requests','classroom_behavior_events'].map(table=>(getRosterDatabase().prepare('SELECT COUNT(*) AS count FROM '+table).get() as {count:number}).count),counts);
+  assert.equal(behaviorService.listBehavior({studentId:'student',from:'2026-10-20',to:'2026-10-20'}).counts.focus,1);
+  assert.equal(service.queryClassroomOperation('snapshot-quick').detail.counts.positive,1);
   assert.deepEqual(getRosterDatabase().pragma('foreign_key_check'),[]);
  });
  closeRosterDatabase();

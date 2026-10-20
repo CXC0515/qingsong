@@ -1,3 +1,4 @@
+import type { QuickContextInput, QuickContext, QuickRecordInput } from '../domain/classroomTasks';
 import { apiFetch } from './apiClient';
 import type { CreateTaskInput, CreationPreview, TaskDetail, TaskListItem, TaskParticipant, TaskEvent, TaskOperation, OperationInput, OperationPreview, OperationResult } from '../domain/classroomTasks';
 export type TaskSummary = TaskListItem;
@@ -15,6 +16,8 @@ const request = async <T>(url: string, body?: unknown): Promise<T> => {
 };
 const base = '/api/classroom-tasks';
 export const taskApi = {
+  quickContext: (input: QuickContextInput) => request<QuickContext>(`${base}/quick-context?${new URLSearchParams(Object.entries(input).map(([k,v])=>[k,String(v)]))}`),
+  quickRecord: (input: QuickRecordInput) => request<OperationResult>(`${base}/quick-record`,input),
   list: (params: URLSearchParams) => request<{ tasks: TaskListItem[]; total: number }>(`${base}?${params}`),
   detail: (id: string) => request<TaskDetail>(`${base}/${encodeURIComponent(id)}`),
   creationPreview: (input: CreateTaskInput) => request<CreationPreview>(`${base}/creation-preview`, input),
