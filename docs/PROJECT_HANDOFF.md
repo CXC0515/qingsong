@@ -1,18 +1,21 @@
 # 青松教师 项目当前交接
 
 > 本文是当前统一交接入口。历史专项文档只用于追溯当时的决策，不再代表当前 Git、数据路径或部署状态。
-> 更新时间：2026-10-20；当前应用生产提交：7d9e590ba2fc3ddf7d72838768acb70270a6b8d5（PR #59）。
+> 更新时间：2026-10-21；当前应用生产提交：ba915c9204f691460c527d0c3f7efd0a9b7116bf（PR #61）。
 
 > 改名进度：中文品牌「青松教师」，英文项目名 `qingsong`；GitHub 仓库为 `CXC0515/qingsong`，母文件夹已迁至 `/Users/cxc/Projects/qingsong`。品牌代码经 PR #55 合并，已随PR #57部署服务器；实际切换与验证见 [改名记录](./QINGSONG_RENAME.md)。
 
 ## 1. 当前阶段与产品边界
 
-### 2026-10-21 自定义课堂项目与紧凑界面（待本轮发布）
+### 2026-10-21 自定义课堂项目与紧凑界面（已上线，待用户体验验收）
 
 - 从 origin/main@527b523 创建 codex/classroom-projects-ui，复用本会话独立 worktree；母文件夹原有未跟踪文档及数据保留。
 - 学业／表现均可新建项目，跨班复用目录、记录按班隔离，首笔自动建轮；紧凑名单、点击姓名记录，画像显示自定义表现名称。
 - 迁移14仅追加项目表；本地24＋10项测试、类型检查和构建通过。40人实际壳层完成新建／刷新／记录／画像核对；窄矮屏无横向溢出、弹窗保存可见，真机与软键盘待用户。
-- 本专项 Git、PR、合并及部署已获批准；发布后回填提交、恢复点与健康结果。产品边界见 CLASSROOM_TASKS_DESIGN.md 第19节。
+- PR #61 合并为 ba915c9204f691460c527d0c3f7efd0a9b7116bf；母文件夹 main 同步后打包，SHA256 45fe60a94b927d9e13493b8a6d79bba91c63a300dea504f34ab4fc23c0971ce0；服务器 current 已切换到对应 releases 目录，上一版 7d9e590 保留。
+- 停写后在线恢复点 /var/lib/teacher-dashboard/backups/manual/product-2026-10-21-pre-projects-ba915c9，1285文件／7 SQLite，清单哈希验证通过；3个工作区 roster 13→14，旧表计数一致、完整性ok、外键错误0。服务器独立安装、类型检查、构建、24＋10项测试通过。
+- 公网live／ready正常、首页200、匿名项目目录401；入口 index-ivRBKN90.js 与本地及服务器构建一致，解压SHA256 a3a9bd46b34d17c580a281c382373fed1aa3052c9013af6284fc7776a7169229；gzip及Vary保留。服务active/running，NRestarts=0。启动等待前几次连接失败后健康恢复，未回滚数据。
+- 原账号刷新 https://td.unreached.top/?page=classroom-tasks 后，在学业／表现两行“＋新项目”试用。未向真实班级写入验收记录；真机和软键盘由用户验收。边界见 CLASSROOM_TASKS_DESIGN.md 第19节。
 
 ### 2026-10-20 课堂快记与画像联动（已上线，待用户体验验收）
 
@@ -62,7 +65,7 @@ flowchart LR
 - DNS：阿里云 `td` A 记录指向 `43.172.77.153`，TTL 10 分钟。
 - 公网只使用 80/443；80 自动跳转 HTTPS，应用端口 4317 只监听回环。
 - 服务：`teacher-dashboard.service`；每日备份：`teacher-dashboard-backup.timer`。
-- 代码：2026-10-20核对current指向/opt/teacher-dashboard/releases/7d9e590ba2fc3ddf7d72838768acb70270a6b8d5，对应PR #59；上一版bb87221保留，未清理其他发布目录。
+- 代码：2026-10-21核对current指向/opt/teacher-dashboard/releases/ba915c9204f691460c527d0c3f7efd0a9b7116bf，对应PR #61；上一版7d9e590保留，未清理其他发布目录。
 - 数据：`/var/lib/teacher-dashboard/product-2026-09-16-r2`。
 - 证书：Let's Encrypt，当前证书到期日 2026-12-15，Certbot 自动续期。
 - 健康检查：`/api/health/live` 与 `/api/health/ready`。
