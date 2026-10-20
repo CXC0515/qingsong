@@ -1,20 +1,24 @@
 # 青松教师 项目当前交接
 
 > 本文是当前统一交接入口。历史专项文档只用于追溯当时的决策，不再代表当前 Git、数据路径或部署状态。
-> 更新时间：2026-10-20；当前应用生产提交：bb87221542e70fe5651a62e3d0ab2a854efdabdd（PR #57）。
+> 更新时间：2026-10-20；当前应用生产提交：7d9e590ba2fc3ddf7d72838768acb70270a6b8d5（PR #59）。
 
 > 改名进度：中文品牌「青松教师」，英文项目名 `qingsong`；GitHub 仓库为 `CXC0515/qingsong`，母文件夹已迁至 `/Users/cxc/Projects/qingsong`。品牌代码经 PR #55 合并，已随PR #57部署服务器；实际切换与验证见 [改名记录](./QINGSONG_RENAME.md)。
 
 ## 1. 当前阶段与产品边界
 
-### 2026-10-20 课堂快记与画像联动（本地验证完成，待生产发布）
+### 2026-10-20 课堂快记与画像联动（已上线，待用户体验验收）
 
 - 本次授权含独立分支、实现、PR、合并和部署；用户负责上线后的真实功能体验及真机详细验收。
 - 从 origin/main@b978576 创建 codex/classroom-quick-profile，独立 worktree /Users/cxc/.codex/worktrees/classroom-quick-profile/qingsong。
 - 任务首笔自动建轮、当日续接、同日多轮、批量例外；表现事件快记与撤销；画像近7／30天汇总及来源；观察改为真实保存、实际日期和操作者。
 - 追加 roster 迁移13三表，不重写旧任务、标签或观察。旧深链继续定位原检查；自动检查日期固定，防止日期修订破坏续接。
 - 本地21项专项及10项迁移／隔离／在线备份恢复测试通过；类型检查和构建通过（既有大chunk提示保留）。12人临时账号完成真实登录壳层首笔、续接、表现、画像、观察保存，375×667无横向溢出；未做真实教师／真机／软键盘完整验收。
-- 详细规则、限制与证据见 CLASSROOM_TASKS_DESIGN.md 第18节。生产恢复点、版本及健康检查在发布后补记。
+- PR #59 已合并为 7d9e590ba2fc3ddf7d72838768acb70270a6b8d5；母文件夹 main 同步后打包，SHA256 41d939605693b56c9f5a2e06434252564e9075e86c02a57d58be9dd25238a3be。服务器 current 已切换至 /opt/teacher-dashboard/releases/7d9e590ba2fc3ddf7d72838768acb70270a6b8d5，旧 bb87221 保留。
+- 停写后在线恢复点：/var/lib/teacher-dashboard/backups/manual/product-2026-10-20-pre-quick-7d9e590；1285文件／7 SQLite，清单哈希及完整性复核通过。3个工作区 roster 12→13；7库完整性ok、外键错误0，旧名册表计数与恢复点一致。
+- 服务器独立 npm ci、类型检查、构建和21＋10项测试通过；公网live／ready正常、首页200、匿名快记与表现接口401；页面入口JS与本地构建同为 index-DcakueF8.js。服务active/running、NRestarts=0，备份timer active。
+- 发布回执SSH连接中断，随后独立复核current、日志、恢复点、7库及公网确认部署完成，没有盲目重跑迁移或恢复旧数据。未更改域名、密钥、上海实例，未在真实班级写入验收记录。
+- 测试入口：https://td.unreached.top/?page=classroom-tasks；原账号登录并刷新页面。“记录”下切换学习检查／课堂表现，学情诊断→学生画像查看近7／30天和来源。真实教师、真机及软键盘体验待用户验收；详细规则、限制见 CLASSROOM_TASKS_DESIGN.md 第18节。
 
 ### 2026-10-20 课堂任务专项（已上线，待真实教师验收）
 
@@ -51,7 +55,7 @@ flowchart LR
 - DNS：阿里云 `td` A 记录指向 `43.172.77.153`，TTL 10 分钟。
 - 公网只使用 80/443；80 自动跳转 HTTPS，应用端口 4317 只监听回环。
 - 服务：`teacher-dashboard.service`；每日备份：`teacher-dashboard-backup.timer`。
-- 代码：2026-10-20核对current指向/opt/teacher-dashboard/releases/bb87221，对应main合并提交bb87221542e70fe5651a62e3d0ab2a854efdabdd。旧版4f26912保留，未清理其他发布目录。
+- 代码：2026-10-20核对current指向/opt/teacher-dashboard/releases/7d9e590ba2fc3ddf7d72838768acb70270a6b8d5，对应PR #59；上一版bb87221保留，未清理其他发布目录。
 - 数据：`/var/lib/teacher-dashboard/product-2026-09-16-r2`。
 - 证书：Let's Encrypt，当前证书到期日 2026-12-15，Certbot 自动续期。
 - 健康检查：`/api/health/live` 与 `/api/health/ready`。
