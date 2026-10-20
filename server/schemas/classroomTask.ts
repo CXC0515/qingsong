@@ -16,3 +16,6 @@ export const taskOperationSchema = z.object({
   members:z.array(operationMemberSchema).min(1).max(1000).optional(),previewToken:z.string().min(1).max(100000).optional()
 }).strict();
 export const taskOperationPreviewSchema = taskOperationSchema.omit({operationId:true,previewToken:true});
+
+export const quickContextSchema = z.object({classId:id,projectKey:z.enum(['collection','correction','recitation']),checkDate:date,round:z.coerce.number().int().min(1).max(10000).optional()}).strict();
+export const quickRecordSchema = quickContextSchema.extend({round:z.number().int().min(1).max(10000),operationId:id,contextToken:z.string().min(1).max(200000),content:z.string().trim().max(100).optional(),expectedMetadataVersion:version,members:z.array(z.object({studentId:id,expectedVersion:version,result}).strict()).min(1).max(1000)});

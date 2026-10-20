@@ -28,7 +28,7 @@ test('migration 11 removes the obsolete class teacher column without losing clas
   assert.deepEqual(database.prepare('SELECT id, name, head_teacher FROM classes').get(), {
     id: 'class-1', name: '七年级 1 班', head_teacher: '李老师'
   });
-  assert.equal(database.pragma('user_version', { simple: true }), 12);
+  assert.equal(database.pragma('user_version', { simple: true }), 13);
   database.close();
 });
 
@@ -38,5 +38,5 @@ test('migration 12 adds classroom task tables without changing roster and reopen
  runRosterMigrations(database);
  assert.equal((database.prepare('SELECT COUNT(*) AS count FROM classes').get() as {count:number}).count,1);
  for(const name of ['classroom_tasks','classroom_task_participants','classroom_task_operations','classroom_task_events']) assert.equal((database.prepare('SELECT COUNT(*) AS count FROM '+name).get() as {count:number}).count,0);
- assert.equal(database.pragma('user_version',{simple:true}),12);assert.deepEqual(database.pragma('foreign_key_check'),[]);database.close();
+ assert.equal(database.pragma('user_version',{simple:true}),13);assert.deepEqual(database.pragma('foreign_key_check'),[]);database.close();
 });

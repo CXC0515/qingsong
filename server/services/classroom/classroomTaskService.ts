@@ -1,3 +1,4 @@
+import { quickProjects, type QuickContextInput, type QuickContext, type QuickRecordInput } from '../../../src/domain/classroomTasks';
 /** @license SPDX-License-Identifier: Apache-2.0 */
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { CreateTaskInput, CreationPreview, OperationInput, OperationMember, OperationPreview, OperationResult, PreviewStudent, TaskDetail, TaskEvent, TaskListItem, TaskOperation, TaskParticipant } from '../../../src/domain/classroomTasks';
@@ -75,9 +76,9 @@ export const createClassroomTask = (input: CreateTaskInput & {operationId:string
   saveTaskOperation(operation,hash,detail);
   return detail;
 });
-export interface TaskListFilter { classId?:string; lifecycle?:string; search?:string; from?:string; to?:string; offset?:number; limit?:number; }
+export interface TaskListFilter { classId?:string; lifecycle?:string; search?:string; from?:string; to?:string; offset?:number; limit?:number; negativeOnly?:boolean; }
 export const listClassroomTasks = (filter: TaskListFilter = {}) => {
-  const matches = listTaskDetails().filter(({task}) => (!filter.classId || task.classId === filter.classId) && (!filter.lifecycle || task.lifecycle === filter.lifecycle) && (!filter.search || (task.name + task.description + task.className).toLowerCase().includes(filter.search.toLowerCase())) && (!filter.from || task.checkDate >= filter.from) && (!filter.to || task.checkDate <= filter.to)).sort((a,b) => b.task.checkDate.localeCompare(a.task.checkDate) || b.task.createdAt.localeCompare(a.task.createdAt) || a.task.id.localeCompare(b.task.id));
+  const matches = listTaskDetails().filter(({task,counts}) => (!filter.negativeOnly || counts.negative > 0) && (!filter.classId || task.classId === filter.classId) && (!filter.lifecycle || task.lifecycle === filter.lifecycle) && (!filter.search || (task.name + task.description + task.className).toLowerCase().includes(filter.search.toLowerCase())) && (!filter.from || task.checkDate >= filter.from) && (!filter.to || task.checkDate <= filter.to)).sort((a,b) => b.task.checkDate.localeCompare(a.task.checkDate) || b.task.createdAt.localeCompare(a.task.createdAt) || a.task.id.localeCompare(b.task.id));
   return {tasks:matches.slice(filter.offset ?? 0,(filter.offset ?? 0)+(filter.limit ?? 100)).map(asListItem),total:matches.length};
 };
 export const classroomTaskSummary = (classId?:string) => {
@@ -151,6 +152,7 @@ export const applyClassroomOperation = (taskId:string,input:OperationInput):Oper
   if (input.kind === 'participation' || input.kind === 'exemption') { if (input.expectedRosterVersion !== task.rosterVersion) fail('ROSTER_VERSION_CONFLICT'); }
   const participants = members.map(member => validateMember(detail,input,member));
   if (input.kind === 'metadata') {
+    if(input.checkDate!==undefined&&input.checkDate!==task.checkDate&&getRosterDatabase().prepare('SELECT task_id FROM classroom_quick_rounds WHERE task_id=?').get(taskId))fail('QUICK_DATE_FIXED',409,'这次检查的日期已用于自动续接，不能直接改日期。本次未修改；请在正确日期记录并撤销误记。');
     for (const key of ['name','checkDate','dueDate','description'] as const) if (input[key] !== undefined) Object.assign(task,{[key]:input[key]});
     task.metadataVersion++;
   }
@@ -180,3 +182,44 @@ export const queryClassroomOperation = (operationId:string):OperationResult => {
   const stored=findTaskOperation(operationId); if (!stored) return fail('OPERATION_NOT_FOUND',404,'暂未查到提交结果，请保留原操作编号后再次核对。');
   return {operationId,taskId:stored.operation.taskId,kind:stored.operation.kind,committedAt:stored.operation.committedAt,detail:requireTask(stored.operation.taskId)};
 };
+
+const quickProject = (key: string) => quickProjects.find(item => item.key === key) ?? fail('UNKNOWN_PROJECT',400,'找不到记录事项，本次未保存，请重新选择。');
+export const readQuickContext = (input: QuickContextInput): QuickContext => taskTransaction(() => {
+  const project = quickProject(input.projectKey); const db = getRosterDatabase();
+  if(!db.prepare("SELECT id FROM classes WHERE id=? AND status='active'").get(input.classId))fail('CLASS_NOT_ACTIVE',404,'班级不可用，本次未保存，请选择有效班级。');
+  const latest = db.prepare('SELECT MAX(round) AS n FROM classroom_quick_rounds WHERE class_id=? AND project_key=? AND check_date=?').get(input.classId,input.projectKey,input.checkDate) as { n: number | null };
+  const round = input.round ?? latest.n ?? 1;
+  if (round > (latest.n ?? 0) + 1) fail('ROUND_CHANGED',409,'检查轮次已变化，请重新读取后记录。');
+  const row = db.prepare('SELECT task_id FROM classroom_quick_rounds WHERE class_id=? AND project_key=? AND check_date=? AND round=?').get(input.classId,input.projectKey,input.checkDate,round) as {task_id:string}|undefined;
+  const detail = row ? requireTask(row.task_id) : null;
+  const participants = detail ? detail.participants.map(p => ({studentId:p.studentId,membershipId:p.membershipId,name:p.name,studentNo:p.studentNo,enrollmentStatus:p.enrollmentStatus,included:p.included})) : roster({classId:input.classId,name:project.label,mode:project.mode,checkDate:input.checkDate}).participants;
+  const binding = {classId:input.classId,projectKey:input.projectKey,checkDate:input.checkDate,round,participants};
+  return { round, latestRound:latest.n ?? 0, detail, participants, contextToken:signedPreview('quick',binding).previewToken };
+});
+export const recordQuick = (input: QuickRecordInput): OperationResult => taskTransaction(() => {
+  const db = getRosterDatabase(); const hash = fingerprint({...input,contextToken:undefined,actor:getWorkspaceContext().userId});
+  const prior = db.prepare('SELECT fingerprint,task_id FROM classroom_quick_requests WHERE id=?').get(input.operationId) as {fingerprint:string;task_id:string}|undefined;
+  if (prior) { if (prior.fingerprint !== hash) fail('OPERATION_ID_CONFLICT'); return queryClassroomOperation(input.operationId); }
+  const context = readQuickContext(input);
+  verifyPreview(input.contextToken,'quick',{classId:input.classId,projectKey:input.projectKey,checkDate:input.checkDate,round:input.round,participants:context.participants});
+  let detail = context.detail;
+  if (!detail) {
+    if (input.expectedMetadataVersion !== 0 || input.members.some(m=>m.expectedVersion!==0)) fail('TASK_VERSION_CONFLICT');
+    const project = quickProject(input.projectKey);
+    const creation = {classId:input.classId,name:input.content?.trim() || project.label,mode:project.mode,checkDate:input.checkDate};
+    detail = createClassroomTask({...creation,operationId:input.operationId+':create',previewToken:previewTaskCreation(creation).previewToken});
+    db.prepare('INSERT INTO classroom_quick_rounds VALUES(?,?,?,?,?)').run(input.classId,input.projectKey,input.checkDate,input.round,detail.task.id);
+  }
+  if(input.content?.trim()&&detail.task.name!==input.content.trim())fail('CHECK_CONTENT_CHANGED',409,'本轮检查内容已有变化，本次未保存，请重新读取并核对检查内容。');
+  const taskId = detail.task.id;
+  const members = input.members.map(member => {
+    const p = detail!.participants.find(p=>p.studentId===member.studentId) ?? fail('STUDENT_NOT_IN_CLASS',404,'名单已变化，本次未保存，请重新读取。');
+    return {participantId:p.id,expectedVersion:member.expectedVersion,result:member.result};
+  });
+  const operation = {kind:'initial' as const,members,expectedMetadataVersion:input.expectedMetadataVersion,expectedRosterVersion:detail.task.rosterVersion,source:'quick-record'};
+  const preview = previewClassroomOperation(taskId,operation);
+  if (preview.conflicts.length) fail('PARTICIPANT_VERSION_CONFLICT',409,'部分学生已有新记录，本次未保存，请重新读取后核对。');
+  const saved = applyClassroomOperation(taskId,{...operation,operationId:input.operationId,previewToken:preview.previewToken!});
+  db.prepare('INSERT INTO classroom_quick_requests VALUES(?,?,?)').run(input.operationId,hash,taskId);
+  return saved;
+});
