@@ -6,7 +6,7 @@ import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from
 import type { CreateTaskInput, CreationPreview, OperationInput, OperationMember, OperationPreview, OperationResult, PreviewStudent, TaskDetail, TaskEvent, TaskListItem, TaskOperation, TaskParticipant } from '../../../src/domain/classroomTasks';
 import { getWorkspaceContext } from '../../context/workspaceContext';
 import { getRosterDatabase } from '../../database/rosterDatabase';
-import { findTaskOperation, getTaskDetail, listTaskDetails, saveParticipant, saveTask, saveTaskEvent, saveTaskOperation, taskTransaction } from '../../repositories/classroomTaskRepository';
+import { findTaskOperation, getTaskDetail, listTaskDetails, listQuickTaskRounds, saveParticipant, saveTask, saveTaskEvent, saveTaskOperation, taskTransaction } from '../../repositories/classroomTaskRepository';
 
 export class ClassroomTaskError extends Error {
   constructor(public code: string, public status = 409, message = '记录未保存，请刷新任务后重试。') { super(message); }
@@ -80,8 +80,9 @@ export const createClassroomTask = (input: CreateTaskInput & {operationId:string
 });
 export interface TaskListFilter { classId?:string; lifecycle?:string; search?:string; from?:string; to?:string; offset?:number; limit?:number; negativeOnly?:boolean; }
 export const listClassroomTasks = (filter: TaskListFilter = {}) => {
+  const rounds=listQuickTaskRounds();
   const matches = listTaskDetails().filter(({task,counts}) => (!filter.negativeOnly || counts.negative > 0) && (!filter.classId || task.classId === filter.classId) && (!filter.lifecycle || task.lifecycle === filter.lifecycle) && (!filter.search || (task.name + task.description + task.className).toLowerCase().includes(filter.search.toLowerCase())) && (!filter.from || task.checkDate >= filter.from) && (!filter.to || task.checkDate <= filter.to)).sort((a,b) => b.task.checkDate.localeCompare(a.task.checkDate) || b.task.createdAt.localeCompare(a.task.createdAt) || a.task.id.localeCompare(b.task.id));
-  return {tasks:matches.slice(filter.offset ?? 0,(filter.offset ?? 0)+(filter.limit ?? 100)).map(asListItem),total:matches.length};
+  return {tasks:matches.slice(filter.offset ?? 0,(filter.offset ?? 0)+(filter.limit ?? 100)).map(detail=>({...asListItem(detail),...(rounds.has(detail.task.id)?{round:rounds.get(detail.task.id)}:{})})),total:matches.length};
 };
 export const classroomTaskSummary = (classId?:string) => {
   const tasks = listTaskDetails().filter(({task}) => task.lifecycle === 'active' && (!classId || task.classId === classId)).map(asListItem);

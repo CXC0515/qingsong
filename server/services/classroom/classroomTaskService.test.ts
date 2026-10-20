@@ -121,6 +121,7 @@ test('same day and name can create distinct tasks and never share results',()=>r
  const input=seed();const firstPreview=service.previewTaskCreation(input);const first=service.createClassroomTask({...input,operationId:randomUUID(),previewToken:firstPreview.previewToken});
  const again=service.previewTaskCreation(input);assert.equal(again.duplicates.length,1);const second=service.createClassroomTask({...input,operationId:randomUUID(),previewToken:again.previewToken});
  assert.notEqual(first.task.id,second.task.id);service.applyClassroomOperation(first.task.id,operation(first,0));assert.equal(service.requireTask(second.task.id).counts.negative,0);
+ assert.ok(service.listClassroomTasks({classId:input.classId}).tasks.every(task=>task.round===undefined));
 }));
 
 test('quick browsing creates no task; first records share a round, replay resolves original and another round stays separate',()=>runWithWorkspace(context,()=>{
@@ -135,6 +136,10 @@ test('quick browsing creates no task; first records share a round, replay resolv
  assert.equal(service.listClassroomTasks({classId:input.classId,negativeOnly:true}).total,1);
  const next=service.readQuickContext({...quick,round:2});assert.equal(next.detail,null);
  const other=service.recordQuick({...first,round:2,operationId:randomUUID(),contextToken:next.contextToken});assert.notEqual(other.taskId,saved.taskId);
+ const listed=service.listClassroomTasks({classId:input.classId,negativeOnly:true}).tasks;
+ assert.equal(listed.find(task=>task.id===saved.taskId)?.round,1);
+ assert.equal(listed.find(task=>task.id===other.taskId)?.round,2);
+ assert.equal(listed.find(task=>task.id===other.taskId)?.checkDate,input.checkDate);
  const tomorrow=service.readQuickContext({...quick,checkDate:'2026-10-21'});assert.equal(tomorrow.detail,null);
  assert.equal(service.queryClassroomOperation(first.operationId).detail.task.checkDate,'2026-10-20');
 }));

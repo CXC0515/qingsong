@@ -28,3 +28,4 @@ export const getTaskDetail = (id: string): TaskDetail | null => taskTransaction(
   return {task,events,operations,participants,counts:countTaskParticipants(participants)};
 });
 export const listTaskDetails = () => (db.prepare('SELECT id FROM classroom_tasks ORDER BY rowid DESC').all() as {id:string}[]).map(({id}) => getTaskDetail(id)!);
+export const listQuickTaskRounds = () => new Map((db.prepare('SELECT task_id,round FROM classroom_quick_rounds').all() as {task_id:string;round:number}[]).map(row=>[row.task_id,row.round]));

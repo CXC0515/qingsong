@@ -64,12 +64,19 @@ export function useRecordingQueue<I, P, R>(options: {
   return { jobs: queue.jobs, enqueue, reconcile, retry, checking, error, setError, queue, unresolved: queue.jobs.some(job => job.status === 'unknown') };
 }
 
-export function RecordingFeedback<I, P>({ jobs, error, checking, reconcile, retry, discard, syncing }: {
+export function RecordingStatus<I, P>({jobs,syncing}:{jobs:RecordingJob<I,P>[];syncing?:boolean}) {
+  const unknown=jobs.some(job=>job.status==='unknown');
+  const text=unknown?'有记录待核对':jobs.length?'正在保存'+jobs.length+'笔…':syncing?'正在同步…':'';
+  return text?<span role="status" className="shrink-0 text-xs text-slate-500">{text}</span>:null;
+}
+
+export function RecordingFeedback<I, P>({ jobs, error, checking, reconcile, retry, discard }: {
   jobs: RecordingJob<I, P>[]; error: string; checking: boolean;
-  reconcile: (id: string) => Promise<void>; retry: (id: string) => void; discard: (id: string) => void; syncing?: boolean;
+  reconcile: (id: string) => Promise<void>; retry: (id: string) => void; discard: (id: string) => void;
 }) {
   const unknown = jobs.filter(job => job.status === 'unknown');
-  return <>
+  if(!error&&!unknown.length)return null;
+  return <div className="space-y-2">
     {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {unknown.map(job => <div key={job.id} role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">
       {job.label}：保存结果待核对。
@@ -77,6 +84,5 @@ export function RecordingFeedback<I, P>({ jobs, error, checking, reconcile, retr
       {(job.intent || job.request) && <button className={action + ' ml-2'} disabled={checking} onClick={() => retry(job.id)}>重试原操作</button>}
       <button className={action + ' ml-2'} disabled={checking} onClick={() => { if (window.confirm('请先核对保存状态及历史。尚在处理的原请求可能随后保存；仅确认无须重试后清除此项，其他排队点名将继续。确定吗？')) discard(job.id); }}>核对后清除</button>
     </div>)}
-    <p role="status" className="min-h-5 text-sm text-slate-500">{jobs.length > 0 && !unknown.length ? '正在保存 '+jobs.length+' 笔，可继续点其他学生。' : syncing ? '正在同步记录，可先点名。' : ''}</p>
-  </>;
+  </div>;
 }
