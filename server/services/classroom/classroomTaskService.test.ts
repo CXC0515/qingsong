@@ -149,3 +149,20 @@ test('quick batch snapshot rejects roster changes and invalid members roll back 
  assert.equal(saved.detail.counts.positive,2);assert.equal(saved.detail.counts.negative,1);
  runWithWorkspace(createWorkspaceContext('other','other-quick','teacher'),()=>assert.throws(()=>service.queryClassroomOperation(request.operationId),(e:unknown)=>(e as {status:number}).status===404));
 }));
+
+test('custom projects persist, replay safely, isolate workspaces and record independent classes',()=>runWithWorkspace(context,()=>{
+ const a=seed(),b=seed();const operationId=randomUUID();
+ const input={operationId,name:'  陋室铭背诵  ',category:'study' as const,mode:'pass' as const};
+ const project=service.createRecordProject(input);assert.equal(project.label,'陋室铭背诵');
+ assert.equal(service.createRecordProject(input).key,project.key);assert.equal(service.queryRecordProject(operationId).key,project.key);
+ assert.throws(()=>service.createRecordProject({...input,operationId:randomUUID()}));
+ assert.throws(()=>service.createRecordProject({...input,name:'其他内容'}));
+ assert.ok(service.listRecordProjects().some(p=>p.key===project.key));
+ const save=(classId:string)=>{const q={classId,projectKey:project.key,checkDate:'2026-10-20'};const c=service.readQuickContext(q);return service.recordQuick({...q,round:1,operationId:randomUUID(),contextToken:c.contextToken,expectedMetadataVersion:0,members:[{studentId:c.participants[0].studentId,expectedVersion:0,result:'positive'}]});};
+ const first=save(a.classId),second=save(b.classId);assert.notEqual(first.taskId,second.taskId);assert.equal(first.detail.task.name,'陋室铭背诵');assert.equal(first.detail.task.mode,'pass');
+ runWithWorkspace(createWorkspaceContext('project-other','workspace-project-other','teacher'),()=>{
+  assert.equal(service.listRecordProjects().some(p=>p.key===project.key),false);
+  assert.throws(()=>service.queryRecordProject(operationId));
+  assert.throws(()=>service.readQuickContext({classId:a.classId,projectKey:project.key,checkDate:'2026-10-20'}));
+ });
+}));

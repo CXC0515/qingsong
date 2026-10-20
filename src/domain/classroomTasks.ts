@@ -72,3 +72,9 @@ export interface QuickRecordInput extends QuickContextInput {
   expectedMetadataVersion: number;
   members: Array<{ studentId: string; expectedVersion: number; result: TaskResult }>;
 }
+
+export interface RecordProject {
+  key: string; label: string; category: 'study' | 'behavior'; mode: TaskMode | 'event';
+  positive: string; negative: string;
+}
+export interface CreateRecordProject { operationId: string; name: string; category: 'study' | 'behavior'; mode: TaskMode | 'event'; }

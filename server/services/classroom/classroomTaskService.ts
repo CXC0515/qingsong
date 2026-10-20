@@ -1,3 +1,5 @@
+import { behaviorKinds } from '../../../src/domain/classroomBehavior';
+import type { RecordProject, CreateRecordProject } from '../../../src/domain/classroomTasks';
 import { quickProjects, type QuickContextInput, type QuickContext, type QuickRecordInput } from '../../../src/domain/classroomTasks';
 /** @license SPDX-License-Identifier: Apache-2.0 */
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -183,7 +185,38 @@ export const queryClassroomOperation = (operationId:string):OperationResult => {
   return {operationId,taskId:stored.operation.taskId,kind:stored.operation.kind,committedAt:stored.operation.committedAt,detail:requireTask(stored.operation.taskId)};
 };
 
-const quickProject = (key: string) => quickProjects.find(item => item.key === key) ?? fail('UNKNOWN_PROJECT',400,'找不到记录事项，本次未保存，请重新选择。');
+const defaultProjects: RecordProject[] = [
+  ...quickProjects.map(p=>({...p,category:'study' as const})),
+  ...behaviorKinds.map(p=>({key:p.key,label:p.label,category:'behavior' as const,mode:'event' as const,positive:'记一笔',negative:''})),
+];
+const rowProject = (row:{project_key:string;category:'study'|'behavior';label:string;mode:RecordProject['mode']}):RecordProject => ({key:row.project_key,label:row.label,category:row.category,mode:row.mode,positive:row.mode==='pass'?'通过':row.mode==='event'?'记一笔':'完成',negative:row.mode==='pass'?'未过':row.mode==='event'?'':'未完'});
+export const listRecordProjects = ():RecordProject[] => {
+  getWorkspaceContext();
+  return [...defaultProjects,...(getRosterDatabase().prepare('SELECT * FROM classroom_record_projects ORDER BY created_at,project_key').all() as Parameters<typeof rowProject>[0][]).map(rowProject)];
+};
+export const createRecordProject = (input:CreateRecordProject):RecordProject => taskTransaction(()=>{
+  getWorkspaceContext();const db=getRosterDatabase();
+  const label=input.name.trim().replace(/\s+/g,' ');
+  if(!label||label.length>50||(input.category==='behavior')!==(input.mode==='event'))fail('INVALID_PROJECT',400,'项目未保存，请填写名称并选择适合的记录方式。');
+  const hash=fingerprint({label,category:input.category,mode:input.mode});
+  const prior=db.prepare('SELECT * FROM classroom_record_projects WHERE operation_id=?').get(input.operationId) as (Parameters<typeof rowProject>[0]&{fingerprint:string})|undefined;
+  if(prior){if(prior.fingerprint!==hash)fail('OPERATION_ID_CONFLICT',409,'这次保存编号已用于其他内容，请核对项目列表。');return rowProject(prior);}
+  if(listRecordProjects().some(p=>p.category===input.category&&p.label.toLocaleLowerCase()===label.toLocaleLowerCase()))fail('PROJECT_EXISTS',409,'同名项目已存在，请直接选择原项目，或换一个名称。');
+  const key='project-'+randomUUID();
+  db.prepare('INSERT INTO classroom_record_projects VALUES(?,?,?,?,?,?,?)').run(key,input.category,label,input.mode,input.operationId,hash,new Date().toISOString());
+  return rowProject({project_key:key,category:input.category,label,mode:input.mode});
+});
+export const queryRecordProject = (id:string):RecordProject => {
+  getWorkspaceContext();const row=getRosterDatabase().prepare('SELECT * FROM classroom_record_projects WHERE operation_id=?').get(id) as Parameters<typeof rowProject>[0]|undefined;
+  return row?rowProject(row):fail('PROJECT_NOT_FOUND',404,'查询时尚未找到项目。请稍后再查，或用原内容重试保存。');
+};
+export const resolveRecordProject = (key:string):RecordProject => listRecordProjects().find(p=>p.key===key) ?? fail('UNKNOWN_PROJECT',404,'找不到记录项目，本次未保存，请刷新项目列表。');
+const quickProject = (key:string) => {
+  const project=resolveRecordProject(key);
+  if(project.mode==='event'||project.category!=='study')return fail('INVALID_PROJECT',400,'该项目用于表现记录，请切换正确项目。');
+  return {...project,mode:project.mode as 'completion'|'pass'};
+};
+
 export const readQuickContext = (input: QuickContextInput): QuickContext => taskTransaction(() => {
   const project = quickProject(input.projectKey); const db = getRosterDatabase();
   if(!db.prepare("SELECT id FROM classes WHERE id=? AND status='active'").get(input.classId))fail('CLASS_NOT_ACTIVE',404,'班级不可用，本次未保存，请选择有效班级。');
