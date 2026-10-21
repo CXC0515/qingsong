@@ -112,7 +112,8 @@ export function useQuickRecording(classId: string, projectKey: string, date: str
     const latest=pending.at(-1);
     if(latest?.intent?.type==='undo')return;
     if(latest){
-      if(queue.queue.cancelQueued(latest.id))return;
+      const cancelled=queue.cancelQueued(latest.id);
+      if(cancelled!==false)return;
       queue.enqueue({type:'undo',scope:input,content:'',original:{taskId:contextRef.current?.detail?.task.id??'',operationId:latest.id},before:latest.intent?.before},'撤销上一操作');
     }else if(last)queue.enqueue({type:'undo',scope:input,content:'',original:last,before:last.before},'撤销上一操作');
   };

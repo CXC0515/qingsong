@@ -54,6 +54,10 @@ export function useRecordingQueue<I, P, R>(options: {
     try { queue.enqueue(intent, label, crypto.randomUUID()); return true; }
     catch (e) { setError(e instanceof Error ? e.message : '浏览器不能保留记录，本次尚未发送。'); return false; }
   };
+  const cancelQueued = (id: string) => {
+    try { return queue.cancelQueued(id); }
+    catch { setError('浏览器无法保留这次撤销，原记录仍保留。请恢复浏览器存储后重试，或在本次记录中核对。'); return null; }
+  };
   const reconcile = async (id: string) => {
     if (checking) return; setChecking(true); setError('');
     try { await queue.reconcile(id); }
@@ -61,7 +65,7 @@ export function useRecordingQueue<I, P, R>(options: {
     finally { setChecking(false); }
   };
   const retry = (id: string) => { try { setError(''); queue.retry(id); } catch (e) { setError((e as Error).message); } };
-  return { jobs: queue.jobs, enqueue, reconcile, retry, checking, error, setError, queue, unresolved: queue.jobs.some(job => job.status === 'unknown') };
+  return { jobs: queue.jobs, enqueue, cancelQueued, reconcile, retry, checking, error, setError, queue, unresolved: queue.jobs.some(job => job.status === 'unknown') };
 }
 
 export function RecordingStatus<I, P>({jobs,syncing}:{jobs:RecordingJob<I,P>[];syncing?:boolean}) {

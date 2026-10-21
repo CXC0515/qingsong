@@ -63,7 +63,8 @@ export default function ClassroomBehaviorRecord({ classId, identityKey, project,
   const latestEvent=visibleEvents.find(event=>!event.targetId&&!event.retracted&&!pendingRetractions.has(event.id)&&!pendingRetractions.has(event.operationId));
   const undoLatest=()=>{
     if(latestPending){
-      if(queue.queue.cancelQueued(latestPending.id))return;
+      const cancelled=queue.cancelQueued(latestPending.id);
+      if(cancelled!==false)return;
       const intent=latestPending.intent!;
       queue.enqueue({...intent,targetOperationId:latestPending.id,note:'教师撤销误记'},'撤销'+latestPending.label);
     }else if(latestEvent)retract(latestEvent);
