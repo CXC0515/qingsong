@@ -4,7 +4,7 @@ import type { RecordProject } from '../../domain/classroomTasks';
 import type { RosterStudent } from '../../domain/types';
 import { behaviorApi } from '../../services/classroomBehaviorApi';
 import { action, control } from './ClassroomTaskDialogs';
-import { RecordingFeedback, useRecordingQueue } from './useRecordingQueue';
+import { RecordingFeedback, RecordingStatus, useRecordingQueue } from './useRecordingQueue';
 
 export default function ClassroomBehaviorRecord({ classId, identityKey, project, date, students }: {
   classId: string; identityKey: string; project: RecordProject; date: string; students: RosterStudent[];
@@ -54,10 +54,10 @@ export default function ClassroomBehaviorRecord({ classId, identityKey, project,
   const record = (student: RosterStudent) => queue.enqueue({ operationId: '', studentId: student.id, classId, kind: project.key, note, occurredDate: date }, student.name);
   return <div className="space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-100/80 px-3 py-2 dark:bg-zinc-800/70">
-      <div><h3 className="text-base font-bold">正在记录：{project.label}</h3><p className="mt-1 text-xs text-slate-500">{date} · 点击姓名记录</p></div>
+      <div><div className="flex flex-wrap items-center gap-x-3 gap-y-1"><h3 className="text-base font-bold">正在记录：{project.label}</h3><span className="w-28"><RecordingStatus jobs={queue.jobs} syncing={loading}/></span></div><p className="mt-1 text-xs text-slate-500">{date} · 点击姓名记录</p></div>
       <details className="relative"><summary className="flex min-h-11 cursor-pointer items-center px-2 text-sm font-semibold text-slate-500">补充说明 ▾</summary><div className="absolute right-0 z-20 mt-1 w-64 rounded-xl border bg-white p-3 shadow-lg dark:bg-zinc-900"><input className={control} aria-label="表现说明" placeholder="可选：具体发生了什么" maxLength={1000} value={note} onChange={e => setNote(e.target.value)}/></div></details>
     </div>
-    <RecordingFeedback syncing={loading} {...queue} discard={id => queue.queue.discard(id)}/>
+    <RecordingFeedback {...queue} discard={id => queue.queue.discard(id)}/>
     {loadError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{loadError}<button className={action + ' ml-2'} onClick={() => void load().catch(() => undefined)}>重新读取</button></p>}
     <input className={control + ' sm:max-w-xs'} aria-label="搜索表现记录学生" placeholder="搜索姓名或学号" value={query} onChange={e => setQuery(e.target.value)}/>
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">

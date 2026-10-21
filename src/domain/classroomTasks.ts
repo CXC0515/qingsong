@@ -21,7 +21,7 @@ export interface TaskEvent {
 export interface TaskOperation { operationId: string; taskId: string; kind: TaskOperationKind | 'create'; actorUserId: string; source: string; committedAt: string; participantIds: string[]; }
 export interface TaskCounts { positive: number; negative: number; unrecorded: number; exempt: number; total: number; required: number; rate: number | null; }
 export interface TaskDetail { task: ClassroomTask; participants: TaskParticipant[]; counts: TaskCounts; events: TaskEvent[]; operations: TaskOperation[]; }
-export interface TaskListItem extends ClassroomTask { counts: TaskCounts; }
+export interface TaskListItem extends ClassroomTask { counts: TaskCounts; round?: number; }
 export interface CreateTaskInput { classId: string; name: string; mode: TaskMode; checkDate: string; dueDate?: string | null; description?: string; excludedStudentIds?: string[]; }
 export interface PreviewStudent { studentId: string; membershipId: string; name: string; studentNo: string; enrollmentStatus: string; included: boolean; }
 export interface CreationPreview { participants: PreviewStudent[]; duplicates: TaskListItem[]; previewToken: string; expiresAt: string; }
