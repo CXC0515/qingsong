@@ -77,21 +77,20 @@ export default function ClassroomBehaviorRecord({ classId, identityKey, project,
       <span className="font-semibold text-emerald-700 dark:text-emerald-300">{project.label} {count}次</span><span className="text-slate-500">涉及 {Array.from(counts.values()).filter(n=>n>0).length}人</span>
       <span className="ml-auto"><RecordingStatus jobs={queue.jobs} syncing={loading}/></span>
     </div>
-    <div className="flex flex-wrap items-center gap-2">
+    <RecordingFeedback {...queue} discard={id => queue.queue.discard(id)}/>
+    {loadError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{loadError}<button className={action + ' ml-2'} onClick={() => void load().catch(() => undefined)}>重新读取</button></p>}
+    <div className="flex flex-wrap items-center gap-2"><input className={control+' flex-1 basis-36 sm:max-w-xs'} aria-label="搜索表现记录学生" placeholder="搜索姓名或学号" value={query} onChange={e=>setQuery(e.target.value)}/>
       <button className={action} onClick={()=>setHistoryOpen(true)}>本次记录 ↗</button>
       <button className={action} disabled={!latestPending&&!latestEvent} onClick={undoLatest}>撤销</button>
       <details className="relative"><summary className="min-h-11 cursor-pointer px-3 py-3 text-xs text-slate-500">补充说明</summary><input className={control+' absolute right-0 z-10 w-64 bg-white shadow-lg dark:bg-zinc-900'} aria-label="表现说明" placeholder="具体发生了什么（可选）" maxLength={1000} value={note} onChange={e=>setNote(e.target.value)}/></details>
     </div>
-    <RecordingFeedback {...queue} discard={id => queue.queue.discard(id)}/>
-    {loadError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{loadError}<button className={action + ' ml-2'} onClick={() => void load().catch(() => undefined)}>重新读取</button></p>}
-    <input className={control + ' sm:max-w-xs'} aria-label="搜索表现记录学生" placeholder="搜索姓名或学号" value={query} onChange={e => setQuery(e.target.value)}/>
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(144px,1fr))]">
       {roster.filter(student => !query || (student.name + ' ' + student.studentNo).includes(query)).map(student => {
         const n=Math.max(0,counts.get(student.id)??0);
         return <button key={student.id} aria-label={'记录' + student.name + project.label}
-          className={'min-h-16 min-w-0 rounded-xl border px-3 py-2 text-left transition-colors active:scale-[0.98] motion-reduce:transform-none ' + (n ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40' : 'border-slate-200 bg-white hover:border-emerald-400 dark:border-zinc-700 dark:bg-zinc-900')}
+          className={'min-h-16 min-w-0 rounded-xl border px-2 py-2 text-left sm:min-h-14 transition-colors active:scale-[0.98] motion-reduce:transform-none ' + (n ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40' : 'border-slate-200 bg-white hover:border-emerald-400 dark:border-zinc-700 dark:bg-zinc-900')}
           onClick={() => record(student)}>
-          <span className="flex items-center gap-2"><span className="shrink-0 text-xs text-slate-400">{student.studentNo}</span><span className="break-words text-base font-bold">{student.name}</span>{n > 0 && <span className="ml-auto text-sm font-bold text-emerald-700">{n}</span>}</span>
+          <span className="flex items-center gap-1.5"><span className="shrink-0 text-xs text-slate-400">{student.studentNo}</span><span className="break-words text-base font-bold">{student.name}</span>{n > 0 && <span className="ml-auto text-sm font-bold text-emerald-700">{n}</span>}</span>
         </button>;
       })}
     </div>
