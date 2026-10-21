@@ -262,7 +262,7 @@ export default function AppLayout({
           </div>
         </aside>
 
-        <main className={`app-shell-main flex-1 min-w-0 p-3 sm:p-4 lg:p-6 bg-slate-50 dark:bg-zinc-950 ${isImmersiveWorkspace ? 'flex min-h-0 flex-col overflow-hidden' : 'overflow-y-auto'}`}>
+        <main className={`app-shell-main flex-1 min-w-0 p-3 sm:p-4 lg:p-6 bg-slate-50 dark:bg-zinc-950 ${isImmersiveWorkspace ? 'flex min-h-0 flex-col overflow-hidden' : activePage === 'workbench' ? 'overflow-y-auto lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden' : 'overflow-y-auto'}`}>
           {children}
         </main>
       </div>

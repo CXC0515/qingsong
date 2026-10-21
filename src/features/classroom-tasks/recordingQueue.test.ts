@@ -29,10 +29,12 @@ test('immediate feedback accepts another student, sends serially and prepares ag
 test('lost response pauses later students; retry preserves operation ID and exact request', async () => {
   const f = fixture(); f.queue.enqueue(1, 'one', 'id1'); f.queue.enqueue(2, 'two', 'id2'); await tick();
   f.replies[0].reject('network'); await tick(); assert.equal(f.calls.length, 1); assert.equal(f.queue.jobs[0].status, 'unknown');
-  assert.throws(() => f.queue.enqueue(3, 'three', 'id3'));
+  f.queue.enqueue(3, 'three', 'id3');
+  assert.equal(f.queue.jobs.length,3);
   f.queue.retry('id1'); await tick(); assert.deepEqual(f.calls[1], f.calls[0]);
   f.replies[1].resolve(4); await tick(); assert.equal(f.calls[2].id, 'id2');
-  f.replies[2].resolve(5); await tick(); assert.equal(f.queue.jobs.length, 0);
+  f.replies[2].resolve(5); await tick();
+  assert.equal(f.calls[3].id,'id3'); f.replies[3].resolve(6); await tick(); assert.equal(f.queue.jobs.length, 0);
 });
 test('operation lookup resolves a lost response without resending it, then drains the remaining queue', async () => {
   const f = fixture(); f.queue.enqueue(1, 'one', 'id1'); f.queue.enqueue(2, 'two', 'id2'); await tick();
@@ -60,4 +62,18 @@ test('unavailable storage never sends an untracked write', async () => {
   let writes = 0;
   const queue = new RecordingQueue<number, number, number>({ read: () => [], write: () => { throw new Error('storage'); }, prepare: async v => v, execute: async v => { writes++; return v; }, query: async () => 0, saved: () => {}, rejected: () => {}, definitive: () => false });
   queue.start(); assert.throws(() => queue.enqueue(1, 'one', 'id1')); await tick(); assert.equal(writes, 0);
+});
+
+test('cancel only an unsent intent; an in-flight write must use a compensating event', async () => {
+  const f=fixture(); f.queue.enqueue(1,'one','id1'); f.queue.enqueue(2,'two','id2'); await tick();
+  assert.equal(f.queue.cancelQueued('id1'),false);
+  assert.equal(f.queue.cancelQueued('id2'),true);
+  f.replies[0].resolve(1); await tick(); assert.equal(f.calls.length,1); assert.equal(f.queue.jobs.length,0);
+});
+test('ten repeated taps stay distinct and an inverse waits for its original acknowledgement', async () => {
+  const f=fixture(); for(let i=0;i<10;i++)f.queue.enqueue(1,'same student','tap'+i);
+  f.queue.enqueue(-1,'undo','undo');
+  assert.equal(f.queue.jobs.length,11);
+  for(let i=0;i<11;i++){await tick();assert.equal(f.calls[i].id,i===10?'undo':'tap'+i);f.replies[i].resolve(i+1);}
+  await tick(); assert.equal(f.queue.jobs.length,0);
 });

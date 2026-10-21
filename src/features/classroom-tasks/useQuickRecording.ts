@@ -3,9 +3,10 @@ import type { OperationInput, OperationResult, QuickContext, QuickContextInput, 
 import { taskApi } from '../../services/classroomTaskApi';
 import { useRecordingQueue } from './useRecordingQueue';
 
-interface QuickIntent {
+export interface QuickIntent {
   scope: QuickContextInput;
   content: string;
+  before?: Array<{studentId:string;result:TaskResult|null}>;
   type: 'record' | 'retest' | 'undo';
   members?: Array<{ studentId: string; result: TaskResult }>;
   studentId?: string;
@@ -20,7 +21,7 @@ export function useQuickRecording(classId: string, projectKey: string, date: str
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [content, setContent] = useState('');
-  const [last, setLast] = useState<{ taskId: string; operationId: string } | null>(null);
+  const [last, setLast] = useState<{ taskId: string; operationId: string; before?: QuickIntent['before'] } | null>(null);
   const [notice, setNotice] = useState('');
   const input = { classId, projectKey, checkDate: date, ...(round ? { round } : {}) };
   const pendingRead = useRef<Promise<QuickContext> | null>(null);
@@ -62,7 +63,8 @@ export function useQuickRecording(classId: string, projectKey: string, date: str
         return { type: 'operate', taskId: detail.task.id, input: { operationId: id, kind: 'retest', participantId: participant.id, expectedVersion: participant.version, expectedMetadataVersion: detail.task.metadataVersion, result: 'positive', source: 'quick-record' } };
       }
       const original = intent.original!;
-      const fresh = await taskApi.detail(original.taskId);
+      const taskId = original.taskId || detail.task.id;
+      const fresh = await taskApi.detail(taskId);
       const events = fresh.events.filter(event => event.operationId === original.operationId && event.participantId);
       const members = events.map(event => {
         const participant = fresh.participants.find(p => p.id === event.participantId);
@@ -71,9 +73,9 @@ export function useQuickRecording(classId: string, projectKey: string, date: str
       });
       if (!members.length) throw new Error('找不到可撤销结果，请进入历史核对。');
       const operation = { kind: 'retract' as const, members, reason: '教师撤销刚才操作', expectedMetadataVersion: fresh.task.metadataVersion };
-      const preview = await taskApi.preview(original.taskId, operation);
+      const preview = await taskApi.preview(taskId, operation);
       if (preview.conflicts.length) throw new Error('记录已有变化，请进入历史核对。');
-      return { type: 'operate', taskId: original.taskId, input: { ...operation, operationId: id, previewToken: preview.previewToken! } };
+      return { type: 'operate', taskId, input: { ...operation, operationId: id, previewToken: preview.previewToken! } };
     },
     execute: request => request.type === 'record' ? taskApi.quickRecord(request.input) : taskApi.operate(request.taskId, request.input),
     query: id => taskApi.operation(id),
@@ -85,7 +87,7 @@ export function useQuickRecording(classId: string, projectKey: string, date: str
         contextRef.current = next; setContext(next);
       }
       setNotice('已保存，可撤销上一操作。');
-      setLast(intent.type === 'undo' ? null : { taskId: result.taskId, operationId: result.operationId });
+      setLast(intent.type === 'undo' ? null : { taskId: result.taskId, operationId: result.operationId, before: intent.before });
     },
     rejected: () => load(),
   });
@@ -93,8 +95,28 @@ export function useQuickRecording(classId: string, projectKey: string, date: str
     const refresh = () => { if (!queue.queue.jobs.length) void load().catch(() => undefined); };
     window.addEventListener('focus', refresh); return () => window.removeEventListener('focus', refresh);
   }, [load, queue.queue]);
-  const record = (members: Array<{ studentId: string; result: TaskResult }>) => queue.enqueue({ type: 'record', scope: input, content, members }, members.length === 1 ? '学生记录' : '批量记录');
-  const quickRetest = (studentId: string) => queue.enqueue({ type: 'retest', scope: input, content: '', studentId }, '补做记录');
-  const undo = () => { if (last && !queue.jobs.length) queue.enqueue({ type: 'undo', scope: input, content: '', original: last }, '撤销上一操作'); };
-  return { round, setRound, context, content, setContent, last, notice, loading, loadError, load, record, quickRetest, undo, queue };
+  const matches = (intent: QuickIntent | null) => intent?.scope.classId === classId && intent.scope.projectKey === projectKey && intent.scope.checkDate === date && intent.scope.round === round;
+  const pending = queue.jobs.filter(job => matches(job.intent));
+  const projected = new Map<string, TaskResult | null>();
+  context?.detail?.participants.forEach(p => projected.set(p.studentId, p.result));
+  for (const job of pending) {
+    const intent = job.intent!;
+    if (intent.type === 'undo') intent.before?.forEach(p => projected.set(p.studentId,p.result));
+    else if (intent.type === 'retest') projected.set(intent.studentId!, 'positive');
+    else intent.members?.forEach(p => projected.set(p.studentId,p.result));
+  }
+  const before = (ids:string[]) => ids.map(studentId => ({studentId,result:projected.get(studentId)??null}));
+  const record = (members: Array<{ studentId: string; result: TaskResult }>) => queue.enqueue({ type: 'record', scope: input, content, members, before:before(members.map(m=>m.studentId)) }, members.length === 1 ? '学生记录' : '批量记录');
+  const quickRetest = (studentId: string) => queue.enqueue({ type: 'retest', scope: input, content: '', studentId, before:before([studentId]) }, '补做记录');
+  const undo = () => {
+    const latest=pending.at(-1);
+    if(latest?.intent?.type==='undo')return;
+    if(latest){
+      const cancelled=queue.cancelQueued(latest.id);
+      if(cancelled!==false)return;
+      queue.enqueue({type:'undo',scope:input,content:'',original:{taskId:contextRef.current?.detail?.task.id??'',operationId:latest.id},before:latest.intent?.before},'撤销上一操作');
+    }else if(last)queue.enqueue({type:'undo',scope:input,content:'',original:last,before:last.before},'撤销上一操作');
+  };
+  const canUndo = pending.length ? pending.at(-1)?.intent?.type!=='undo' : Boolean(last);
+  return { round, setRound, context, content, setContent, last, notice, loading, loadError, load, record, quickRetest, undo, queue, projected, canUndo };
 }
