@@ -1,11 +1,22 @@
 # 青松教师 项目当前交接
 
 > 本文是当前统一交接入口。历史专项文档只用于追溯当时的决策，不再代表当前 Git、数据路径或部署状态。
-> 更新时间：2026-10-21；当前应用生产提交：ea04d2adfb79863bcba690efd28613491570d4f5（PR #65）。
+> 更新时间：2026-10-21；当前应用生产提交：23a236113ce9b55eac5a7e39e55a39bb4952b863（PR #67）。
 
 > 改名进度：中文品牌「青松教师」，英文项目名 `qingsong`；GitHub 仓库为 `CXC0515/qingsong`，母文件夹已迁至 `/Users/cxc/Projects/qingsong`。品牌代码经 PR #55 合并，已随PR #57部署服务器；实际切换与验证见 [改名记录](./QINGSONG_RENAME.md)。
 
 ## 1. 当前阶段与产品边界
+
+### 2026-10-21 即时课堂记录与桌面工作台视口（已上线，待用户体验验收）
+
+- 用户认可独立原型并批准整卡点击修订、沿原 Git／PR／合并／部署流程上线，同时要求工作台桌面端不再整页滚动。基线 origin/main@912bb3e，独立分支 codex/classroom-instant-recording，复用本会话独立 worktree；母文件夹原有未跟踪文档和数据保留。
+- 整卡及“未登记”可点击，负结果独立；计数即时投影，表现支持同一学生连续点击。移除重复“正在记录”卡和单项更多，直接进入本次记录；项目单行选择、新项目入口固定。复用原名册、事件、补做、幂等写入及有序队列，没有新增接口或 schema。
+- 未发送记录直接取消，发送中撤销以补偿事件排队并立即恢复界面；响应丢失／刷新后核对原操作，按 operationId 去重已回读事实。待核对时仍可保留后续点名。继续使用 sessionStorage，不承诺关闭标签页后恢复或离线自动重放；真实网络往返仍存在。浏览器无法保留撤销时原记录保留并提示恢复路径。
+- Workbench／AppLayout 桌面外层固定剩余视口，长内容在区域内滚动；手机整页滚动。未来 Agent 仅建立高度边界，本次没有实现会话或输入框。
+- 类型检查、构建、24项课堂测试和22项迁移／隔离／恢复／队列／投影测试通过。900ms延迟、40人实际壳层：十次连记、未发送取消／发送中撤销、刷新、39人批量及整批撤销、旧结果保留通过；375×568无横向溢出，第40人及批量确认可达；桌面1024×600、1280×720外层scrollHeight=clientHeight，12项待跟进仍不撑高页面。真机、软键盘及真实教师体验由用户验收。
+- PR #67 合并为23a236113ce9b55eac5a7e39e55a39bb4952b863；母文件夹main同步后打包，SHA256 d90ab69ace677af67ee06d3cb30482253359872c28dbf6ce59e3debe039a822e。服务器独立安装、类型检查、构建及24＋22项测试通过，current切至对应release，上一版ea04d2a保留。未执行数据迁移或覆盖；7库完整性ok、3个roster仍14、外键错误0、切换前无运行中长任务。
+- 回环及公网live／ready通过，首页200、匿名项目接口401；入口index-LHI7daPb.js，本地／服务器／公网解压SHA256一致：206118e4333198d173d8be424eb543bb9fdc5aca2ae8d6a05d2930a94dd726fa。服务active/running、NRestarts=0，备份timer active。启动等待初次连接失败后恢复，未触发回滚。测试入口 https://td.unreached.top/?page=classroom-tasks ，原账号刷新；工作台直接从左侧进入。未在真实班级写入测试记录。产品与限制见 CLASSROOM_TASKS_DESIGN.md 第22节。
+
 
 ### 2026-10-21 课堂状态条、轮次与批量范围（已上线，待用户体验验收）
 
@@ -86,7 +97,7 @@ flowchart LR
 - DNS：阿里云 `td` A 记录指向 `43.172.77.153`，TTL 10 分钟。
 - 公网只使用 80/443；80 自动跳转 HTTPS，应用端口 4317 只监听回环。
 - 服务：`teacher-dashboard.service`；每日备份：`teacher-dashboard-backup.timer`。
-- 代码：2026-10-21核对current指向/opt/teacher-dashboard/releases/ea04d2adfb79863bcba690efd28613491570d4f5，对应PR #65；上一版c143a6f保留，未清理其他发布目录。
+- 代码：2026-10-21核对current指向/opt/teacher-dashboard/releases/23a236113ce9b55eac5a7e39e55a39bb4952b863，对应PR #67；上一版ea04d2a保留，未清理其他发布目录。
 - 数据：`/var/lib/teacher-dashboard/product-2026-09-16-r2`。
 - 证书：Let's Encrypt，当前证书到期日 2026-12-15，Certbot 自动续期。
 - 健康检查：`/api/health/live` 与 `/api/health/ready`。
