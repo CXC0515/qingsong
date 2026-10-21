@@ -268,3 +268,10 @@
 - [Anthropic Frontend Design Skill](https://github.com/anthropics/skills/blob/main/skills/frontend-design/SKILL.md)：视觉层级和避免通用化界面的方法。
 
 项目的教师工作流、状态模型和本文件定义的适配决策优先于外部通用建议。
+
+## 15. 工作台桌面高度边界（2026-10-21）
+
+- Wide 起工作台占满应用栏以下剩余视口，使用 flex/grid 与 min-height:0 分配高度；工作台外层不纵向滚动。
+- 长待跟进、教学任务及上下文在各自区域滚动，保留原详情入口；不裁掉或删除超出内容。
+- Compact／Medium 继续使用单一壳层滚动，不能沿用桌面锁高造成入口不可达。
+- 后续 Agent 会话应占据明确的弹性工作区，让消息列表滚动、输入区固定在该区底部。本轮只建立现有工作台高度边界，不渲染尚未接入的会话能力。

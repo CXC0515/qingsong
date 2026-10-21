@@ -35,7 +35,6 @@ export class RecordingQueue<I, P, R> {
     this.listeners.forEach(listener => listener());
   }
   enqueue(intent: I, label: string, id: string) {
-    if (this.jobs.some(job => job.status === 'unknown')) throw new Error('请先核对未确认记录，其余点名仍已保留。');
     this.commit([...this.jobs, { id, intent, label, status: 'queued' }]);
     void this.drain();
   }
@@ -87,6 +86,12 @@ export class RecordingQueue<I, P, R> {
     if (!job || (!job.request && !job.intent)) throw new Error('原填写内容未保留，请先核对历史。');
     this.commit(this.jobs.map(item => item.id === id ? { ...item, status: 'queued' } : item));
     void this.drain();
+  }
+  cancelQueued(id: string) {
+    const job = this.jobs.find(item => item.id === id);
+    if (!job || job.status !== 'queued') return false;
+    this.commit(this.jobs.filter(item => item.id !== id));
+    return true;
   }
   discard(id: string) {
     this.commit(this.jobs.filter(item => item.id !== id));

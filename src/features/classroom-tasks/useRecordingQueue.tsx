@@ -66,7 +66,7 @@ export function useRecordingQueue<I, P, R>(options: {
 
 export function RecordingStatus<I, P>({jobs,syncing}:{jobs:RecordingJob<I,P>[];syncing?:boolean}) {
   const unknown=jobs.some(job=>job.status==='unknown');
-  const text=unknown?'有记录待核对':jobs.length?'正在保存'+jobs.length+'笔…':syncing?'正在同步…':'';
+  const text=unknown?'本机已记 · 待核对':jobs.length?'本机已记 · '+jobs.length+'笔待同步':syncing?'读取中…':'已同步';
   return text?<span role="status" className="shrink-0 text-xs text-slate-500">{text}</span>:null;
 }
 

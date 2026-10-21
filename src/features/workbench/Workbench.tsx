@@ -109,8 +109,8 @@ export default function Workbench({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in" id="workbench-page">
-      <section className="glass-panel rounded-2xl p-4 sm:p-5" aria-labelledby="classroom-followup-heading">
+    <div className="space-y-4 animate-fade-in lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:space-y-0 lg:gap-4" id="workbench-page">
+      <section className="glass-panel rounded-2xl p-4 lg:min-h-24 lg:max-h-[30%] lg:shrink-0 lg:overflow-y-auto" aria-labelledby="classroom-followup-heading">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 id="classroom-followup-heading" className="text-base font-bold">课堂任务 · 待跟进</h2>
           <button type="button" onClick={() => onNavigate('classroom-tasks')} className="min-h-11 rounded-xl px-3 text-sm font-semibold text-emerald-700 dark:text-emerald-300">全部课堂任务 →</button>
@@ -127,10 +127,10 @@ export default function Workbench({
         </div>
       </section>
       {/* Main Grid: Pending Tasks VS Alerts Sidebar */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.7fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(240px,0.8fr)_minmax(0,1.7fr)]">
         
         {/* Pending Tasks Panel */}
-        <div className="order-2 space-y-4 xl:col-start-2 xl:row-start-1">
+        <div className="order-2 space-y-4 lg:col-start-2 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto lg:pr-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight text-slate-800 dark:text-slate-100">
@@ -253,7 +253,7 @@ export default function Workbench({
         </div>
 
         {/* Sidebar Alerts & Daily schedule */}
-        <div className="order-1 space-y-6 xl:col-start-1 xl:row-start-1">
+        <div className="order-1 space-y-4 lg:col-start-1 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto lg:pr-2">
           
           <div className="glass-panel space-y-3 rounded-2xl p-5"><div className="flex items-center justify-between"><h3 className="flex items-center gap-1.5 text-sm font-bold"><Calendar className="h-4 w-4 text-emerald-600"/>今日课表</h3><span className="text-[11px] font-bold text-slate-400">{todayLabel} · {todaySchedule.length} 节</span></div><div className="space-y-2">{todaySchedule.map(item=><div key={item.id} className="grid grid-cols-[56px_1fr] gap-2 rounded-xl bg-slate-50 p-3 dark:bg-zinc-800/60"><span className="font-mono text-[11px] font-bold text-slate-500">{item.time.split(' - ')[0]}</span><div><p className="text-sm font-semibold">{item.title}</p><p className="text-[10px] text-slate-400">{item.className} · {item.time}</p></div></div>)}{!todaySchedule.length&&<p className="rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-400">今天没有课程</p>}</div></div>
           <div className="glass-panel space-y-3 rounded-2xl p-5"><div className="flex items-center justify-between"><h3 className="flex items-center gap-1.5 text-sm font-bold"><Clock className="h-4 w-4 text-amber-600"/>提醒日程</h3><button onClick={()=>onNavigate('schedule')} className="text-[11px] font-bold text-emerald-700 hover:underline">查看全部</button></div><div className="space-y-2">{activeReminders.slice(0,3).map(item=><div key={item.id} className={`rounded-xl border-l-4 p-3 ${reminderIsOverdue(item)?'border-l-red-500 bg-red-50/70':'border-l-amber-500 bg-amber-50/70'}`}><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold">{item.name}</p><span className="text-[10px] font-bold text-slate-500">{item.timeKind==='none'?'时间待定':item.startAt?.slice(11,16)||item.time}</span></div><p className="mt-1 text-[10px] text-slate-400">{reminderIsOverdue(item)?'已过期':'待处理'}{item.className?` · ${item.className}`:''}</p></div>)}{!activeReminders.length&&<p className="rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-400">暂无待处理提醒</p>}</div></div>
