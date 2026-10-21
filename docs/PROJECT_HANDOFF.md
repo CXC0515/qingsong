@@ -1,19 +1,21 @@
 # 青松教师 项目当前交接
 
 > 本文是当前统一交接入口。历史专项文档只用于追溯当时的决策，不再代表当前 Git、数据路径或部署状态。
-> 更新时间：2026-10-21；当前应用生产提交：c143a6f42900820e35ac7fa68a9c6c59b7eb8603（PR #63）。
+> 更新时间：2026-10-21；当前应用生产提交：ea04d2adfb79863bcba690efd28613491570d4f5（PR #65）。
 
 > 改名进度：中文品牌「青松教师」，英文项目名 `qingsong`；GitHub 仓库为 `CXC0515/qingsong`，母文件夹已迁至 `/Users/cxc/Projects/qingsong`。品牌代码经 PR #55 合并，已随PR #57部署服务器；实际切换与验证见 [改名记录](./QINGSONG_RENAME.md)。
 
 ## 1. 当前阶段与产品边界
 
-### 2026-10-21 课堂状态条、轮次与批量范围（待本轮发布）
+### 2026-10-21 课堂状态条、轮次与批量范围（已上线，待用户体验验收）
 
 - 用户批准四项收敛及提交／部署：保存状态并入“正在记录”条、轮次旁显示新一轮检查、批量范围移入弹窗、待跟进／历史显示日期与轮次。基线origin/main@cf9c787，分支codex/classroom-round-controls，复用本会话独立worktree。
 - 复用原保存队列、预览及写入接口。删除普通保存状态的整行占位，异常核对仍保留。首笔前撤销按钮固定为禁用，避免首笔后按钮出现导致手机名单换行。新一轮在首笔保存时建立，旧检查及任务判定规则不变。
 - 快记与详情共用范围选择组件；显示范围总人数和可填写人数，仅填写未记录者。详情切换范围重取原服务端预览，过期响应不覆盖新选择。列表round可选字段从已有轮次关联一次读取，旧手工检查不推测轮次；无schema或数据迁移。
 - 本地24项专项及17项迁移／隔离／恢复／队列测试通过，类型检查、构建通过。临时40人实际壳层验证新轮次首笔、原结果隔离、同名第1／2轮待跟进、快记与详情分别按筛选保存1人并保留旧结果。375×568无横向溢出，名单位置保存前／中／后均679；手机及桌面信息条已查看，真机与软键盘待用户。
-- 发布后回填生产提交与公网结果；产品细则见 CLASSROOM_TASKS_DESIGN.md 第21节。
+- PR #65 合并为ea04d2adfb79863bcba690efd28613491570d4f5；母文件夹main同步打包，SHA256 14c17977c220dbb62ec789c91dc903167df9b1fa4347f1e8ec33711cfd4ebd54。服务器独立安装、类型检查、构建及24＋17项测试通过，current切到对应release，上一版c143a6f保留。
+- 无schema或真实数据迁移；7库完整性ok，3个roster仍为14，外键错误0。公网live／ready、首页200、匿名项目接口401正常；入口index-2s8Xc6mB.js，本地／服务器／公网解压SHA256一致：f4f4a0f2b22a3132c335331e5692a09f830e21f742ee50ed2c3e02e5a43b5c4f；gzip／Vary保留。服务active/running、NRestarts=0，备份timer active。
+- 原账号刷新 https://td.unreached.top/?page=classroom-tasks 体验；未在真实班级写入验收记录，真机与软键盘仍待用户。产品细则见 CLASSROOM_TASKS_DESIGN.md 第21节。
 
 ### 2026-10-21 课堂连续快记与滚动修复（已上线，待用户体验验收）
 
@@ -84,7 +86,7 @@ flowchart LR
 - DNS：阿里云 `td` A 记录指向 `43.172.77.153`，TTL 10 分钟。
 - 公网只使用 80/443；80 自动跳转 HTTPS，应用端口 4317 只监听回环。
 - 服务：`teacher-dashboard.service`；每日备份：`teacher-dashboard-backup.timer`。
-- 代码：2026-10-21核对current指向/opt/teacher-dashboard/releases/c143a6f42900820e35ac7fa68a9c6c59b7eb8603，对应PR #63；上一版ba915c9保留，未清理其他发布目录。
+- 代码：2026-10-21核对current指向/opt/teacher-dashboard/releases/ea04d2adfb79863bcba690efd28613491570d4f5，对应PR #65；上一版c143a6f保留，未清理其他发布目录。
 - 数据：`/var/lib/teacher-dashboard/product-2026-09-16-r2`。
 - 证书：Let's Encrypt，当前证书到期日 2026-12-15，Certbot 自动续期。
 - 健康检查：`/api/health/live` 与 `/api/health/ready`。
