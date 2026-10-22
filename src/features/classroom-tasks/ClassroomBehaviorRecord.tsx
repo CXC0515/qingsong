@@ -82,7 +82,7 @@ export default function ClassroomBehaviorRecord({ classId, identityKey, project,
     <div className="flex flex-wrap items-center gap-2"><input className={control+' flex-1 basis-36 sm:max-w-xs'} aria-label="搜索表现记录学生" placeholder="搜索姓名或学号" value={query} onChange={e=>setQuery(e.target.value)}/>
       <button className={action} onClick={()=>setHistoryOpen(true)}>本次记录 ↗</button>
       <button className={action} disabled={!latestPending&&!latestEvent} onClick={undoLatest}>撤销</button>
-      <details className="relative"><summary className="min-h-11 cursor-pointer px-3 py-3 text-xs text-slate-500">补充说明</summary><input className={control+' absolute right-0 z-10 w-64 bg-white shadow-lg dark:bg-zinc-900'} aria-label="表现说明" placeholder="具体发生了什么（可选）" maxLength={1000} value={note} onChange={e=>setNote(e.target.value)}/></details>
+      <details className="relative max-w-full"><summary className="min-h-11 cursor-pointer px-3 py-3 text-xs text-slate-500">补充说明</summary><input className={control.replace('w-full','')+' mt-2 w-64 max-w-full bg-white dark:bg-zinc-900'} aria-label="表现说明" placeholder="具体发生了什么（可选）" maxLength={1000} value={note} onChange={e=>setNote(e.target.value)}/></details>
     </div>
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(144px,1fr))]">
       {roster.filter(student => !query || (student.name + ' ' + student.studentNo).includes(query)).map(student => {
