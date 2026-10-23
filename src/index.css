@@ -1,7 +1,7 @@
-@import "./components/glass/runtime/liquid-glass.css";
-@import "./styles/product.css";
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
+@import "./components/glass/runtime/liquid-glass.css";
+@import "./styles/product.css";
 
 @theme {
   --font-sans: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;

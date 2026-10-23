@@ -1,3 +1,4 @@
+import { StudentSearch, RecordingNote } from '../../components/RecordingFields';
 import { GlassButton } from '../../components/glass/Glass';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { behaviorKinds, type BehaviorEvent, type BehaviorInput } from '../../domain/classroomBehavior';
@@ -5,7 +6,7 @@ import type { RecordProject } from '../../domain/classroomTasks';
 import type { RosterStudent } from '../../domain/types';
 import { behaviorApi } from '../../services/classroomBehaviorApi';
 import ResponsiveDialog from '../../components/ResponsiveDialog';
-import { action, control } from './ClassroomTaskDialogs';
+import { action } from './ClassroomTaskDialogs';
 import { RecordingFeedback, RecordingStatus, useRecordingQueue } from './useRecordingQueue';
 
 import { behaviorProjection, type BehaviorIntent } from './behaviorProjection';
@@ -76,8 +77,8 @@ export default function ClassroomBehaviorRecord({ classId, identityKey, project,
   return <div className="space-y-3">
     <RecordingFeedback {...queue} discard={id => queue.queue.discard(id)}/>
     {loadError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{loadError}<button className={action + ' ml-2'} onClick={() => void load().catch(() => undefined)}>重新读取</button></p>}
-    <div className="qs-record-meta"><input className={control+' qs-search'} aria-label="搜索表现记录学生" placeholder="搜姓名／学号" value={query} onChange={e=>setQuery(e.target.value)}/><span className="text-sm text-emerald-700">已记 {count}次</span><span className="text-sm text-slate-500">涉及 {Array.from(counts.values()).filter(n=>n>0).length}人</span><RecordingStatus jobs={queue.jobs} syncing={loading}/>
-      <input className={control+' qs-note'} aria-label="表现说明" placeholder="补充说明（可选）" maxLength={1000} value={note} onChange={e=>setNote(e.target.value)}/><GlassButton onClick={()=>setHistoryOpen(true)}>本次记录</GlassButton><GlassButton disabled={!latestPending&&!latestEvent} onClick={undoLatest}>撤销</GlassButton>
+    <div className="qs-record-meta"><StudentSearch aria-label="搜索表现记录学生" value={query} onChange={e=>setQuery(e.target.value)}/><span className="text-sm text-emerald-700">已记 {count}次</span><span className="text-sm text-slate-500">涉及 {Array.from(counts.values()).filter(n=>n>0).length}人</span><RecordingStatus jobs={queue.jobs} syncing={loading}/>
+      <RecordingNote label="补充说明" aria-label="表现说明" placeholder="补充说明（可选）" maxLength={1000} value={note} onChange={e=>setNote(e.target.value)}/><GlassButton onClick={()=>setHistoryOpen(true)}>本次记录</GlassButton><GlassButton disabled={!latestPending&&!latestEvent} onClick={undoLatest}>撤销</GlassButton>
     </div>
     <div className="qs-student-grid">
       {roster.filter(student => !query || (student.name + ' ' + student.studentNo).includes(query)).map(student => {

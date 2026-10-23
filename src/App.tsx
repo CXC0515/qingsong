@@ -97,6 +97,7 @@ export default function App() {
   // Navigation & View State
   const [activePage, setActivePageState] = useState<PageId>(() => readTaskRoute() ? 'classroom-tasks' : 'workbench');
   const [lessonRoute,setLessonRoute]=useState<LessonRoute|null>(()=>readLessonRoute(authState.user.id));
+  const [classroomHeaderTarget,setClassroomHeaderTarget]=useState<HTMLDivElement|null>(null);
   const [classroomTaskId, setClassroomTaskId] = useState<string | undefined>(() => readTaskRoute()?.taskId);
   const [classroomTaskStudentId, setClassroomTaskStudentId] = useState<string | undefined>();
   const [taskNavigation, setTaskNavigation] = useState<TaskNavigationContext | null>(null);
@@ -719,6 +720,7 @@ export default function App() {
 
   return (
     <AppLayout
+      headerContextRef={setClassroomHeaderTarget}
       activePage={activePage}
       classes={classes}
       expandedGroups={expandedGroups}
@@ -748,6 +750,7 @@ export default function App() {
               initialClassId={selectedClassId}
               scheduleItemId={lessonRoute?.scheduleItemId}
               lessonDate={lessonRoute?.date}
+              headerContextTarget={classroomHeaderTarget}
               lessonLabel={(()=>{const lesson=schedule.find(s=>s.id===lessonRoute?.scheduleItemId);return lesson?'第'+lesson.period+'节 · '+lesson.title:undefined;})()}
               onClearLesson={clearLessonRoute}
               onSelectClass={selectRecordingClass}
