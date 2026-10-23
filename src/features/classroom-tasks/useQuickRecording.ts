@@ -14,7 +14,7 @@ export interface QuickIntent {
 }
 type QuickRequest = { type: 'record'; input: QuickRecordInput } | { type: 'operate'; taskId: string; input: OperationInput };
 
-export function useQuickRecording(classId: string, projectKey: string, date: string, identityKey: string) {
+export function useQuickRecording(classId: string, projectKey: string, date: string, identityKey: string, scheduleItemId?: string) {
   const [round, setRound] = useState<number>();
   const [context, setContext] = useState<QuickContext | null>(null);
   const contextRef = useRef<QuickContext | null>(null);
@@ -23,19 +23,19 @@ export function useQuickRecording(classId: string, projectKey: string, date: str
   const [content, setContent] = useState('');
   const [last, setLast] = useState<{ taskId: string; operationId: string; before?: QuickIntent['before'] } | null>(null);
   const [notice, setNotice] = useState('');
-  const input = { classId, projectKey, checkDate: date, ...(round ? { round } : {}) };
+  const input = { classId, projectKey, checkDate: date, ...(scheduleItemId?{scheduleItemId}:{}), ...(round ? { round } : {}) };
   const pendingRead = useRef<Promise<QuickContext> | null>(null);
   const generation = useRef(0);
   const load = useCallback(() => {
     const n = ++generation.current;
     setLoading(true); setLoadError('');
-    const promise = taskApi.quickContext({ classId, projectKey, checkDate: date, ...(round ? { round } : {}) });
+    const promise = taskApi.quickContext({ classId, projectKey, checkDate: date, ...(scheduleItemId?{scheduleItemId}:{}), ...(round ? { round } : {}) });
     pendingRead.current = promise;
     void promise.then(value => { if (n === generation.current) { contextRef.current = value; setContext(value); } })
       .catch(e => { if (n === generation.current) setLoadError(e.message); })
       .finally(() => { if (n === generation.current) { setLoading(false); pendingRead.current = null; } });
     return promise;
-  }, [classId, projectKey, date, round]);
+  }, [classId, projectKey, date, round, scheduleItemId]);
   useEffect(() => {
     contextRef.current = null; setContext(null); setLast(null); setContent(''); setNotice('');
     void load().catch(() => undefined);
@@ -45,7 +45,7 @@ export function useQuickRecording(classId: string, projectKey: string, date: str
     storageKey: 'qingsong:quick-queue:' + identityKey,
     legacyKey: 'qingsong:quick-pending:' + identityKey,
     prepare: async (intent, id) => {
-      const sameScope = intent.scope.classId === classId && intent.scope.projectKey === projectKey && intent.scope.checkDate === date && intent.scope.round === round;
+      const sameScope = intent.scope.classId === classId && intent.scope.projectKey === projectKey && intent.scope.checkDate === date && intent.scope.scheduleItemId === scheduleItemId && intent.scope.round === round;
       // Finish any read already in flight before writing, so a late read cannot
       // replace a newer save response with an older participant snapshot.
       const current = sameScope ? pendingRead.current ? await pendingRead.current : contextRef.current ?? await load() : await taskApi.quickContext(intent.scope);
@@ -80,8 +80,9 @@ export function useQuickRecording(classId: string, projectKey: string, date: str
     execute: request => request.type === 'record' ? taskApi.quickRecord(request.input) : taskApi.operate(request.taskId, request.input),
     query: id => taskApi.operation(id),
     saved: (result, intent) => {
-      if (!intent || intent.scope.classId !== classId || intent.scope.projectKey !== projectKey || intent.scope.checkDate !== date || intent.scope.round !== round) { void load().catch(() => undefined); return; }
+      if (!intent || intent.scope.classId !== classId || intent.scope.projectKey !== projectKey || intent.scope.checkDate !== date || intent.scope.scheduleItemId !== scheduleItemId || intent.scope.round !== round) { void load().catch(() => undefined); return; }
       const previous = contextRef.current;
+      if(previous?.detail&&previous.detail.task.id!==result.taskId){void load().catch(()=>undefined);return;}
       if (previous) {
         const next = { ...previous, detail: result.detail, latestRound: Math.max(previous.latestRound, previous.round) };
         contextRef.current = next; setContext(next);
@@ -95,7 +96,7 @@ export function useQuickRecording(classId: string, projectKey: string, date: str
     const refresh = () => { if (!queue.queue.jobs.length) void load().catch(() => undefined); };
     window.addEventListener('focus', refresh); return () => window.removeEventListener('focus', refresh);
   }, [load, queue.queue]);
-  const matches = (intent: QuickIntent | null) => intent?.scope.classId === classId && intent.scope.projectKey === projectKey && intent.scope.checkDate === date && intent.scope.round === round;
+  const matches = (intent: QuickIntent | null) => intent?.scope.classId === classId && intent.scope.projectKey === projectKey && intent.scope.checkDate === date && intent.scope.scheduleItemId === scheduleItemId && intent.scope.round === round;
   const pending = queue.jobs.filter(job => matches(job.intent));
   const projected = new Map<string, TaskResult | null>();
   context?.detail?.participants.forEach(p => projected.set(p.studentId, p.result));

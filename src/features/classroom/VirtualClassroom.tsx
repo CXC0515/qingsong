@@ -1,3 +1,4 @@
+import ClassPicker from '../../components/ClassPicker';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -77,7 +78,6 @@ export default function VirtualClassroom({
   onUpdateStudent
 }: VirtualClassroomProps) {
   const { user } = useAuth();
-  const [showClassPicker, setShowClassPicker] = useState(false);
   const [showPlacement, setShowPlacement] = useState(false);
   const [showLayoutSettings, setShowLayoutSettings] = useState(false);
   const [showArrangeMore, setShowArrangeMore] = useState(false);
@@ -587,26 +587,8 @@ export default function VirtualClassroom({
           {!editMode && <button type="button" onClick={() => onOpenClassroomTasks(effectiveClassId)} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200"><BookOpen className="h-4 w-4" />记录本班课堂任务</button>}
         </div>
         <div className={`grid w-full items-center gap-2 md:flex md:w-auto ${editMode ? 'grid-cols-2' : 'grid-cols-[minmax(0,1fr)_44px_auto]'}`}>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => setShowClassPicker(true)}
-            className={`flex min-h-11 min-w-0 items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 text-left text-sm font-semibold text-slate-700 md:hidden dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-200 ${editMode ? 'col-span-2' : ''}`}
-          >
-            <span className="truncate">{activeClass.name}</span>
-            <ChevronDown className="h-4 w-4 shrink-0" />
-          </button>
-          <select
-            value={effectiveClassId}
-            disabled={saving}
-            onChange={event => { if (!editMode || window.confirm('座位修改尚未保存，切换班级将放弃修改。继续切换吗？')) onSelectClass(event.target.value); }}
-            className="hidden min-h-11 min-w-32 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 md:block dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-200"
-            aria-label="切换班级"
-          >
-            {classes.filter(schoolClass => schoolClass.status === 'active').map(schoolClass => (
-              <option key={schoolClass.id} value={schoolClass.id}>{schoolClass.name}</option>
-            ))}
-          </select>
+          <ClassPicker disabled={saving} classes={classes.filter(c=>c.status==='active')} value={effectiveClassId} onChange={id=>{if(!editMode||window.confirm('座位修改尚未保存，切换班级将放弃修改。继续切换吗？'))onSelectClass(id);}}/>
+
           {editMode ? (
             <>
               <button
@@ -719,19 +701,7 @@ export default function VirtualClassroom({
         </section>,
         document.body
       )}
-      {showClassPicker && <ResponsiveDialog title="选择班级" onClose={() => setShowClassPicker(false)}><div className="grid gap-2">
-        {classes.filter(schoolClass => schoolClass.status === 'active').map(schoolClass => {
-          const selected = schoolClass.id === effectiveClassId;
-          return <button key={schoolClass.id} type="button" onClick={() => {
-            if (!editMode || window.confirm('座位修改尚未保存，切换班级将放弃修改。继续切换吗？')) {
-              onSelectClass(schoolClass.id);
-              setShowClassPicker(false);
-            }
-          }} className={`flex min-h-12 items-center justify-between rounded-xl border px-4 text-left text-base font-bold ${selected ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30' : 'border-slate-200 dark:border-zinc-700'}`}>
-            <span>{schoolClass.name}</span>{selected ? <Check className="h-5 w-5" /> : null}
-          </button>;
-        })}
-      </div></ResponsiveDialog>}
+
       {showPlacement && editMode && <ResponsiveDialog title="选择待安排学生" onClose={() => setShowPlacement(false)}>{unassignedPanel}</ResponsiveDialog>}
       {showLayoutSettings && draft && <ResponsiveDialog title="行列设置" onClose={() => setShowLayoutSettings(false)}>
         <div className="space-y-4">

@@ -1,4 +1,4 @@
-import type { RecordProject, CreateRecordProject } from '../domain/classroomTasks';
+import type { RecordProject, CreateRecordProject, RenameRecordProject } from '../domain/classroomTasks';
 import type { QuickContextInput, QuickContext, QuickRecordInput } from '../domain/classroomTasks';
 import { apiFetch } from './apiClient';
 import type { CreateTaskInput, CreationPreview, TaskDetail, TaskListItem, TaskParticipant, TaskEvent, TaskOperation, OperationInput, OperationPreview, OperationResult } from '../domain/classroomTasks';
@@ -17,6 +17,8 @@ const request = async <T>(url: string, body?: unknown): Promise<T> => {
 };
 const base = '/api/classroom-tasks';
 export const taskApi = {
+  renameProject: (input:RenameRecordProject) => request<RecordProject>(`${base}/projects/rename`,input),
+  renameOperation: (id:string) => request<RecordProject>(`${base}/projects/renames/${encodeURIComponent(id)}`),
   projects: async () => (await request<{projects:RecordProject[]}>(`${base}/projects`)).projects,
   projectOperation: (id:string) => request<RecordProject>(`${base}/projects/operations/${encodeURIComponent(id)}`),
   createProject: (input:CreateRecordProject) => request<RecordProject>(`${base}/projects`,input),

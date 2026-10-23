@@ -1,3 +1,4 @@
+import ClassPicker from '../../components/ClassPicker';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -105,7 +106,6 @@ const createScheduleColorSlots = (keys: string[]) => {
 export default function ScheduleReminder(props: Props) {
   const activeClasses = props.classes.filter((item) => item.status === 'active');
   const [showTools, setShowTools] = useState(false);
-  const [showClassPicker, setShowClassPicker] = useState(false);
   const [scope, setScope] = useState<'teacher' | 'class'>('teacher');
   const [reminderView, setReminderView] = useState<'list' | 'quadrant'>('quadrant');
   const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null);
@@ -175,16 +175,8 @@ export default function ScheduleReminder(props: Props) {
             </div>
             {scope === 'class' && (
               <>
-                <button type="button" onClick={() => setShowClassPicker(true)} className="inline-flex min-h-11 min-w-0 flex-1 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold sm:hidden dark:border-zinc-700 dark:bg-zinc-950">
-                  <span className="min-w-0 flex-1 truncate">{selectedClass?.name ?? '选择班级'}</span><ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
-                </button>
-                <select value={effectiveClassId} onChange={(e) => props.onSelectClass(e.target.value)} className="hidden h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold sm:block dark:border-zinc-700 dark:bg-zinc-950">
-                  {activeClasses.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                <ClassPicker classes={activeClasses} value={effectiveClassId} onChange={props.onSelectClass}/>
+
               </>
             )}
             <span className="hidden text-xs text-slate-400 md:inline">{props.showWeekends ? '显示周一至周日' : '显示周一至周五'}</span>
@@ -261,7 +253,6 @@ export default function ScheduleReminder(props: Props) {
         />
       )}
       {editingReminder && <ReminderEditor item={editingReminder} classes={activeClasses} onChange={setEditingReminder} onClose={() => setEditingReminder(null)} onSave={(scope) => void saveReminderItem(scope)} />}
-      {showClassPicker && <ResponsiveChoiceDialog title="选择班级课表" value={effectiveClassId} options={activeClasses.map(item => ({ value: item.id, label: item.name }))} onChange={props.onSelectClass} onClose={() => setShowClassPicker(false)} />}
       {showImport && (
         <ImportDialog
           scope={scope}

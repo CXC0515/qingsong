@@ -1,3 +1,5 @@
+import ClassPicker from '../components/ClassPicker';
+import { GlassSurface } from '../components/glass/Glass';
 import { Bell, Boxes, CalendarDays, ChevronDown, GraduationCap, HelpCircle, LogOut, Menu, MoreHorizontal, Network, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { SchoolClass, TeacherProfile } from '../domain/types';
@@ -66,8 +68,8 @@ export default function AppLayout({
   };
 
   return (
-    <div className="h-dvh overflow-hidden bg-slate-100 dark:bg-zinc-950 text-slate-800 dark:text-slate-100 font-sans flex flex-col antialiased">
-      <header className="app-shell-header flex-none bg-white/75 dark:bg-zinc-900/75 backdrop-blur-2xl border-b border-slate-200/70 dark:border-zinc-800/80 px-3 sm:px-6 flex items-center justify-between z-30">
+    <div className="qs-app h-dvh overflow-hidden bg-slate-100 dark:bg-zinc-950 text-slate-800 dark:text-slate-100 font-sans flex flex-col antialiased">
+      <GlassSurface className="app-header shrink-0"><header className="app-shell-header flex-none bg-white/75 dark:bg-zinc-900/75 backdrop-blur-2xl border-b border-slate-200/70 dark:border-zinc-800/80 px-3 sm:px-6 flex items-center justify-between z-30">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <button
             type="button"
@@ -138,18 +140,7 @@ export default function AppLayout({
             <span>统编版七年级下册</span>
           </div>
 
-          <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-700/10">
-            <span className="text-[11px] font-bold text-emerald-900/60 dark:text-emerald-200/70">当前班级</span>
-            <select
-              value={selectedClassId}
-              onChange={(e) => onSelectClass(e.target.value)}
-              className="bg-transparent text-xs font-semibold cursor-pointer text-emerald-950 dark:text-emerald-100 focus:outline-none"
-            >
-              {classes.filter(c => c.status === 'active').map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
+          <div className="hidden md:block"><ClassPicker classes={classes.filter(c => c.status === 'active')} value={selectedClassId} onChange={onSelectClass} label="切换当前班级" /></div>
 
           <div className="relative">
             <button type="button" onClick={() => setAccountMenuOpen(open => !open)} aria-label="账号菜单" aria-expanded={accountMenuOpen} className="flex min-h-11 items-center gap-2 rounded-xl px-1.5 hover:bg-slate-100 dark:hover:bg-zinc-800">
@@ -167,7 +158,7 @@ export default function AppLayout({
             </>}
           </div>
         </div>
-      </header>
+      </header></GlassSurface>
 
       <div className="min-h-0 flex-1 flex overflow-hidden">
         {mobileNavOpen && (
@@ -178,7 +169,7 @@ export default function AppLayout({
             aria-label="关闭导航"
           />
         )}
-        <aside className={`fixed inset-y-0 left-0 z-50 w-72 overflow-y-auto bg-white/95 dark:bg-zinc-900/95 backdrop-blur-2xl border-r border-slate-200/70 dark:border-zinc-800/80 flex flex-col justify-between p-4 flex-shrink-0 select-none transition-transform lg:static lg:h-full lg:z-20 lg:bg-white/70 lg:dark:bg-zinc-900/70 lg:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <aside className={`app-sidebar fixed inset-y-0 left-0 z-50 w-72 overflow-y-auto bg-white/95 dark:bg-zinc-900/95 backdrop-blur-2xl border-r border-slate-200/70 dark:border-zinc-800/80 flex flex-col justify-between p-4 flex-shrink-0 select-none transition-transform lg:static lg:h-full lg:z-20 lg:bg-white/70 lg:dark:bg-zinc-900/70 lg:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="space-y-2">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-3">导航</span>
@@ -226,10 +217,11 @@ export default function AppLayout({
                             <button
                               key={item.id}
                               id={`sidebar-item-${item.id}`}
+                              aria-current={isActive ? 'page' : undefined}
                               onClick={() => selectPage(item.id)}
                               className={`w-full px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-between transition-all cursor-pointer ${
                                 isActive
-                                  ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/10'
+                                  ? 'font-semibold'
                                   : 'text-slate-500 hover:bg-white/80 hover:text-slate-800 dark:hover:bg-zinc-800/80 dark:hover:text-slate-200'
                               }`}
                             >
@@ -262,7 +254,7 @@ export default function AppLayout({
           </div>
         </aside>
 
-        <main className={`app-shell-main flex-1 min-w-0 p-3 sm:p-4 lg:p-6 bg-slate-50 dark:bg-zinc-950 ${isImmersiveWorkspace ? 'flex min-h-0 flex-col overflow-hidden' : activePage === 'workbench' ? 'overflow-y-auto lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden' : 'overflow-y-auto'}`}>
+        <main className={`app-shell-main flex-1 min-w-0 p-3 sm:p-4 lg:p-6 bg-slate-50 dark:bg-zinc-950 ${isImmersiveWorkspace ? 'flex min-h-0 flex-col overflow-hidden' : activePage === 'workbench' ? 'overflow-y-auto md:flex md:min-h-0 md:flex-col md:overflow-hidden' : 'overflow-y-auto'}`}>
           {children}
         </main>
       </div>

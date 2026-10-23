@@ -21,7 +21,7 @@ export interface TaskEvent {
 export interface TaskOperation { operationId: string; taskId: string; kind: TaskOperationKind | 'create'; actorUserId: string; source: string; committedAt: string; participantIds: string[]; }
 export interface TaskCounts { positive: number; negative: number; unrecorded: number; exempt: number; total: number; required: number; rate: number | null; }
 export interface TaskDetail { task: ClassroomTask; participants: TaskParticipant[]; counts: TaskCounts; events: TaskEvent[]; operations: TaskOperation[]; }
-export interface TaskListItem extends ClassroomTask { counts: TaskCounts; round?: number; }
+export interface TaskListItem extends ClassroomTask { counts: TaskCounts; round?: number; projectKey?:string; currentProjectLabel?:string; lessonSnapshot?:LessonSnapshot; }
 export interface CreateTaskInput { classId: string; name: string; mode: TaskMode; checkDate: string; dueDate?: string | null; description?: string; excludedStudentIds?: string[]; }
 export interface PreviewStudent { studentId: string; membershipId: string; name: string; studentNo: string; enrollmentStatus: string; included: boolean; }
 export interface CreationPreview { participants: PreviewStudent[]; duplicates: TaskListItem[]; previewToken: string; expiresAt: string; }
@@ -63,9 +63,9 @@ export const quickProjects = [
   { key: 'correction', label: '练习订正', mode: 'completion', positive: '完成', negative: '未完' },
   { key: 'recitation', label: '背诵检查', mode: 'pass', positive: '通过', negative: '未过' },
 ] as const;
-export interface QuickContextInput { classId: string; projectKey: string; checkDate: string; round?: number; }
+export interface QuickContextInput { classId: string; projectKey: string; checkDate: string; round?: number; scheduleItemId?: string; }
 export interface QuickContext {
-  round: number; latestRound: number; detail: TaskDetail | null; participants: PreviewStudent[]; contextToken: string;
+  round: number; latestRound: number; availableRounds?: number[]; lessonSnapshot?: LessonSnapshot; detail: TaskDetail | null; participants: PreviewStudent[]; contextToken: string;
 }
 export interface QuickRecordInput extends QuickContextInput {
   round: number; operationId: string; contextToken: string; content?: string;
@@ -74,7 +74,10 @@ export interface QuickRecordInput extends QuickContextInput {
 }
 
 export interface RecordProject {
-  key: string; label: string; category: 'study' | 'behavior'; mode: TaskMode | 'event';
+  key: string; label: string; version?: number; category: 'study' | 'behavior'; mode: TaskMode | 'event';
   positive: string; negative: string;
 }
 export interface CreateRecordProject { operationId: string; name: string; category: 'study' | 'behavior'; mode: TaskMode | 'event'; }
+
+export interface LessonSnapshot { scheduleItemId: string; checkDate: string; classId: string; className: string; title: string; period: number; time: string; }
+export interface RenameRecordProject { operationId: string; projectKey: string; name: string; expectedVersion: number; }

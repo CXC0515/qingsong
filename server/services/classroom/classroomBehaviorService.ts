@@ -3,10 +3,10 @@ import { getRosterDatabase } from '../../database/rosterDatabase';
 import { getWorkspaceContext } from '../../context/workspaceContext';
 import { behaviorEvents, findBehaviorOperation, insertBehaviorEvent } from '../../repositories/classroomBehaviorRepository';
 import type { BehaviorEvent, BehaviorInput } from '../../../src/domain/classroomBehavior';
-import { resolveRecordProject, ClassroomTaskError } from './classroomTaskService';
+import { resolveRecordProject, resolveLesson, ClassroomTaskError } from './classroomTaskService';
 export const recordBehavior = (input:BehaviorInput):BehaviorEvent => getRosterDatabase().transaction(()=>{
   const actorUserId=getWorkspaceContext().userId;
-  const hash=createHash('sha256').update(JSON.stringify([actorUserId,input.studentId,input.classId,input.kind,input.note,input.occurredDate,input.targetId??null])).digest('hex');
+  const hash=createHash('sha256').update(JSON.stringify([actorUserId,input.studentId,input.classId,input.kind,input.note,input.occurredDate,input.targetId??null,...(input.scheduleItemId?[input.scheduleItemId]:[])])).digest('hex');
   const old=findBehaviorOperation(input.operationId);
   if(old){if(old.fingerprint!==hash)throw new ClassroomTaskError('OPERATION_ID_CONFLICT',409,'这笔编号已用于其他记录，本次未保存，请核对。');return JSON.parse(old.data_json);}
   const db=getRosterDatabase();
@@ -14,7 +14,7 @@ export const recordBehavior = (input:BehaviorInput):BehaviorEvent => getRosterDa
   if(input.targetId){
     const row=db.prepare('SELECT data_json FROM classroom_behavior_events WHERE id=? AND target_id IS NULL').get(input.targetId) as {data_json:string}|undefined;
     const target=row?JSON.parse(row.data_json) as BehaviorEvent:null;
-    if(!target||target.studentId!==input.studentId||target.classId!==input.classId)throw new ClassroomTaskError('EVENT_NOT_FOUND',404,'找不到这笔表现，本次未撤销，请刷新。');
+    if(!target||target.studentId!==input.studentId||target.classId!==input.classId||target.kind!==input.kind||target.occurredDate!==input.occurredDate||target.scheduleItemId!==input.scheduleItemId)throw new ClassroomTaskError('EVENT_NOT_FOUND',404,'找不到这笔表现，本次未撤销，请刷新。');
     if(db.prepare('SELECT id FROM classroom_behavior_events WHERE target_id=?').get(input.targetId))throw new ClassroomTaskError('ALREADY_RETRACTED',409,'这笔已撤销，请刷新核对。');
     name=target.studentName;projectLabel=target.projectLabel??resolveRecordProject(target.kind).label;
   }else{
@@ -25,7 +25,8 @@ export const recordBehavior = (input:BehaviorInput):BehaviorEvent => getRosterDa
     if(!student)throw new ClassroomTaskError('STUDENT_NOT_IN_CLASS',404,'学生当前不在本班有效名单内，本次未保存，请刷新名册。');
     name=student.name;
   }
-  const event:BehaviorEvent={id:randomUUID(),operationId:input.operationId,studentId:input.studentId,studentName:name,classId:input.classId,kind:input.kind,projectLabel,note:input.note,occurredDate:input.occurredDate,recordedAt:new Date().toISOString(),actorUserId,targetId:input.targetId??null,retracted:false};
+  const lessonSnapshot=input.targetId?undefined:resolveLesson({scheduleItemId:input.scheduleItemId,classId:input.classId,checkDate:input.occurredDate});
+  const event:BehaviorEvent={...(input.scheduleItemId?{scheduleItemId:input.scheduleItemId,lessonSnapshot}:{}),id:randomUUID(),operationId:input.operationId,studentId:input.studentId,studentName:name,classId:input.classId,kind:input.kind,projectLabel,note:input.note,occurredDate:input.occurredDate,recordedAt:new Date().toISOString(),actorUserId,targetId:input.targetId??null,retracted:false};
   insertBehaviorEvent(event,hash); return event;
 })();
 export const queryBehaviorOperation = (id:string):BehaviorEvent => {

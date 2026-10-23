@@ -5,8 +5,8 @@ export const behaviorKinds = [
 export type BehaviorKind = string;
 export interface BehaviorEvent {
   id:string; operationId:string; studentId:string; studentName:string; classId:string;
-  kind:BehaviorKind; projectLabel?:string; note:string; occurredDate:string; recordedAt:string; actorUserId:string;
+  kind:BehaviorKind; projectLabel?:string; currentProjectLabel?:string; scheduleItemId?:string; lessonSnapshot?:import('./classroomTasks').LessonSnapshot; note:string; occurredDate:string; recordedAt:string; actorUserId:string;
   targetId:string|null; retracted:boolean;
 }
-export interface BehaviorInput { operationId:string; studentId:string; classId:string; kind:BehaviorKind; note:string; occurredDate:string; targetId?:string; }
+export interface BehaviorInput { operationId:string; studentId:string; classId:string; kind:BehaviorKind; note:string; occurredDate:string; targetId?:string; scheduleItemId?:string; }
 export interface BehaviorList { events:BehaviorEvent[]; total:number; counts:Record<string,number>; labels:Record<string,string>; }

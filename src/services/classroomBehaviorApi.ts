@@ -9,7 +9,7 @@ async function request<T>(url:string,input?:unknown):Promise<T>{
   if(!data)throw new ClassroomTaskError(0,'RESULT_UNKNOWN','未读取到保存确认，请先核对。');return data;
 }
 export const behaviorApi={
-  list:(filter:{classId?:string;studentId?:string;from:string;to:string;offset?:number;limit?:number})=>request<BehaviorList>('/api/classroom-behavior?'+new URLSearchParams(Object.entries(filter).map(([k,v])=>[k,String(v)]))),
+  list:(filter:{scheduleItemId?:string;freeOnly?:boolean;classId?:string;studentId?:string;from:string;to:string;offset?:number;limit?:number})=>request<BehaviorList>('/api/classroom-behavior?'+new URLSearchParams(Object.entries(filter).map(([k,v])=>[k,String(v)]))),
   record:(input:BehaviorInput)=>request<BehaviorEvent>('/api/classroom-behavior',input),
   operation:(id:string)=>request<BehaviorEvent>('/api/classroom-behavior/operations/'+encodeURIComponent(id)),
 };

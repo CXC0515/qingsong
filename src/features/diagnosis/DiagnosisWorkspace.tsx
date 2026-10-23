@@ -1,4 +1,5 @@
-﻿/**
+import ClassPicker from '../../components/ClassPicker';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -56,7 +57,6 @@ export default function DiagnosisWorkspace({
 }: DiagnosisWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<DiagnosisTab>('class');
   const [studentDetailTargetId, setStudentDetailTargetId] = useState<string | null>(null);
-  const [showClassPicker, setShowClassPicker] = useState(false);
   const activeClasses = classes.filter(item => item.status === 'active');
   const selectedClass = activeClasses.find(item => item.id === selectedClassId) ?? activeClasses[0];
 
@@ -102,21 +102,12 @@ export default function DiagnosisWorkspace({
         })}</div>
         <div className="flex min-w-0 items-center gap-2 text-xs font-bold text-slate-400 sm:px-2">
           <span className="hidden sm:inline">当前班级</span>
-          <button type="button" onClick={() => setShowClassPicker(true)} className="flex min-h-11 w-full min-w-0 items-center justify-between gap-1 rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700 sm:hidden dark:border-zinc-700 dark:bg-zinc-800 dark:text-slate-100">
-            <span className="truncate">{selectedClass?.name}</span><ChevronDown className="h-4 w-4 shrink-0" />
-          </button>
-          <select value={selectedClass?.id ?? ''} onChange={event => onSelectClass(event.target.value)} className="hidden min-h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-emerald-600 sm:block sm:w-auto dark:border-zinc-700 dark:bg-zinc-800 dark:text-slate-100">
-            {activeClasses.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
+          <ClassPicker classes={activeClasses} value={selectedClass?.id??''} onChange={onSelectClass}/>
+
         </div>
       </div>
 
-      {showClassPicker && <ResponsiveDialog title="选择班级" onClose={() => setShowClassPicker(false)}><div className="grid gap-2">
-        {activeClasses.map(item => {
-          const selected = item.id === selectedClass?.id;
-          return <button key={item.id} type="button" onClick={() => { onSelectClass(item.id); setShowClassPicker(false); }} className={`flex min-h-12 items-center justify-between rounded-xl border px-4 text-left text-base font-bold ${selected ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30' : 'border-slate-200 dark:border-zinc-700'}`}><span>{item.name}</span>{selected ? <Check className="h-5 w-5" /> : null}</button>;
-        })}
-      </div></ResponsiveDialog>}
+
 
       {activeTab === 'class' && (
         <ClassDiagnosis

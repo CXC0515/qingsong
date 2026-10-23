@@ -1,4 +1,5 @@
-﻿/**
+import { GlassButton } from '../../components/glass/Glass';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,6 +14,7 @@ import { taskApi, type TaskSummary } from '../../services/classroomTaskApi';
 
 interface WorkbenchProps {
   active: boolean;
+  onRecordLesson:(item:ScheduleItem,date:string)=>void;
   onOpenClassroomTask: (taskId: string, classId: string) => void;
   tasks: WorkbenchTask[];
   classes: SchoolClass[];
@@ -28,6 +30,7 @@ interface WorkbenchProps {
 
 export default function Workbench({
   active,
+  onRecordLesson,
   onOpenClassroomTask,
   tasks,
   classes,
@@ -76,7 +79,7 @@ export default function Workbench({
   const weekday = today.getDay() === 0 ? 7 : today.getDay();
   const localDateKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   const todayLabel = new Intl.DateTimeFormat('zh-CN',{month:'long',day:'numeric',weekday:'short'}).format(today).replace('星期','周');
-  const todaySchedule = schedule.filter(item => item.day === weekday && (item.scope ?? 'teacher') === 'teacher');
+  const todaySchedule = schedule.filter(item => item.day === weekday && (item.scope ?? 'teacher') === 'teacher').sort((a,b)=>a.period-b.period);
   const reminderTimestamp = (item:TimerReminder) => item.endAt || item.startAt || item.dueAt || '';
   const reminderIsOverdue = (item:TimerReminder) => Boolean(reminderTimestamp(item)) && new Date(reminderTimestamp(item)).getTime() < today.getTime();
   const activeReminders = reminders.filter(item => {
@@ -110,7 +113,9 @@ export default function Workbench({
 
   return (
     <div className="space-y-4 animate-fade-in lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:space-y-0 lg:gap-4" id="workbench-page">
-      <section className="glass-panel rounded-2xl p-4 lg:min-h-24 lg:max-h-[30%] lg:shrink-0 lg:overflow-y-auto" aria-labelledby="classroom-followup-heading">
+      <div className="qs-workbench-quick"><div className="flex flex-wrap items-center gap-2 p-3"><strong className="mr-auto text-sm">常用工作</strong><GlassButton onClick={()=>onNavigate('classroom-tasks')}>课堂任务</GlassButton><GlassButton onClick={()=>onNavigate('grading-flow')}>作业批改</GlassButton><GlassButton onClick={()=>onNavigate('lesson-plan')}>备课</GlassButton><GlassButton onClick={()=>onNavigate('schedule')}>课表与日程</GlassButton></div></div>
+      <div className="qs-workbench-body">
+      <section className="glass-panel qs-workbench-followup rounded-2xl p-4" aria-labelledby="classroom-followup-heading">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 id="classroom-followup-heading" className="text-base font-bold">课堂任务 · 待跟进</h2>
           <button type="button" onClick={() => onNavigate('classroom-tasks')} className="min-h-11 rounded-xl px-3 text-sm font-semibold text-emerald-700 dark:text-emerald-300">全部课堂任务 →</button>
@@ -121,16 +126,16 @@ export default function Workbench({
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           {followUpTasks.map(task => <button key={task.id} type="button" onClick={() => onOpenClassroomTask(task.id, task.classId)} className="min-h-11 min-w-0 rounded-xl border border-slate-200 p-3 text-left hover:border-emerald-400 dark:border-zinc-700">
             <span className="block break-words text-sm font-bold">{task.name}</span>
-            <span className="mt-1 block text-xs text-slate-500">{task.className} · {task.mode === 'pass' ? '过关检查' : '完成检查'} · {task.checkDate}</span>
+            <span className="mt-1 block text-xs text-slate-500">{task.className} · {task.currentProjectLabel&&task.currentProjectLabel+' · '}{task.mode === 'pass' ? '过关检查' : '完成检查'} · {task.checkDate}</span>
             <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm"><span className="font-semibold text-amber-700 dark:text-amber-300">待跟进 {task.counts.negative} 人</span><span className="text-slate-500">未记录 {task.counts.unrecorded} 人</span></span>
           </button>)}
         </div>
       </section>
       {/* Main Grid: Pending Tasks VS Alerts Sidebar */}
-      <div className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(240px,0.8fr)_minmax(0,1.7fr)]">
+      <div className="qs-workbench-main">
         
         {/* Pending Tasks Panel */}
-        <div className="order-2 space-y-4 lg:col-start-2 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto lg:pr-2">
+        <div className="qs-workbench-tasks min-w-0 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight text-slate-800 dark:text-slate-100">
@@ -253,9 +258,9 @@ export default function Workbench({
         </div>
 
         {/* Sidebar Alerts & Daily schedule */}
-        <div className="order-1 space-y-4 lg:col-start-1 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto lg:pr-2">
+        <div className="qs-workbench-daily min-w-0 space-y-4">
           
-          <div className="glass-panel space-y-3 rounded-2xl p-5"><div className="flex items-center justify-between"><h3 className="flex items-center gap-1.5 text-sm font-bold"><Calendar className="h-4 w-4 text-emerald-600"/>今日课表</h3><span className="text-[11px] font-bold text-slate-400">{todayLabel} · {todaySchedule.length} 节</span></div><div className="space-y-2">{todaySchedule.map(item=><div key={item.id} className="grid grid-cols-[56px_1fr] gap-2 rounded-xl bg-slate-50 p-3 dark:bg-zinc-800/60"><span className="font-mono text-[11px] font-bold text-slate-500">{item.time.split(' - ')[0]}</span><div><p className="text-sm font-semibold">{item.title}</p><p className="text-[10px] text-slate-400">{item.className} · {item.time}</p></div></div>)}{!todaySchedule.length&&<p className="rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-400">今天没有课程</p>}</div></div>
+          <div className="glass-panel space-y-3 rounded-2xl p-5"><div className="flex items-center justify-between"><h3 className="flex items-center gap-1.5 text-sm font-bold"><Calendar className="h-4 w-4 text-emerald-600"/>今日课表</h3><span className="text-[11px] font-bold text-slate-400">{todayLabel} · {todaySchedule.length} 节</span></div><div className="space-y-2">{todaySchedule.map(item=><div key={item.id} className="grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl bg-white/50 p-3 dark:bg-zinc-800/60"><span className="font-mono text-[11px] font-bold text-slate-500">{item.time.split(' - ')[0]}</span><div><p className="text-sm font-semibold">{item.title}</p><p className="text-[10px] text-slate-400">{item.className} · {item.time}</p></div>{item.type==='class'&&<GlassButton disabled={!item.classId||!classes.some(c=>c.id===item.classId&&c.status==='active')} onClick={()=>onRecordLesson(item,localDateKey)}>去记录</GlassButton>}</div>)}{!todaySchedule.length&&<p className="rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-400">今天没有课程</p>}</div></div>
           <div className="glass-panel space-y-3 rounded-2xl p-5"><div className="flex items-center justify-between"><h3 className="flex items-center gap-1.5 text-sm font-bold"><Clock className="h-4 w-4 text-amber-600"/>提醒日程</h3><button onClick={()=>onNavigate('schedule')} className="text-[11px] font-bold text-emerald-700 hover:underline">查看全部</button></div><div className="space-y-2">{activeReminders.slice(0,3).map(item=><div key={item.id} className={`rounded-xl border-l-4 p-3 ${reminderIsOverdue(item)?'border-l-red-500 bg-red-50/70':'border-l-amber-500 bg-amber-50/70'}`}><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold">{item.name}</p><span className="text-[10px] font-bold text-slate-500">{item.timeKind==='none'?'时间待定':item.startAt?.slice(11,16)||item.time}</span></div><p className="mt-1 text-[10px] text-slate-400">{reminderIsOverdue(item)?'已过期':'待处理'}{item.className?` · ${item.className}`:''}</p></div>)}{!activeReminders.length&&<p className="rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-400">暂无待处理提醒</p>}</div></div>
 
           <div className="glass-panel rounded-2xl border-emerald-500/20 bg-gradient-to-br from-emerald-600/10 via-transparent to-transparent p-5 dark:border-emerald-500/10">
@@ -354,6 +359,8 @@ export default function Workbench({
           </div>
         </div>
 
+      </div>
+      <aside className="qs-assistant-space glass-panel rounded-2xl p-4"><h3 className="text-sm font-semibold">教学助手</h3><p className="mt-2 text-sm text-slate-500">会话空间预留</p></aside>
       </div>
     </div>
   );

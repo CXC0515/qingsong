@@ -53,3 +53,25 @@ test('project HTTP creation validates modes and resolves retries by operation id
  assert.equal((await request('/classroom-tasks/projects',{...input,operationId:'bad-project',category:'behavior'})).status,400);
  assert.equal((await request('/classroom-tasks/projects',{...input,operationId:'duplicate-project'})).status,409);
 });
+
+test('HTTP rename and lesson contracts enforce versions, date validity and response-loss query',async()=>{
+ const rename={operationId:'rename-http',projectKey:'collection',name:'每日收交',expectedVersion:0};
+ assert.equal((await request('/classroom-tasks/projects/rename',rename,false)).status,401);
+ const saved=await request('/classroom-tasks/projects/rename',rename);assert.equal(saved.status,200);assert.equal((await saved.json()).label,rename.name);
+ assert.equal((await request('/classroom-tasks/projects/renames/rename-http')).status,200);
+ assert.equal((await request('/classroom-tasks/projects/rename',{...rename,operationId:'stale-rename-http',name:'另一名称'})).status,409);
+ assert.equal((await request('/classroom-tasks/projects/rename',{...rename,expectedVersion:'1'})).status,400);
+ runWithWorkspace(context,()=>getRosterDatabase().exec("INSERT INTO schedule_items(id,day,period,title,class_id,class_name,item_type,time_text,scope,teacher_name,created_at,updated_at) VALUES('http-lesson',2,1,'语文','class','班级','class','08:00 - 08:40','teacher','','now','now')"));
+ const url='/classroom-tasks/quick-context?classId=class&projectKey=collection&checkDate=2026-10-20&scheduleItemId=http-lesson';
+ const response=await request(url);assert.equal(response.status,200);const current=await response.json();assert.equal(current.lessonSnapshot.period,1);assert.equal(current.detail,null);
+ const record={classId:'class',projectKey:'collection',checkDate:'2026-10-20',scheduleItemId:'http-lesson',round:current.round,contextToken:current.contextToken,operationId:'lesson-http-record',expectedMetadataVersion:0,members:[{studentId:'student',expectedVersion:0,result:'positive'}]};
+ const result=await request('/classroom-tasks/quick-record',record);assert.equal(result.status,200);const detail=await result.json();assert.equal((await (await request(url)).json()).detail.task.id,detail.taskId);
+ assert.equal((await request(url.replace('2026-10-20','2026-10-21'))).status,409);
+ assert.equal((await request(url.replace('2026-10-20','2026-02-30'))).status,400);
+ const behavior={operationId:'lesson-behavior-http',studentId:'student',classId:'class',kind:'participation',note:'举手',occurredDate:'2026-10-20',scheduleItemId:'http-lesson'};
+ assert.equal((await request('/classroom-behavior',behavior)).status,200);
+ const filter='/classroom-behavior?studentId=student&from=2026-10-20&to=2026-10-20';
+ assert.equal((await (await request(filter+'&scheduleItemId=http-lesson')).json()).counts.participation,1);
+ assert.equal((await (await request(filter+'&freeOnly=true')).json()).counts.participation,1);
+ assert.equal((await request(filter+'&freeOnly=garbage')).status,400);
+});
