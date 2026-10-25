@@ -264,14 +264,6 @@ export default function ScheduleReminder(props: Props) {
   );
 }
 
-function Tab({ active, onClick, icon: Icon, children, compact = false }: { active: boolean; onClick: () => void; icon: React.ElementType; children: React.ReactNode; compact?: boolean }) {
-  return (
-    <button onClick={onClick} className={`inline-flex items-center gap-1 rounded-lg px-2 text-xs font-bold sm:gap-1.5 sm:px-4 ${compact ? 'h-9 py-1.5' : 'min-h-11 py-2'} ${active ? 'bg-white text-slate-900 shadow-sm dark:bg-zinc-800 dark:text-white' : 'text-slate-500'}`}>
-      <Icon className="h-4 w-4" />
-      {children}
-    </button>
-  );
-}
 function Modal({ title, onClose, children, footer, wide = false, compactFull = false }: { title: string; onClose: () => void; children: React.ReactNode; footer: React.ReactNode; wide?: boolean; compactFull?: boolean }) {
   return <ResponsiveDialog title={title} onClose={onClose} wide={wide} compactFull={compactFull} footer={footer}>{children}</ResponsiveDialog>;
 }
@@ -440,14 +432,8 @@ function ReminderWorkspace({ reminders, view, onView, onAdd, onBatch, onEdit, on
   return (
     <section className="min-h-0 flex-1 pb-20 sm:pb-0">
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-lg bg-slate-100 p-1 dark:bg-zinc-900">
-          <Tab active={view === 'quadrant'} onClick={() => onView('quadrant')} icon={LayoutGrid}>
-            四象限
-          </Tab>
-          <Tab active={view === 'list'} onClick={() => onView('list')} icon={ListTodo}>
-            清单
-          </Tab>
-        </div>
+        <GlassSegments label="日程视图" value={view} options={[{value:'quadrant',label:<><LayoutGrid className="h-4 w-4"/>四象限</>},{value:'list',label:<><ListTodo className="h-4 w-4"/>清单</>}]} onChange={onView}/>
+
         {view === 'quadrant' && completed.length ? (
           <button onClick={() => setShowCompleted((value) => !value)} className={`hidden sm:block h-9 rounded-lg border px-3 text-xs font-bold ${showCompleted ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-500'}`}>
             {showCompleted ? '隐藏' : '显示'}已完成 {completed.length}

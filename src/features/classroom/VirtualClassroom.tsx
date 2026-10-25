@@ -578,16 +578,16 @@ export default function VirtualClassroom({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 animate-fade-in max-xl:h-auto" id="classroom-page">
-      <header className="flex shrink-0 flex-col gap-3 border-b border-slate-200 pb-4 md:flex-row md:items-center md:justify-between">
+      <header className="qs-classroom-heading shrink-0 border-b border-slate-200 pb-3">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-slate-100">
             <GraduationCap className="h-5 w-5 text-emerald-700" />
             {activeClass.name}座位图
           </h2>
           <p className="mt-1 text-xs text-slate-500">已安排 {activeLayout?.seats.length ?? 0} 人 · 待安排 {unassignedStudents.length} 人</p>
-          {!editMode && <GlassButton type="button" onClick={() => onOpenClassroomTasks(effectiveClassId)} variant="primary" containerClassName="mt-2" className="inline-flex min-h-11 items-center gap-2 px-3 text-sm font-semibold"><BookOpen className="h-4 w-4" />记录本班课堂任务</GlassButton>}
         </div>
-        <div className={`grid w-full items-center gap-2 md:flex md:w-auto ${editMode ? 'grid-cols-2' : 'grid-cols-[minmax(0,1fr)_44px_auto]'}`}>
+        <div className="qs-classroom-tools">
+          {!editMode && <GlassButton type="button" onClick={() => onOpenClassroomTasks(effectiveClassId)} variant="primary" containerClassName="qs-classroom-record-action" className="inline-flex min-h-11 items-center gap-2 px-3 text-sm font-semibold"><BookOpen className="h-4 w-4" />记录本班课堂任务</GlassButton>}
           <ClassPicker disabled={saving} classes={classes.filter(c=>c.status==='active')} value={effectiveClassId} onChange={id=>{if(!editMode||window.confirm('座位修改尚未保存，切换班级将放弃修改。继续切换吗？'))onSelectClass(id);}}/>
 
           {editMode ? (

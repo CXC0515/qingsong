@@ -353,13 +353,7 @@ export default function App() {
   };
 
   // State Handlers
-  // 1. Task Completed toggle in Workbench
-  const handleToggleTask = (taskId: string) => {
-    setTasks(tasks.map(t => t.id === taskId ? { ...t, status: t.status === 'completed' ? 'pending' : 'completed' } : t));
-    triggerToast('任务状态更新成功！');
-  };
-
-  // 2. Schedule Item edit/addition
+  // Schedule Item edit/addition
   const handleAddScheduleItem = async (item: ScheduleItem) => {
     const saved = await saveScheduleItem(item);
     setSchedule(current => [...current.filter(existing => existing.id !== saved.id), saved]);
@@ -765,25 +759,15 @@ export default function App() {
           {(activePage === 'workbench' || (activePage === 'classroom-tasks' && taskNavigation?.sourcePage === 'workbench')) && (
             <div className={activePage === 'workbench' ? 'contents' : 'hidden'} aria-hidden={activePage !== 'workbench'}>
             <Workbench
-              active={activePage === 'workbench'}
-              tasks={tasks}
               classes={classes}
-              students={students}
               schedule={schedule}
               reminders={reminders}
               selectedClassId={selectedClassId}
               onNavigate={handleNavigate}
               onRecordLesson={openLessonRecord}
-              onOpenClassroomTask={(taskId, classId) => openClassroomTask(taskId, classId)}
               onEnterClass={(classId) => {
                 setSelectedClassId(classId);
                 handleNavigate('classroom');
-              }}
-              onSelectTask={(taskId) => {
-                handleToggleTask(taskId);
-              }}
-              onTriggerTask={(task) => {
-                handleNavigate('grading-workspace');
               }}
             />
             </div>
