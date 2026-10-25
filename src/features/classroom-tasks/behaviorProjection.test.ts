@@ -18,3 +18,7 @@ test('a pending inverse does not subtract a server-confirmed retraction twice',(
  const other={...event,id:'e2',operationId:'op2'};
  assert.equal(behaviorProjection([{...event,retracted:true},other],[job('undo',{...input,targetOperationId:'op1'})]).get('s1'),1);
 });
+test('full-round counts are not truncated to the recent history page',()=>{
+ assert.equal(behaviorProjection([event],[job('op1'),job('op2')],{s1:600}).get('s1'),601);
+ assert.equal(behaviorProjection([event],[job('undo',{...input,targetId:event.id})],{s1:600}).get('s1'),599);
+});

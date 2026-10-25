@@ -127,8 +127,8 @@ export default function AccountAccessPanel() {
     <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
       <div className="mb-4"><h2 className="text-lg font-black">创建教师邀请</h2><p className="mt-1 text-sm text-slate-500">邀请仅可使用一次，72 小时后过期。受邀教师会获得独立工作区。</p></div>
       <form onSubmit={event => void submit(event)} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-        <label className="text-xs font-bold text-slate-600 dark:text-slate-300">教师邮箱<input required type="email" maxLength={320} value={email} onChange={event => setEmail(event.target.value)} className={`${fieldClass} mt-1.5`} /></label>
-        <label className="text-xs font-bold text-slate-600 dark:text-slate-300">教师称呼<input required maxLength={80} value={displayName} onChange={event => setDisplayName(event.target.value)} className={`${fieldClass} mt-1.5`} /></label>
+        <label className="text-xs font-bold text-slate-600 dark:text-slate-300">教师邮箱<input required type="email" maxLength={320} value={email} onChange={event => setEmail(event.target.value)} className={'qs-field-input '+(`${fieldClass} mt-1.5`)} /></label>
+        <label className="text-xs font-bold text-slate-600 dark:text-slate-300">教师称呼<input required maxLength={80} value={displayName} onChange={event => setDisplayName(event.target.value)} className={'qs-field-input '+(`${fieldClass} mt-1.5`)} /></label>
         <button disabled={Boolean(busyAction)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white disabled:opacity-50"><UserPlus className="h-4 w-4" />{busyAction === 'create' ? '创建中…' : '创建邀请'}</button>
       </form>
     </section>

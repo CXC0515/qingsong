@@ -1,3 +1,4 @@
+import { GlassButton } from '../../components/glass/Glass';
 import { useEffect, useState } from 'react';
 import ResponsiveDialog from '../../components/ResponsiveDialog';
 import ResponsiveChoiceDialog from '../../components/ResponsiveChoiceDialog';
@@ -26,13 +27,13 @@ export function CreateTaskDialog({ classes, initialClassId, seed, onClose, onCre
   return <ResponsiveDialog title={preview ? '确认任务与名册' : '新建课堂任务'} onClose={() => { if (!input.name || window.confirm('离开后未保存的表单将丢失，确定关闭吗？')) onClose(); }} busy={busy}>
     <form className="grid gap-4" onSubmit={async e => { e.preventDefault(); setBusy(true); setError(''); try { if (preview) { if (await onCreate(input, preview)) onClose(); } else setPreview(await taskApi.creationPreview(input)); } catch (e) { setError(e instanceof Error ? e.message : '预览失败，本次尚未建立任务。'); } finally { setBusy(false); } }}>
       <label className="grid gap-1 text-sm font-semibold">班级<button type="button" className={control + ' text-left'} onClick={() => setChooseClass(true)}>{classes.find(c => c.id === input.classId)?.name ?? '选择班级'}</button></label>
-      <label className="grid gap-1 text-sm font-semibold">任务名称<input className={control} required maxLength={100} value={input.name} onChange={e => update('name', e.target.value)} /></label>
+      <label className="grid gap-1 text-sm font-semibold">任务名称<input className={'qs-field-input '+(control)} required maxLength={100} value={input.name} onChange={e => update('name', e.target.value)} /></label>
       <fieldset><legend className="mb-2 text-sm font-semibold">记录方式</legend><div className="grid grid-cols-2 gap-2">{(['completion', 'pass'] as const).map(mode => <button type="button" key={mode} aria-pressed={input.mode === mode} className={input.mode === mode ? primary : action} onClick={() => update('mode', mode)}>{mode === 'completion' ? '完成情况' : '过关情况'}</button>)}</div></fieldset>
-      <label className="grid gap-1 text-sm font-semibold">检查日期<input className={control} type="date" required value={input.checkDate} onChange={e => update('checkDate', e.target.value)} /></label>
-      <label className="grid gap-1 text-sm font-semibold">截止日期（可选）<input className={control} type="date" value={input.dueDate ?? ''} onChange={e => update('dueDate', e.target.value)} /></label>
-      <label className="grid gap-1 text-sm font-semibold">说明（可选）<textarea className={control} maxLength={1000} value={input.description ?? ''} onChange={e => update('description', e.target.value)} /></label>
+      <label className="grid gap-1 text-sm font-semibold">检查日期<input className={'qs-field-input '+(control)} type="date" required value={input.checkDate} onChange={e => update('checkDate', e.target.value)} /></label>
+      <label className="grid gap-1 text-sm font-semibold">截止日期（可选）<input className={'qs-field-input '+(control)} type="date" value={input.dueDate ?? ''} onChange={e => update('dueDate', e.target.value)} /></label>
+      <label className="grid gap-1 text-sm font-semibold">说明（可选）<textarea className={'qs-field-input '+(control)} maxLength={1000} value={input.description ?? ''} onChange={e => update('description', e.target.value)} /></label>
       {preview && <section className="rounded-xl bg-slate-50 p-3 dark:bg-zinc-800"><h4 className="font-bold">本次参与名册 · {preview.participants.length}人</h4><p className="mt-1 text-sm">固定此次名册，之后转班不会改写历史。免做和参与调整在任务内明确记录。</p>{preview.duplicates.length > 0 && <p role="alert" className="mt-2 text-sm text-amber-700">有同名任务，请核对是否需要另建一次；确认后建立独立任务，不覆盖原记录。</p>}<div className="mt-2 max-h-36 overflow-y-auto text-sm">{preview.participants.map(p => <label key={p.studentId} className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={!(input.excludedStudentIds??[]).includes(p.studentId)} onChange={e=>{setInput(v=>({...v,excludedStudentIds:e.target.checked?(v.excludedStudentIds??[]).filter(id=>id!==p.studentId):[...(v.excludedStudentIds??[]),p.studentId]}));setPreview(null);}}/>{p.studentNo} {p.name} · {p.enrollmentStatus==='suspended'?'休学':'在读'}</label>)}</div></section>}
-      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}<button className={primary} disabled={busy || !input.classId}>{busy ? '正在核对…' : preview ? '确认并保存新任务' : '预览任务与名册'}</button>
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}<GlassButton variant="primary" className={primary} disabled={busy || !input.classId}>{busy ? '正在核对…' : preview ? '确认并保存新任务' : '预览任务与名册'}</GlassButton>
     </form>
     {chooseClass && <ResponsiveChoiceDialog title="选择任务班级" value={input.classId} options={classes.map(c => ({ value:c.id, label:c.name }))} onChange={value => update('classId',value)} onClose={() => setChooseClass(false)} />}
   </ResponsiveDialog>;

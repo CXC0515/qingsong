@@ -1,3 +1,7 @@
+import { GlassButton, GlassSegments  } from '../../components/glass/Glass';
+import { EmptyState } from '../../components/WorkspaceUI';
+import ResponsiveDialog from '../../components/ResponsiveDialog';
+import ClassPicker from '../../components/ClassPicker';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -90,20 +94,17 @@ export default function GradingTaskManagement({ tasks, classes, defaultClassId, 
   return (
     <div className="w-full space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="glass-panel flex rounded-2xl bg-slate-100/60 p-2 dark:bg-zinc-900/60">
-          {([['active', '进行中'], ['completed', '已完成'], ['archived', '已归档']] as const).map(([id, label]) => (
-            <button key={id} type="button" onClick={() => { setFilter(id); setSelectedTaskIds(new Set()); }} className={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${filter === id ? 'bg-white text-slate-900 shadow-sm dark:bg-zinc-800 dark:text-white' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}>{label}</button>
-          ))}
-        </div>
-        <button type="button" onClick={openCreateDialog} className="flex items-center gap-2 rounded-2xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-emerald-700/10 transition-all hover:bg-emerald-800 active:scale-95"><Plus className="h-4 w-4" />新建批改任务</button>
+        <GlassSegments density="compact" label="批改任务状态" value={filter} options={[{value:'active',label:'进行中'},{value:'completed',label:'已完成'},{value:'archived',label:'已归档'}]} onChange={next=>{setFilter(next);setSelectedTaskIds(new Set());}}/>
+        <GlassButton type="button" onClick={openCreateDialog} variant="primary" className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold transition-all"><Plus className="h-4 w-4" />新建批改任务</GlassButton>
       </div>
 
-      {visibleTasks.length ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3 dark:border-zinc-800 dark:bg-zinc-900/70"><label className="flex min-h-11 items-center gap-2 text-sm font-bold"><input type="checkbox" checked={selectableVisibleTasks.length > 0 && selectableVisibleTasks.every(task => selectedTaskIds.has(task.id))} onChange={toggleAll} className="h-5 w-5 accent-emerald-700" />全选当前列表</label><div className="flex items-center gap-3"><span className="text-xs text-slate-500">已选 {selectedVisibleTasks.length} 项</span><button type="button" disabled={!selectedVisibleTasks.length} onClick={() => void archiveSelected()} className="min-h-11 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white disabled:opacity-40">{filter === 'archived' ? '批量恢复' : '批量归档'}</button></div></div> : null}
+      {visibleTasks.length ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/70 p-3 dark:border-zinc-800 dark:bg-zinc-900/70"><label className="flex min-h-11 items-center gap-2 text-sm font-bold"><input type="checkbox" checked={selectableVisibleTasks.length > 0 && selectableVisibleTasks.every(task => selectedTaskIds.has(task.id))} onChange={toggleAll} className="h-5 w-5 accent-emerald-700" />全选当前列表</label><div className="flex items-center gap-3"><span className="text-xs text-slate-500">已选 {selectedVisibleTasks.length} 项</span><GlassButton type="button" disabled={!selectedVisibleTasks.length} onClick={() => void archiveSelected()} variant="primary" className="min-h-11 px-4 text-sm font-bold disabled:opacity-40">{filter === 'archived' ? '批量恢复' : '批量归档'}</GlassButton></div></div> : null}
 
       <section className="glass-panel overflow-hidden rounded-[24px]">
         <div className="hidden grid-cols-[minmax(240px,1.5fr)_140px_130px_100px_200px] border-b border-slate-200/70 px-5 py-3 text-xs font-bold text-slate-400 md:grid dark:border-zinc-800">
           <span>任务</span><span>班级</span><span>当前环节</span><span>异常</span><span />
         </div>
+        {!visibleTasks.length&&<EmptyState title={filter==='active'?'暂无进行中的批改任务':filter==='completed'?'暂无已完成的批改任务':'暂无已归档的批改任务'} description={filter==='active'?'点击新建批改任务，开始收集和批改作业。':undefined}/>}
         {visibleTasks.map(task => {
           const exceptionCount = reviewQueue.filter(item => item.status === 'pending' && (item.taskId === task.id || item.taskName === task.name)).length;
           return (
@@ -116,25 +117,20 @@ export default function GradingTaskManagement({ tasks, classes, defaultClassId, 
               <span className="hidden items-center gap-1.5 text-sm font-bold text-slate-600 md:flex dark:text-slate-300"><Users className="h-4 w-4 text-slate-400" />{task.className}</span>
               <span className={`hidden w-fit rounded-xl px-2.5 py-1.5 text-xs font-bold md:block ${task.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : task.status === 'error' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700 dark:bg-zinc-800 dark:text-slate-200'}`}>{statusLabel[task.status]} · {task.nodeName}</span>
               <span className={`hidden w-fit items-center gap-1.5 text-xs font-bold md:flex ${exceptionCount ? 'text-rose-700' : 'text-slate-400'}`}>{exceptionCount ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4 text-emerald-600" />}{exceptionCount ? `${exceptionCount} 项` : '无待处理'}</span>
-              <div className="col-start-2 row-start-1 flex flex-col items-stretch justify-center gap-2 md:col-start-auto md:row-start-auto md:flex-row md:flex-wrap md:justify-end">{task.archivedAt ? <><button type="button" onClick={() => void onArchiveTask(task, false)} className="flex min-h-11 items-center justify-center gap-1 rounded-xl border border-slate-200 px-2 text-xs font-bold dark:border-zinc-700"><ArchiveRestore className="h-4 w-4" />恢复</button><button type="button" onClick={() => { if (window.confirm(`永久删除“${task.name}”及其材料、识别和批改记录？此操作不可恢复。`)) void onDeleteTask(task); }} className="flex min-h-11 items-center justify-center gap-1 rounded-xl border border-rose-200 px-2 text-xs font-bold text-rose-700"><Trash2 className="h-4 w-4" />删除</button></> : <><button type="button" title="归档任务" onClick={() => void onArchiveTask(task, true)} className="order-2 flex h-11 items-center justify-center rounded-xl border border-slate-200 text-slate-500 md:order-none md:w-11 dark:border-zinc-700"><Archive className="h-4 w-4" /><span className="ml-1 text-xs md:hidden">归档</span></button><button type="button" onClick={() => onEnterWorkflow(task)} className="flex min-h-11 items-center justify-center gap-1 rounded-xl bg-emerald-700 px-2 text-xs font-bold text-white">进入任务<ArrowRight className="h-3.5 w-3.5" /></button></>}</div>
+              <div className="col-start-2 row-start-1 flex flex-col items-stretch justify-center gap-2 md:col-start-auto md:row-start-auto md:flex-row md:flex-wrap md:justify-end">{task.archivedAt ? <><GlassButton type="button" onClick={() => void onArchiveTask(task, false)} variant="secondary" className="flex min-h-11 items-center justify-center gap-1 px-2 text-xs font-bold"><ArchiveRestore className="h-4 w-4" />恢复</GlassButton><GlassButton type="button" onClick={() => { if (window.confirm(`永久删除“${task.name}”及其材料、识别和批改记录？此操作不可恢复。`)) void onDeleteTask(task); }} variant="danger" className="flex min-h-11 items-center justify-center gap-1 px-2 text-xs font-bold"><Trash2 className="h-4 w-4" />删除</GlassButton></> : <><GlassButton containerClassName="h-11 md:w-11 order-2 md:order-none" type="button" title="归档任务" onClick={() => void onArchiveTask(task, true)} variant="secondary" className="flex items-center justify-center"><Archive className="h-4 w-4" /><span className="ml-1 text-xs md:hidden">归档</span></GlassButton><GlassButton type="button" onClick={() => onEnterWorkflow(task)} variant="primary" className="flex min-h-11 items-center justify-center gap-1 px-2 text-xs font-bold">进入任务<ArrowRight className="h-3.5 w-3.5" /></GlassButton></>}</div>
             </article>
           );
         })}
       </section>
 
-      {showCreate ? createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="新建批改任务">
-          <div className="glass-panel w-full max-w-lg rounded-[24px] p-6 shadow-2xl">
-            <div className="flex items-center justify-between"><h2 className="text-lg font-black text-slate-900 dark:text-white">新建作业任务</h2><button type="button" title="关闭" aria-label="关闭" onClick={() => setShowCreate(false)} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800"><X className="h-4 w-4" /></button></div>
+      {showCreate ? <ResponsiveDialog title="新建批改任务" onClose={()=>setShowCreate(false)}>
             <div className="mt-5 space-y-4">
-              <label className="block space-y-1.5"><span className="text-xs font-bold text-slate-500">任务名称</span><input value={name} onChange={event => setName(event.target.value)} placeholder={defaultTaskName} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-emerald-600 dark:border-zinc-800 dark:bg-zinc-900" /><span className="block text-[11px] text-slate-400">留空将使用 {defaultTaskName}</span></label>
-              <label className="block space-y-1.5"><span className="text-xs font-bold text-slate-500">班级</span><select value={classId} onChange={event => setClassId(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none dark:border-zinc-800 dark:bg-zinc-900">{classes.filter(item => item.status === 'active').map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-              <label className="block space-y-1.5"><span className="text-xs font-bold text-slate-500">收作业时间</span><input type="datetime-local" value={deadline} onChange={event => setDeadline(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-emerald-600 dark:border-zinc-800 dark:bg-zinc-900" /><span className="block text-[11px] text-slate-400">用于提醒教师收作业；默认是创建任务的 3 小时后，可输入或打开时间选择器。</span></label>
+              <label className="block space-y-1.5"><span className="text-xs font-bold text-slate-500">任务名称</span><input value={name} onChange={event => setName(event.target.value)} placeholder={defaultTaskName} className="qs-field-input w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-emerald-600 dark:border-zinc-800 dark:bg-zinc-900" /><span className="block text-[11px] text-slate-400">留空将使用 {defaultTaskName}</span></label>
+              <div className="space-y-1.5"><span className="text-xs font-bold text-slate-500">任务班级</span><ClassPicker classes={classes.filter(item=>item.status==='active')} value={classId} onChange={setClassId} label="选择任务班级"/></div>
+              <label className="block space-y-1.5"><span className="text-xs font-bold text-slate-500">收作业时间</span><input type="datetime-local" value={deadline} onChange={event => setDeadline(event.target.value)} className="qs-field-input w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-emerald-600 dark:border-zinc-800 dark:bg-zinc-900" /><span className="block text-[11px] text-slate-400">用于提醒教师收作业；默认是创建任务的 3 小时后，可输入或打开时间选择器。</span></label>
             </div>
-            <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setShowCreate(false)} className="rounded-2xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 dark:border-zinc-700 dark:text-slate-300">取消</button><button type="button" onClick={createTask} className="rounded-2xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800">创建任务</button></div>
-          </div>
-        </div>, document.body
-      ) : null}
+            <div className="mt-6 flex justify-end gap-2"><GlassButton type="button" onClick={() => setShowCreate(false)} variant="secondary" className="px-4 py-2.5 text-sm font-bold">取消</GlassButton><GlassButton type="button" onClick={createTask} variant="primary" className="px-4 py-2.5 text-sm font-bold">创建任务</GlassButton></div>
+      </ResponsiveDialog> : null}
     </div>
   );
 }

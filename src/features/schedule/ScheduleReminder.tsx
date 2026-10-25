@@ -1,3 +1,4 @@
+import { GlassButton, GlassSegments } from '../../components/glass/Glass';
 import ClassPicker from '../../components/ClassPicker';
 /**
  * @license
@@ -153,26 +154,14 @@ export default function ScheduleReminder(props: Props) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 animate-fade-in" id="schedule-page">
       <header className="hidden shrink-0 sm:flex">
-        <nav className="inline-flex w-fit rounded-xl bg-slate-100 p-1 dark:bg-zinc-900" aria-label="课表与日程子页面">
-          <Tab compact active={props.section === 'schedule'} onClick={() => props.onSectionChange('schedule')} icon={CalendarDays}>
-            课表
-          </Tab>
-          <Tab compact active={props.section === 'reminders'} onClick={() => props.onSectionChange('reminders')} icon={Bell}>
-            日程
-          </Tab>
-        </nav>
+        <GlassSegments label="课表与日程子页面" value={props.section} options={[{value:'schedule',label:<><CalendarDays className="h-4 w-4"/>课表</>},{value:'reminders',label:<><Bell className="h-4 w-4"/>日程</>}]} onChange={props.onSectionChange}/>
+
       </header>
       {props.section === 'schedule' ? (
         <section className="flex min-h-0 flex-1 flex-col gap-3">
-          <div className="flex shrink-0 flex-nowrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2.5 sm:flex-wrap dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="inline-flex rounded-lg bg-slate-100 p-1 dark:bg-zinc-800">
-              <button onClick={() => setScope('teacher')} className={`rounded-md px-3 py-1.5 text-xs font-bold ${scope === 'teacher' ? 'bg-white text-emerald-800 shadow-sm dark:bg-zinc-700 dark:text-emerald-300' : 'text-slate-500'}`}>
-                我的课表
-              </button>
-              <button onClick={() => setScope('class')} className={`rounded-md px-3 py-1.5 text-xs font-bold ${scope === 'class' ? 'bg-white text-emerald-800 shadow-sm dark:bg-zinc-700 dark:text-emerald-300' : 'text-slate-500'}`}>
-                班级课表
-              </button>
-            </div>
+          <div className="qs-workspace-toolbar shrink-0">
+            <GlassSegments density="compact" label="课表范围" value={scope} options={[{value:'teacher',label:'我的课表'},{value:'class',label:'班级课表'}]} onChange={setScope}/>
+
             {scope === 'class' && (
               <>
                 <ClassPicker classes={activeClasses} value={effectiveClassId} onChange={props.onSelectClass}/>
@@ -181,14 +170,14 @@ export default function ScheduleReminder(props: Props) {
             )}
             <span className="hidden text-xs text-slate-400 md:inline">{props.showWeekends ? '显示周一至周日' : '显示周一至周五'}</span>
             <div className="ml-auto hidden items-center gap-2 sm:flex">
-              <button onClick={props.onOpenPeriodSettings} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-slate-300">
+              <GlassButton containerClassName="h-9" onClick={props.onOpenPeriodSettings} variant="secondary" className="inline-flex items-center gap-1.5 px-3 text-xs font-bold">
                 <Settings2 className="h-4 w-4" />
                 设置课节时间
-              </button>
-              <button onClick={() => setShowImport(true)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+              </GlassButton>
+              <GlassButton containerClassName="h-9" onClick={() => setShowImport(true)} variant="primary" className="inline-flex items-center gap-1.5 px-3 text-xs font-bold">
                 <FileScan className="h-4 w-4" />
                 扫描导入
-              </button>
+              </GlassButton>
             </div>
           </div>
           {showTools && <ResponsiveDialog title="课表操作" onClose={() => setShowTools(false)}><div className="grid gap-3">
@@ -284,20 +273,7 @@ function Tab({ active, onClick, icon: Icon, children, compact = false }: { activ
   );
 }
 function Modal({ title, onClose, children, footer, wide = false, compactFull = false }: { title: string; onClose: () => void; children: React.ReactNode; footer: React.ReactNode; wide?: boolean; compactFull?: boolean }) {
-  return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm ${compactFull ? 'p-0 sm:p-4' : 'p-4'}`}>
-      <div className={`w-full overflow-y-auto bg-white p-5 shadow-2xl dark:bg-zinc-900 ${compactFull ? 'h-[100dvh] rounded-none sm:h-auto sm:max-h-[90dvh] sm:rounded-2xl' : 'max-h-[90vh] rounded-2xl'} ${wide ? 'max-w-5xl' : 'max-w-2xl'}`}>
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-black">{title}</h3>
-          <button onClick={onClose} aria-label="关闭">
-            <X className="h-5 w-5 text-slate-400" />
-          </button>
-        </div>
-        {children}
-        <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4 dark:border-zinc-800">{footer}</div>
-      </div>
-    </div>
-  );
+  return <ResponsiveDialog title={title} onClose={onClose} wide={wide} compactFull={compactFull} footer={footer}>{children}</ResponsiveDialog>;
 }
 
 function ScheduleCell({ item, scope, colorSlot, onClick }: { key?: React.Key; item: ScheduleItem | undefined; scope: 'teacher' | 'class'; colorSlot: number | undefined; onClick: () => void }) {
@@ -345,20 +321,20 @@ function ScheduleEditor({ item, periods, classes, onChange, onClose, onSave, onD
               删除
             </button>
           )}
-          <button onClick={onSave} className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white">
+          <GlassButton onClick={onSave} variant="primary" className="px-4 py-2 text-xs font-bold">
             保存
-          </button>
+          </GlassButton>
         </>
       }
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-xs font-bold text-slate-500 sm:col-span-2">
           课程内容
-          <input className={`${fieldClass} mt-1.5`} value={item.title} placeholder={`留空则使用“${defaultTitle}”`} onChange={(e) => onChange({ ...item, title: e.target.value })} />
+          <input className={'qs-field-input '+(`${fieldClass} mt-1.5`)} value={item.title} placeholder={`留空则使用“${defaultTitle}”`} onChange={(e) => onChange({ ...item, title: e.target.value })} />
         </label>
         <label className="text-xs font-bold text-slate-500">
           星期
-          <select className={`${fieldClass} mt-1.5`} value={item.day} onChange={(e) => onChange({ ...item, day: Number(e.target.value) })}>
+          <select className={'qs-field-input '+(`${fieldClass} mt-1.5`)} value={item.day} onChange={(e) => onChange({ ...item, day: Number(e.target.value) })}>
             {dayNames.map((d, i) => (
               <option key={d} value={i + 1}>
                 {d}
@@ -369,7 +345,7 @@ function ScheduleEditor({ item, periods, classes, onChange, onClose, onSave, onD
         <label className="text-xs font-bold text-slate-500">
           课节
           <select
-            className={`${fieldClass} mt-1.5`}
+            className={'qs-field-input '+(`${fieldClass} mt-1.5`)}
             value={item.period}
             onChange={(e) => {
               const selectedPeriod = periods.find((period) => period.period === Number(e.target.value));
@@ -389,13 +365,13 @@ function ScheduleEditor({ item, periods, classes, onChange, onClose, onSave, onD
         </label>
         <label className="text-xs font-bold text-slate-500">
           时间
-          <input className={`${fieldClass} mt-1.5 bg-slate-50 text-slate-500 dark:bg-zinc-800`} value={periodTime(periods.find((period) => period.period === item.period))} readOnly />
+          <input className={'qs-field-input '+(`${fieldClass} mt-1.5 bg-slate-50 text-slate-500 dark:bg-zinc-800`)} value={periodTime(periods.find((period) => period.period === item.period))} readOnly />
           <span className="mt-1 block text-[10px] font-normal text-slate-400">统一在学校作息设置中调整</span>
         </label>
         {item.scope === 'teacher' ? (
           <label className="text-xs font-bold text-slate-500">
             上课班级
-            <select className={`${fieldClass} mt-1.5`} value={item.classId} onChange={(e) => onChange({ ...item, classId: e.target.value })}>
+            <select className={'qs-field-input '+(`${fieldClass} mt-1.5`)} value={item.classId} onChange={(e) => onChange({ ...item, classId: e.target.value })}>
               <option value="">无 / 个人事项</option>
               {classes.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -407,7 +383,7 @@ function ScheduleEditor({ item, periods, classes, onChange, onClose, onSave, onD
         ) : (
           <label className="text-xs font-bold text-slate-500">
             任课教师
-            <input className={`${fieldClass} mt-1.5`} value={item.teacherName ?? ''} onChange={(e) => onChange({ ...item, teacherName: e.target.value })} />
+            <input className={'qs-field-input '+(`${fieldClass} mt-1.5`)} value={item.teacherName ?? ''} onChange={(e) => onChange({ ...item, teacherName: e.target.value })} />
           </label>
         )}
       </div>
@@ -477,20 +453,20 @@ function ReminderWorkspace({ reminders, view, onView, onAdd, onBatch, onEdit, on
             {showCompleted ? '隐藏' : '显示'}已完成 {completed.length}
           </button>
         ) : null}
-        <button onClick={() => setShowRecurring(true)} className="hidden sm:inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300">
+        <GlassButton containerClassName="hidden sm:inline-grid h-9" onClick={() => setShowRecurring(true)} variant="secondary" className="items-center gap-1.5 px-3 text-xs font-bold">
           <Repeat2 className="h-4 w-4" />
           周期任务 {recurring.length}
-        </button>
+        </GlassButton>
         <div className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={() => setShowTools(true)} className="min-h-11 rounded-lg border px-3 text-sm font-bold sm:hidden">更多</button>
-          <button onClick={onBatch} className="hidden sm:inline-flex h-9 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+          <GlassButton containerClassName="sm:hidden" type="button" onClick={() => setShowTools(true)} variant="secondary" className="min-h-11 px-3 text-sm font-bold">更多</GlassButton>
+          <GlassButton containerClassName="hidden sm:inline-grid h-9" onClick={onBatch} variant="primary" className="items-center gap-1.5 px-3 text-xs font-bold">
             <Sparkles className="h-4 w-4" />
             AI 批量创建
-          </button>
-          <button onClick={onAdd} className="hidden min-h-11 items-center gap-1 rounded-lg bg-emerald-700 px-3 text-xs font-bold text-white sm:inline-flex">
+          </GlassButton>
+          <GlassButton containerClassName="hidden sm:inline-grid" onClick={onAdd} variant="primary" className="min-h-11 items-center gap-1 px-3 text-xs font-bold">
             <Plus className="h-4 w-4" />
             新建日程
-          </button>
+          </GlassButton>
         </div>
       </div>
       {showTools && <ResponsiveDialog title="日程操作" onClose={() => setShowTools(false)}><div className="grid gap-3">
@@ -529,12 +505,12 @@ function ReminderWorkspace({ reminders, view, onView, onAdd, onBatch, onEdit, on
       {showCreateActions && <button type="button" tabIndex={-1} aria-label="关闭创建菜单" onClick={() => setShowCreateActions(false)} className="fixed inset-0 z-40 bg-slate-950/10 sm:hidden" />}
       <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] right-4 z-50 flex flex-col items-end gap-2 sm:hidden">
         {showCreateActions && <>
-          <button type="button" onClick={() => { setShowCreateActions(false); onBatch(); }} className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-emerald-700 px-4 text-sm font-black text-white shadow-xl"><Sparkles className="h-4 w-4" />AI 批量创建</button>
-          <button type="button" onClick={() => { setShowCreateActions(false); onAdd(); }} className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-lg dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-200"><Plus className="h-4 w-4" />普通新建</button>
+          <GlassButton type="button" onClick={() => { setShowCreateActions(false); onBatch(); }} variant="primary" className="inline-flex min-h-12 items-center gap-2 px-4 text-sm font-black"><Sparkles className="h-4 w-4" />AI 批量创建</GlassButton>
+          <GlassButton type="button" onClick={() => { setShowCreateActions(false); onAdd(); }} variant="secondary" className="inline-flex min-h-11 items-center gap-2 px-4 text-sm font-bold"><Plus className="h-4 w-4" />普通新建</GlassButton>
         </>}
-        <button type="button" aria-label={showCreateActions ? '收起创建操作' : '打开创建操作'} aria-expanded={showCreateActions} onClick={() => setShowCreateActions(value => !value)} className="grid h-14 w-14 place-items-center rounded-2xl bg-emerald-700 text-white shadow-xl shadow-emerald-900/20">
+        <GlassButton containerClassName="h-14 w-14" type="button" aria-label={showCreateActions ? '收起创建操作' : '打开创建操作'} aria-expanded={showCreateActions} onClick={() => setShowCreateActions(value => !value)} variant="primary" className="grid place-items-center">
           {showCreateActions ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
-        </button>
+        </GlassButton>
       </div>
       {showRecurring ? (
         <RecurringReminderDialog
@@ -684,7 +660,7 @@ function OverdueReminderDialog({ items, onClose, onApply }: { items: TimerRemind
           <button onClick={onClose} className="rounded-lg px-3 py-2 text-xs font-bold text-slate-500">
             取消
           </button>
-          <button
+          <GlassButton
             disabled={saving || !selected.size}
             onClick={async () => {
               setSaving(true);
@@ -694,17 +670,17 @@ function OverdueReminderDialog({ items, onClose, onApply }: { items: TimerRemind
                 setSaving(false);
               }
             }}
-            className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
+            variant="primary" className="px-4 py-2 text-xs font-bold disabled:opacity-40"
           >
             {saving ? '更新中…' : `确认更新 ${selected.size} 项`}
-          </button>
+          </GlassButton>
         </>
       }
     >
       <div className="space-y-4">
         <label className="block text-xs font-bold text-slate-600">
           统一顺延到
-          <input type="date" value={targetDate} onChange={(event) => setTargetDate(event.target.value)} className={`${fieldClass} mt-1.5 max-w-xs`} />
+          <input type="date" value={targetDate} onChange={(event) => setTargetDate(event.target.value)} className={'qs-field-input '+(`${fieldClass} mt-1.5 max-w-xs`)} />
           <span className="mt-1 block font-normal text-slate-400">保留原时间和持续时长；周期任务会顺延到符合规则的日期。</span>
         </label>
         <div className="space-y-2">
@@ -783,20 +759,20 @@ function ReminderEditor({ item, classes, onChange, onClose, onSave: onSaveScope 
           <button onClick={onClose} className="rounded-lg px-3 py-2 text-xs font-bold text-slate-500">
             取消
           </button>
-          <button onClick={onSave} disabled={!item.name.trim() || (item.timeKind === 'point' && !item.startAt) || (item.timeKind === 'range' && (!item.startAt || !item.endAt))} className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-40">
+          <GlassButton onClick={onSave} disabled={!item.name.trim() || (item.timeKind === 'point' && !item.startAt) || (item.timeKind === 'range' && (!item.startAt || !item.endAt))} variant="primary" className="px-4 py-2 text-xs font-bold disabled:opacity-40">
             保存日程
-          </button>
+          </GlassButton>
         </>
       }
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-xs font-bold text-slate-600 sm:col-span-2">
           日程名称
-          <input className={`${fieldClass} mt-1.5`} value={item.name} onChange={(e) => onChange({ ...item, name: e.target.value })} />
+          <input className={'qs-field-input '+(`${fieldClass} mt-1.5`)} value={item.name} onChange={(e) => onChange({ ...item, name: e.target.value })} />
         </label>
         <label className="text-xs font-bold text-slate-600">
           关联班级
-          <select className={`${fieldClass} mt-1.5`} value={item.classId} onChange={(e) => onChange({ ...item, classId: e.target.value })}>
+          <select className={'qs-field-input '+(`${fieldClass} mt-1.5`)} value={item.classId} onChange={(e) => onChange({ ...item, classId: e.target.value })}>
             <option value="">无</option>
             {classes.map((c) => (
               <option key={c.id} value={c.id}>
@@ -808,7 +784,7 @@ function ReminderEditor({ item, classes, onChange, onClose, onSave: onSaveScope 
         <label className="text-xs font-bold text-slate-600">
           时间类型
           <select
-            className={`${fieldClass} mt-1.5`}
+            className={'qs-field-input '+(`${fieldClass} mt-1.5`)}
             value={item.timeKind ?? 'none'}
             onChange={(e) =>
               change({
@@ -826,13 +802,13 @@ function ReminderEditor({ item, classes, onChange, onClose, onSave: onSaveScope 
         {item.timeKind !== 'none' ? (
           <label className="text-xs font-bold text-slate-600">
             {item.timeKind === 'range' ? '开始时间' : '日程时间'}
-            <input type="datetime-local" className={`${fieldClass} mt-1.5`} value={item.startAt ?? ''} onChange={(e) => change({ startAt: e.target.value })} />
+            <input type="datetime-local" className={'qs-field-input '+(`${fieldClass} mt-1.5`)} value={item.startAt ?? ''} onChange={(e) => change({ startAt: e.target.value })} />
           </label>
         ) : null}
         {item.timeKind === 'range' ? (
           <label className="text-xs font-bold text-slate-600">
             结束时间
-            <input type="datetime-local" className={`${fieldClass} mt-1.5`} value={item.endAt ?? ''} onChange={(e) => change({ endAt: e.target.value })} />
+            <input type="datetime-local" className={'qs-field-input '+(`${fieldClass} mt-1.5`)} value={item.endAt ?? ''} onChange={(e) => change({ endAt: e.target.value })} />
           </label>
         ) : null}
         <div className="rounded-xl border border-slate-200 p-3 sm:col-span-2 dark:border-zinc-700">
@@ -864,7 +840,7 @@ function ReminderEditor({ item, classes, onChange, onClose, onSave: onSaveScope 
                       interval: Math.max(1, Number(e.target.value)),
                     })
                   }
-                  className={`${fieldClass} mt-1.5`}
+                  className={'qs-field-input '+(`${fieldClass} mt-1.5`)}
                 />
               </label>
               <label className="text-xs font-bold text-slate-600">
@@ -876,7 +852,7 @@ function ReminderEditor({ item, classes, onChange, onClose, onSave: onSaveScope 
                       unit: e.target.value as typeof recurrence.unit,
                     })
                   }
-                  className={`${fieldClass} mt-1.5`}
+                  className={'qs-field-input '+(`${fieldClass} mt-1.5`)}
                 >
                   <option value="day">天</option>
                   <option value="week">周</option>
@@ -897,7 +873,7 @@ function ReminderEditor({ item, classes, onChange, onClose, onSave: onSaveScope 
                     })
                   }
                   placeholder="不限"
-                  className={`${fieldClass} mt-1.5`}
+                  className={'qs-field-input '+(`${fieldClass} mt-1.5`)}
                 />
               </label>
               {recurrence.unit === 'week' ? (
@@ -915,13 +891,13 @@ function ReminderEditor({ item, classes, onChange, onClose, onSave: onSaveScope 
               {recurrence.unit === 'month' ? (
                 <label className="text-xs font-bold text-slate-600 sm:col-span-2">
                   每月日期
-                  <input type="number" min="0" max="31" value={recurrence.monthDays?.[0] ?? new Date(item.startAt ?? Date.now()).getDate()} onChange={(e) => updateRecurrence({ monthDays: [Number(e.target.value)] })} className={`${fieldClass} mt-1.5`} />
+                  <input type="number" min="0" max="31" value={recurrence.monthDays?.[0] ?? new Date(item.startAt ?? Date.now()).getDate()} onChange={(e) => updateRecurrence({ monthDays: [Number(e.target.value)] })} className={'qs-field-input '+(`${fieldClass} mt-1.5`)} />
                   <span className="mt-1 block text-[10px] font-normal text-slate-400">0 表示每月最后一天</span>
                 </label>
               ) : null}
               <label className="text-xs font-bold text-slate-600">
                 截止日期
-                <input type="date" value={recurrence.endDate ?? ''} onChange={(e) => updateRecurrence({ endDate: e.target.value || undefined })} className={`${fieldClass} mt-1.5`} />
+                <input type="date" value={recurrence.endDate ?? ''} onChange={(e) => updateRecurrence({ endDate: e.target.value || undefined })} className={'qs-field-input '+(`${fieldClass} mt-1.5`)} />
               </label>
             </div>
           ) : null}
@@ -992,16 +968,16 @@ function ReminderImportDialog({ classes, onClose, onApply }: { classes: SchoolCl
       <button onClick={() => setDrafts(null)} className="rounded-lg px-3 py-2 text-xs font-bold text-slate-500">
         返回修改原文
       </button>
-      <button onClick={() => void apply()} disabled={busy || selectedCount === 0} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-40">
+      <GlassButton onClick={() => void apply()} disabled={busy || selectedCount === 0} variant="primary" className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold disabled:opacity-40">
         {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
         确认新建 {selectedCount} 条
-      </button>
+      </GlassButton>
     </>
   ) : (
-    <button onClick={() => void generate()} disabled={busy || !source.trim()} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-40">
+    <GlassButton onClick={() => void generate()} disabled={busy || !source.trim()} variant="primary" className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold disabled:opacity-40">
       {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
       生成日程草稿
-    </button>
+    </GlassButton>
   );
   return (
     <Modal wide title="AI 批量创建日程" onClose={onClose} footer={footer}>
@@ -1012,7 +988,7 @@ function ReminderImportDialog({ classes, onClose, onApply }: { classes: SchoolCl
           </div>
           <label className="block text-xs font-bold text-slate-600">
             待创建文本
-            <textarea autoFocus value={source} maxLength={20000} onChange={(event) => setSource(event.target.value)} className={`${fieldClass} mt-1.5 min-h-56 resize-y leading-6`} placeholder={'例如：\n明天下午五点前收七年级5班作文\n下午两点到四点开备课组会\n有空整理一下家长会材料'} />
+            <textarea autoFocus value={source} maxLength={20000} onChange={(event) => setSource(event.target.value)} className={'qs-field-input '+(`${fieldClass} mt-1.5 min-h-56 resize-y leading-6`)} placeholder={'例如：\n明天下午五点前收七年级5班作文\n下午两点到四点开备课组会\n有空整理一下家长会材料'} />
           </label>
           <div className="flex justify-between text-[10px] text-slate-500">
             <span>支持时间点、时间段和无时间日程</span>
@@ -1080,7 +1056,7 @@ function ReminderDraftRow({ item, index, classes, onUpdate }: { key?: React.Key;
       <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
         <label className="text-[10px] font-bold text-slate-600 lg:col-span-2">
           日程名称
-          <input value={item.name} onChange={(event) => onUpdate(index, { name: event.target.value })} className={`${fieldClass} mt-1`} />
+          <input value={item.name} onChange={(event) => onUpdate(index, { name: event.target.value })} className={'qs-field-input '+(`${fieldClass} mt-1`)} />
         </label>
         <label className="text-[10px] font-bold text-slate-600">
           关联班级
@@ -1093,7 +1069,7 @@ function ReminderDraftRow({ item, index, classes, onUpdate }: { key?: React.Key;
                 className: selected?.name ?? '',
               });
             }}
-            className={`${fieldClass} mt-1`}
+            className={'qs-field-input '+(`${fieldClass} mt-1`)}
           >
             <option value="">无</option>
             {classes.map((itemClass) => (
@@ -1114,7 +1090,7 @@ function ReminderDraftRow({ item, index, classes, onUpdate }: { key?: React.Key;
                 endAt: '',
               })
             }
-            className={`${fieldClass} mt-1`}
+            className={'qs-field-input '+(`${fieldClass} mt-1`)}
           >
             <option value="none">无时间</option>
             <option value="point">时间点</option>
@@ -1133,7 +1109,7 @@ function ReminderDraftRow({ item, index, classes, onUpdate }: { key?: React.Key;
                   assumptionWarning: undefined,
                 })
               }
-              className={`${fieldClass} mt-1`}
+              className={'qs-field-input '+(`${fieldClass} mt-1`)}
             />
           </label>
         )}
@@ -1149,7 +1125,7 @@ function ReminderDraftRow({ item, index, classes, onUpdate }: { key?: React.Key;
                   assumptionWarning: undefined,
                 })
               }
-              className={`${fieldClass} mt-1`}
+              className={'qs-field-input '+(`${fieldClass} mt-1`)}
             />
           </label>
         )}
@@ -1289,7 +1265,7 @@ function ImportDialog({ scope, classId, classes, periods, onClose, onApply }: { 
   } : current);
   const persistedItems = (draft?.items ?? []).map(({ recognizedClassText: _, classCorrectionType: __, classNeedsReview: ___, classMatch: ____, ...item }) => item);
   const footer = draft ? (
-    <button
+    <GlassButton
       onClick={async () => {
         setBusy(true);
         setError('');
@@ -1303,16 +1279,16 @@ function ImportDialog({ scope, classId, classes, periods, onClose, onApply }: { 
         }
       }}
       disabled={busy || !draft.items.length || unresolvedItems.length > 0}
-      className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+      variant="primary" className="inline-flex min-h-11 items-center gap-1.5 px-4 py-2 text-sm font-bold disabled:opacity-40"
     >
       {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
       {unresolvedItems.length ? `还有 ${unresolvedItems.length} 项待确认` : `确认写入 ${draft.items.length} 项`}
-    </button>
+    </GlassButton>
   ) : (
-    <button onClick={() => void recognize()} disabled={!file || busy} className="inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-40">
+    <GlassButton onClick={() => void recognize()} disabled={!file || busy} variant="primary" className="inline-flex min-h-11 items-center gap-1.5 px-4 py-2 text-sm font-bold disabled:opacity-40">
       {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileScan className="h-4 w-4" />}
       开始识别
-    </button>
+    </GlassButton>
   );
   return (
     <Modal wide compactFull title="扫描纸质课表" onClose={onClose} footer={footer}>
@@ -1373,7 +1349,7 @@ function ImportDialog({ scope, classId, classes, periods, onClose, onApply }: { 
               {unresolvedGroups.map(group => (
                 <label key={`${group.label}-${group.indexes[0]}`} className="grid gap-2 text-xs font-bold text-slate-700 sm:grid-cols-[minmax(150px,1fr)_minmax(220px,1.4fr)] sm:items-center dark:text-slate-200">
                   <span className="break-words">识别到：{group.label} <span className="font-normal text-slate-500">（{group.indexes.length}项）</span></span>
-                  <select defaultValue="" onChange={event => applyClassChoice(group.indexes, event.target.value)} className={`${fieldClass} min-h-11 text-base sm:text-sm`}>
+                  <select defaultValue="" onChange={event => applyClassChoice(group.indexes, event.target.value)} className={'qs-field-input '+(`${fieldClass} min-h-11 text-base sm:text-sm`)}>
                     <option value="">请选择已有班级</option>
                     {classes.map(itemClass => <option key={itemClass.id} value={itemClass.id}>{classOptionLabels.get(itemClass.id)}</option>)}
                     <option value="__unassigned__">不关联班级</option>
@@ -1404,7 +1380,7 @@ function ImportDraftRow({ item, index, scope, classes, classById, classOptionLab
       <div className="grid grid-cols-2 gap-2">
         <label className="min-w-0 text-xs font-bold text-slate-600">
           星期
-          <select value={item.day} onChange={(event) => onUpdate(index, { day: Number(event.target.value) })} className={`${fieldClass} mt-1 min-w-[82px]`}>
+          <select value={item.day} onChange={(event) => onUpdate(index, { day: Number(event.target.value) })} className={'qs-field-input '+(`${fieldClass} mt-1 min-w-[82px]`)}>
             {dayNames.map((day, dayIndex) => (
               <option key={day} value={dayIndex + 1}>
                 {day}
@@ -1423,7 +1399,7 @@ function ImportDraftRow({ item, index, scope, classes, classById, classOptionLab
                 time: periodTime(selectedPeriod),
               });
             }}
-            className={`${fieldClass} mt-1 min-w-[96px]`}
+            className={'qs-field-input '+(`${fieldClass} mt-1 min-w-[96px]`)}
           >
             {periods.map((period) => (
               <option key={period.period} value={period.period}>
@@ -1435,7 +1411,7 @@ function ImportDraftRow({ item, index, scope, classes, classById, classOptionLab
       </div>
       <label className="text-xs font-bold text-slate-600">
         课程
-        <input value={item.title} onChange={(event) => onUpdate(index, { title: event.target.value })} className={`${fieldClass} mt-1`} />
+        <input value={item.title} onChange={(event) => onUpdate(index, { title: event.target.value })} className={'qs-field-input '+(`${fieldClass} mt-1`)} />
       </label>
       {scope === 'teacher' ? (
         <label className="text-xs font-bold text-slate-600">
@@ -1452,7 +1428,7 @@ function ImportDraftRow({ item, index, scope, classes, classById, classOptionLab
                   : { classId: '', className: '', classMatch: { ...item.classMatch, status: 'unresolved' } });
               }
             }}
-            className={`${fieldClass} mt-1 min-h-11 text-base sm:text-sm`}
+            className={'qs-field-input '+(`${fieldClass} mt-1 min-h-11 text-base sm:text-sm`)}
           >
             <option value="">请选择已有班级</option>
             {classes.map((itemClass) => (
@@ -1467,7 +1443,7 @@ function ImportDraftRow({ item, index, scope, classes, classById, classOptionLab
       ) : (
         <label className="text-xs font-bold text-slate-600">
           教师（可空）
-          <input value={item.teacherName ?? ''} onChange={(event) => onUpdate(index, { teacherName: event.target.value })} className={`${fieldClass} mt-1`} />
+          <input value={item.teacherName ?? ''} onChange={(event) => onUpdate(index, { teacherName: event.target.value })} className={'qs-field-input '+(`${fieldClass} mt-1`)} />
         </label>
       )}
       <button onClick={() => onRemove(index)} className="self-end rounded-lg p-2 hover:bg-red-50 dark:hover:bg-red-950/30" aria-label="移除识别项">

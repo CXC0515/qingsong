@@ -34,7 +34,7 @@ export default function RenameProjectDialog({ project, identityKey, onClose, onC
   return <ResponsiveDialog title="项目改名" busy={busy} onClose={onClose}>
     <form className="grid gap-4" onSubmit={e => { e.preventDefault(); void save(); }}>
       <p className="text-sm text-slate-500">名称会在你的各个班级中更新，记录和次数保留。具体检查的标题与内容不变。</p>
-      <label className="grid gap-2 text-sm font-semibold">项目名称<input className={control} required maxLength={50} disabled={busy || sent} value={draft.name} onChange={e => setDraft(value => ({ ...value, name: e.target.value }))} /></label>
+      <label className="grid gap-2 text-sm font-semibold">项目名称<input className={'qs-field-input '+(control)} required maxLength={50} disabled={busy || sent} value={draft.name} onChange={e => setDraft(value => ({ ...value, name: e.target.value }))} /></label>
       {sent && <p role="status" className="text-sm text-amber-800">正在核对此前的改名；关闭后可从“项目改名”继续核对。</p>}
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       <div className="flex flex-wrap gap-2">

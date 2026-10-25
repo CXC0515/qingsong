@@ -62,3 +62,37 @@ test('lesson behavior is scoped while profile totals span lessons; rename change
  assert.equal(service.recordBehavior(input).id,first.id);
  service.recordBehavior({...input,operationId:'lesson-retract',targetId:first.id});assert.equal(service.listBehavior(filter).counts.cooperation,2);
 }));
+
+test('durable behavior rounds isolate lesson/project/date, replay once and preserve profile totals',()=>runWithWorkspace(context,()=>{
+ const scope={classId:'lesson-class',kind:'focus',occurredDate:'2026-10-20',scheduleItemId:'lesson-b'};
+ const event={...scope,studentId:'lesson-student',note:'专注',operationId:'round-one'};
+ service.recordBehavior(event);
+ assert.deepEqual(service.behaviorRounds(scope),{round:1,availableRounds:[1]});
+ const request={...scope,operationId:'round-create',basedOn:1};
+ assert.deepEqual(service.newBehaviorRound(request),{round:2,availableRounds:[1,2]});
+ assert.equal(service.newBehaviorRound(request).round,2);
+ assert.equal(service.behaviorRounds(scope).round,2); // An empty round survives rereading.
+ assert.throws(()=>service.newBehaviorRound({...request,operationId:'concurrent'}));
+ assert.throws(()=>service.newBehaviorRound({...request,kind:'participation'}));
+ const second=service.recordBehavior({...event,operationId:'round-two',round:2});
+ const filter={classId:scope.classId,kind:scope.kind,from:scope.occurredDate,to:scope.occurredDate,scheduleItemId:scope.scheduleItemId};
+ assert.equal(service.listBehavior({...filter,round:1}).counts.focus,1);
+ assert.equal(service.listBehavior({...filter,round:2}).counts.focus,1);
+ assert.equal(service.listBehavior(filter).counts.focus,2);
+ assert.throws(()=>service.recordBehavior({...event,operationId:'not-created',round:9}));
+ assert.throws(()=>service.recordBehavior({...event,operationId:'wrong-round-retract',targetId:second.id,round:1}));
+ service.recordBehavior({...event,operationId:'round-two-undo',targetId:second.id,round:2});
+ assert.equal(service.listBehavior({...filter,round:2}).counts.focus??0,0);
+ assert.equal(service.listBehavior({...filter,round:1}).counts.focus,1);
+ assert.equal(service.behaviorRounds({...scope,scheduleItemId:undefined}).round,1);
+ assert.equal(service.behaviorRounds({...scope,kind:'participation'}).round,1);
+ assert.equal(service.behaviorRounds({...scope,occurredDate:'2026-10-27'}).round,1);
+ runWithWorkspace(createWorkspaceContext('round-other','round-other','teacher'),()=>{
+  assert.equal(service.behaviorRounds(scope).round,1);
+  assert.throws(()=>service.newBehaviorRound({...scope,operationId:'foreign-round',basedOn:1}));
+ });
+ // Retraction and exact replay still work after the schedule entry has been removed.
+ getRosterDatabase().prepare("DELETE FROM schedule_items WHERE id='lesson-b'").run();
+ assert.equal(service.newBehaviorRound(request).round,2);
+ assert.equal(service.recordBehavior({...event,operationId:'round-two',round:2}).id,second.id);
+}));

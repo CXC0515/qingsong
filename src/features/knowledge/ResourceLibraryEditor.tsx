@@ -1,3 +1,4 @@
+import { GlassButton } from '../../components/glass/Glass';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -349,15 +350,15 @@ const MetadataDialog = ({
         </div>
         <div className="grid flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 sm:grid-cols-2 sm:p-5">
           {!resource && <div className="flex gap-2 sm:col-span-2"><button type="button" onClick={() => { setSource('upload'); setPoolItemId(''); }} className={`min-h-11 flex-1 rounded-xl border px-3 text-sm font-bold ${source === 'upload' ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200'}`}>上传新 PDF</button><button type="button" onClick={() => { setSource('pool'); setFile(null); }} className={`min-h-11 flex-1 rounded-xl border px-3 text-sm font-bold ${source === 'pool' ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200'}`}>从材料池选择</button></div>}
-          {!resource && source === 'pool' && <div className="space-y-2 sm:col-span-2"><input aria-label="搜索材料池 PDF" value={poolQuery} onChange={event => setPoolQuery(event.target.value)} placeholder="搜索材料池 PDF" className={fieldClass} />{poolLoading ? <p className="text-sm text-slate-500">正在查找材料…</p> : poolItems.length ? <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-zinc-700">{poolItems.map(item => <button key={item.id} type="button" onClick={() => { setPoolItemId(item.id); if (!metadata.title) update('title', item.originalName.replace(/\.pdf$/i, '')); }} className={`min-h-11 w-full rounded-lg px-3 text-left text-sm ${poolItemId === item.id ? 'bg-emerald-100 font-bold text-emerald-900' : 'hover:bg-slate-100 dark:hover:bg-zinc-800'}`}>{item.originalName}{item.resourceId ? ' · 已用于资料编辑' : ''}</button>)}</div> : <p className="text-sm text-slate-500">未找到 PDF。可以在材料池上传后再选择。</p>}{poolNextOffset !== null && <button type="button" className="btn-secondary min-h-11 w-full text-sm" onClick={async () => { try { const result = await listPoolItems({ q: poolQuery, mime: 'application/pdf', offset: poolNextOffset }); setPoolItems(current => [...current, ...result.items]); setPoolNextOffset(result.nextOffset); } catch (error) { setFormError(error instanceof Error ? error.message : '加载更多材料失败'); } }}>加载更多 PDF</button>}</div>}
+          {!resource && source === 'pool' && <div className="space-y-2 sm:col-span-2"><input aria-label="搜索材料池 PDF" value={poolQuery} onChange={event => setPoolQuery(event.target.value)} placeholder="搜索材料池 PDF" className={'qs-field-input '+(fieldClass)} />{poolLoading ? <p className="text-sm text-slate-500">正在查找材料…</p> : poolItems.length ? <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-zinc-700">{poolItems.map(item => <button key={item.id} type="button" onClick={() => { setPoolItemId(item.id); if (!metadata.title) update('title', item.originalName.replace(/\.pdf$/i, '')); }} className={`min-h-11 w-full rounded-lg px-3 text-left text-sm ${poolItemId === item.id ? 'bg-emerald-100 font-bold text-emerald-900' : 'hover:bg-slate-100 dark:hover:bg-zinc-800'}`}>{item.originalName}{item.resourceId ? ' · 已用于资料编辑' : ''}</button>)}</div> : <p className="text-sm text-slate-500">未找到 PDF。可以在材料池上传后再选择。</p>}{poolNextOffset !== null && <GlassButton type="button" variant="secondary" containerClassName="w-full" className="min-h-11 text-sm" onClick={async () => { try { const result = await listPoolItems({ q: poolQuery, mime: 'application/pdf', offset: poolNextOffset }); setPoolItems(current => [...current, ...result.items]); setPoolNextOffset(result.nextOffset); } catch (error) { setFormError(error instanceof Error ? error.message : '加载更多材料失败'); } }}>加载更多 PDF</GlassButton>}</div>}
           {!resource && source === 'upload' && (
-            <button
+            <GlassButton containerClassName="h-28"
               type="button"
               onClick={() => {
                 if (inputRef.current) inputRef.current.value = "";
                 inputRef.current?.click();
               }}
-              className="h-28 border border-dashed border-slate-300 dark:border-zinc-700 rounded-xl hover:border-emerald-600 hover:bg-emerald-50/40 transition-colors grid place-items-center text-center sm:col-span-2"
+              variant="secondary" className="transition-colors grid place-items-center text-center sm:col-span-2"
             >
               <input
                 ref={inputRef}
@@ -387,13 +388,13 @@ const MetadataDialog = ({
                   {file ? `${formatFileSize(file.size)} · ${file.size > RESOURCE_UPLOAD_LIMIT_BYTES ? `超过 ${RESOURCE_UPLOAD_LIMIT_LABEL} 上限` : '可以上传'}` : `单个文件不超过 ${RESOURCE_UPLOAD_LIMIT_LABEL}`}
                 </span>
               </span>
-            </button>
+            </GlassButton>
           )}
           {!resource && source === 'upload' && file && (
             <div className="sm:col-span-2">
-              <button type="button" onClick={() => setShowPreview(value => !value)} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-700 dark:border-zinc-700 dark:text-slate-200">
+              <GlassButton type="button" onClick={() => setShowPreview(value => !value)} variant="secondary" className="min-h-11 px-4 text-sm font-bold">
                 {showPreview ? "收起预览" : "预览首页"}
-              </button>
+              </GlassButton>
               {showPreview ? <PdfPageViewer source={file} page={1} navigation={false} className="mt-3 h-[min(52dvh,420px)]" /> : null}
             </div>
           )}
@@ -404,7 +405,7 @@ const MetadataDialog = ({
               required
               value={metadata.title}
               onChange={(event) => update("title", event.target.value)}
-              className={fieldClass}
+              className={'qs-field-input '+(fieldClass)}
             />
           </label>
           <label className="space-y-1">
@@ -414,7 +415,7 @@ const MetadataDialog = ({
               onChange={(event) =>
                 update("kind", event.target.value as ResourceKind)
               }
-              className={fieldClass}
+              className={'qs-field-input '+(fieldClass)}
             >
               {Object.entries(resourceKindLabels).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -428,7 +429,7 @@ const MetadataDialog = ({
             <input
               value={metadata.subject}
               onChange={(event) => update("subject", event.target.value)}
-              className={fieldClass}
+              className={'qs-field-input '+(fieldClass)}
             />
           </label>
           <label className="space-y-1">
@@ -436,7 +437,7 @@ const MetadataDialog = ({
             <input
               value={metadata.grade}
               onChange={(event) => update("grade", event.target.value)}
-              className={fieldClass}
+              className={'qs-field-input '+(fieldClass)}
             />
           </label>
           <label className="space-y-1">
@@ -444,7 +445,7 @@ const MetadataDialog = ({
             <input
               value={metadata.publisher}
               onChange={(event) => update("publisher", event.target.value)}
-              className={fieldClass}
+              className={'qs-field-input '+(fieldClass)}
             />
           </label>
           <label className="space-y-1">
@@ -452,7 +453,7 @@ const MetadataDialog = ({
             <input
               value={metadata.edition}
               onChange={(event) => update("edition", event.target.value)}
-              className={fieldClass}
+              className={'qs-field-input '+(fieldClass)}
             />
           </label>
           <label className="flex items-center gap-2 pt-6 text-sm font-bold text-slate-600 dark:text-slate-300">
@@ -466,13 +467,13 @@ const MetadataDialog = ({
           </label>
         </div>
         <div className="px-5 py-4 border-t border-slate-200/70 dark:border-zinc-800 flex justify-end gap-2">
-          <button
+          <GlassButton
             type="button"
             onClick={onClose}
-            className="btn-secondary px-4 py-2 text-sm"
+            variant="secondary" className="px-4 py-2 text-sm"
           >
             取消
-          </button>
+          </GlassButton>
           <button
             disabled={saving}
             className="btn-primary px-4 py-2 text-sm flex items-center gap-2"
@@ -599,7 +600,7 @@ const SuggestionItem = ({
               <select
                 value={primaryMotherId}
                 onChange={(event) => setPrimaryMotherId(event.target.value)}
-                className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-600 dark:border-zinc-700 dark:bg-zinc-900"
+                className="qs-field-input min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-600 dark:border-zinc-700 dark:bg-zinc-900"
               >
                 <option value="">主要母节点待确认</option>
                 {possibleMothers.map((node) => (
@@ -615,7 +616,7 @@ const SuggestionItem = ({
               <select
                 value={mergeTarget}
                 onChange={(event) => setMergeTarget(event.target.value)}
-                className="min-w-0 flex-1 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900"
+                className="qs-field-input min-w-0 flex-1 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900"
               >
                 <option value="">合并到已有节点...</option>
                 {nodes.map((node) => (
@@ -624,15 +625,15 @@ const SuggestionItem = ({
                   </option>
                 ))}
               </select>
-              <button
+              <GlassButton
                 disabled={!mergeTarget}
                 onClick={() =>
                   onReview("merged", { mergeTargetId: mergeTarget })
                 }
-                className="btn-secondary px-3 disabled:opacity-40"
+                variant="secondary" className="px-3 disabled:opacity-40"
               >
                 合并
-              </button>
+              </GlassButton>
             </div>
           )}
         </div>
@@ -855,31 +856,31 @@ export default function ResourceLibraryEditor({
     <div className="grid h-full min-h-0 grid-cols-1 gap-4 lg:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-[280px_minmax(0,1fr)]">
       <aside className={`glass-panel min-h-0 flex-col overflow-hidden rounded-2xl ${compactSurface === "reader" ? "hidden lg:flex" : "flex"}`}>
         <div className="p-3 border-b border-slate-200/70 dark:border-zinc-800 space-y-3">
-          <button
+          <GlassButton
             onClick={() => setDialog("upload")}
-            className="btn-primary flex min-h-11 w-full items-center justify-center gap-2 py-2.5 text-sm"
+            variant="primary" containerClassName="w-full" className="flex min-h-11 items-center justify-center gap-2 py-2.5 text-sm"
           >
             <Plus className="w-4 h-4" />
             上传资料
-          </button>
+          </GlassButton>
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="搜索资料"
-              className="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-base outline-none sm:text-sm dark:border-zinc-800 dark:bg-zinc-900/60"
+              className="qs-field-input min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-base outline-none sm:text-sm dark:border-zinc-800 dark:bg-zinc-900/60"
             />
           </div>
           <div className="flex items-center gap-2">
             <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <button type="button" onClick={() => setShowKindPicker(true)} className="flex min-h-11 flex-1 items-center justify-between rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-600 sm:hidden dark:border-zinc-700 dark:text-slate-300">
+            <GlassButton type="button" onClick={() => setShowKindPicker(true)} variant="secondary" containerClassName="flex-1 sm:hidden" className="flex min-h-11 items-center justify-between px-3 text-sm font-bold">
               <span>{kind === "all" ? "全部资料" : resourceKindLabels[kind]}</span><ChevronDown className="h-4 w-4 text-slate-400" />
-            </button>
+            </GlassButton>
             <select
               value={kind}
               onChange={(event) => setKind(event.target.value as typeof kind)}
-              className="hidden flex-1 bg-transparent text-sm text-slate-500 outline-none sm:block"
+              className="qs-field-input hidden flex-1 bg-transparent text-sm text-slate-500 outline-none sm:block"
             >
               <option value="all">全部资料</option>
               {Object.entries(resourceKindLabels).map(([value, label]) => (
@@ -1023,7 +1024,7 @@ export default function ResourceLibraryEditor({
                   </div>
                   <div className="flex items-center gap-1 sm:gap-2">
                     {readingMode === "pdf" ? <a href={displayedResource?.publicUrl ?? detail.publicUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50 sm:px-3 dark:text-emerald-300 dark:hover:bg-emerald-950/30" title="在新页面打开 PDF"><ExternalLink className="h-4 w-4" /><span className="hidden sm:inline">在新页面打开 PDF</span><span className="sm:hidden">新页面打开</span></a> : <span className="whitespace-nowrap text-xs font-bold text-slate-500">第 {selectedPage} 页</span>}
-                    <button onClick={() => setInspectorOpen(true)} className="btn-secondary min-h-11 px-3 py-1.5 text-xs lg:hidden">解析</button>
+                    <GlassButton containerClassName="lg:hidden" onClick={() => setInspectorOpen(true)} variant="secondary" className="min-h-11 px-3 py-1.5 text-xs">解析</GlassButton>
                   </div>
                 </div>
                 <div className="relative flex min-h-0 flex-1 flex-col p-2 sm:p-3">
@@ -1128,7 +1129,7 @@ export default function ResourceLibraryEditor({
                             onChange={(event) =>
                               setPageStart(Number(event.target.value))
                             }
-                            className={fieldClass}
+                            className={'qs-field-input '+(fieldClass)}
                           />
                           <span className="text-slate-400">至</span>
                           <input
@@ -1142,17 +1143,17 @@ export default function ResourceLibraryEditor({
                             onChange={(event) =>
                               setPageEnd(Number(event.target.value))
                             }
-                            className={fieldClass}
+                            className={'qs-field-input '+(fieldClass)}
                           />
                         </div>
-                        <button
+                        <GlassButton
                           onClick={runAnalysis}
                           disabled={detail.status === "processing"}
-                          className="btn-primary w-full py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                          variant="primary" containerClassName="w-full" className="py-2.5 text-sm flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                           <Sparkles className="w-4 h-4" />
                           {detail.chunks.length ? "重新解析所选页" : "开始解析"}
-                        </button>
+                        </GlassButton>
                         <p className="text-[11px] text-slate-400">
                           单次最多 40 页
                         </p>
@@ -1168,11 +1169,11 @@ export default function ResourceLibraryEditor({
                   {inspectorTab === "pages" && (
                     <div className="space-y-4">
                       <div className="flex items-center gap-2">
-                        <button disabled={pageWindowStart === 0} onClick={() => navigatePage(Math.max(1, pageWindowStart - 49))} className="btn-secondary px-2.5 py-1.5 text-xs disabled:opacity-40">上一组</button>
+                        <GlassButton disabled={pageWindowStart === 0} onClick={() => navigatePage(Math.max(1, pageWindowStart - 49))} variant="secondary" className="px-2.5 py-1.5 text-xs disabled:opacity-40">上一组</GlassButton>
                         <label className="flex flex-1 items-center gap-2 text-xs text-slate-500">跳到
-                          <input type="number" min={1} max={detail.pageCount ?? 1} value={selectedPage} onChange={(event) => navigatePage(Math.max(1, Math.min(detail.pageCount ?? 1, Number(event.target.value))))} className={`${fieldClass} min-w-0 py-1.5`} />
+                          <input type="number" min={1} max={detail.pageCount ?? 1} value={selectedPage} onChange={(event) => navigatePage(Math.max(1, Math.min(detail.pageCount ?? 1, Number(event.target.value))))} className={'qs-field-input '+(`${fieldClass} min-w-0 py-1.5`)} />
                         </label>
-                        <button disabled={pageWindowStart + 50 >= detail.pages.length} onClick={() => navigatePage(pageWindowStart + 51)} className="btn-secondary px-2.5 py-1.5 text-xs disabled:opacity-40">下一组</button>
+                        <GlassButton disabled={pageWindowStart + 50 >= detail.pages.length} onClick={() => navigatePage(pageWindowStart + 51)} variant="secondary" className="px-2.5 py-1.5 text-xs disabled:opacity-40">下一组</GlassButton>
                       </div>
                       <div className="grid grid-cols-5 gap-2">
                         {visiblePages.map((page) => (
@@ -1233,7 +1234,7 @@ export default function ResourceLibraryEditor({
                           setRagSearching(false);
                         }
                       }} className="space-y-2">
-                        <input value={ragQuery} onChange={(event) => setRagQuery(event.target.value)} placeholder="输入知识点、题型或原文关键词" className={fieldClass} />
+                        <input value={ragQuery} onChange={(event) => setRagQuery(event.target.value)} placeholder="输入知识点、题型或原文关键词" className={'qs-field-input '+(fieldClass)} />
                         <button disabled={ragSearching || !ragQuery.trim()} className="btn-primary flex w-full items-center justify-center gap-2 py-2 text-sm disabled:opacity-40">{ragSearching ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}检索 RAG 语料</button>
                       </form>
                       <div className="space-y-2">
@@ -1267,20 +1268,20 @@ export default function ResourceLibraryEditor({
                             : "全选"}
                         </button>
                         <div className="flex gap-1">
-                          <button
+                          <GlassButton
                             disabled={!selectedSuggestions.length}
                             onClick={() => batchReview("ignored")}
-                            className="btn-secondary px-2.5 py-1.5 text-xs disabled:opacity-40"
+                            variant="secondary" className="px-2.5 py-1.5 text-xs disabled:opacity-40"
                           >
                             忽略
-                          </button>
-                          <button
+                          </GlassButton>
+                          <GlassButton
                             disabled={!selectedSuggestions.length}
                             onClick={() => batchReview("accepted")}
-                            className="btn-primary px-2.5 py-1.5 text-xs disabled:opacity-40"
+                            variant="primary" className="px-2.5 py-1.5 text-xs disabled:opacity-40"
                           >
                             批量同意
-                          </button>
+                          </GlassButton>
                         </div>
                       </div>
                       {pending.map((item) => (

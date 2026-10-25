@@ -1,3 +1,4 @@
+import { GlassButton } from '../../components/glass/Glass';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -79,7 +80,7 @@ class GraphCanvasBoundary extends React.Component<{ children?: React.ReactNode }
           <AlertCircle className="mx-auto h-8 w-8 text-amber-600" />
           <h3 className="mt-3 text-base font-black text-slate-800 dark:text-zinc-100">知识图谱暂时无法显示</h3>
           <p className="mt-2 text-sm leading-6 text-slate-500">页面资源可能已经更新，刷新即可重新加载；已有知识数据不会受到影响。</p>
-          <button type="button" onClick={() => window.location.reload()} className="btn-primary mt-4 min-h-11 px-4 text-sm">刷新页面</button>
+          <GlassButton type="button" onClick={() => window.location.reload()} variant="primary" containerClassName="mt-4" className="min-h-11 px-4 text-sm">刷新页面</GlassButton>
         </div>
       </div>
     );
@@ -213,7 +214,7 @@ const NodeDialog = ({ node, nodes, subjects, stages, availableTags, defaultSubje
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto p-4 sm:grid-cols-2 sm:overflow-visible sm:p-5">
           <label className="space-y-1">
             <span className="text-xs font-bold text-slate-500">名称</span>
-            <input required value={input.name} onChange={(event) => update("name", event.target.value)} className={fieldClass} />
+            <input required value={input.name} onChange={(event) => update("name", event.target.value)} className={'qs-field-input '+(fieldClass)} />
           </label>
           <label className="space-y-1">
             <span className="text-xs font-bold text-slate-500">类型</span>
@@ -225,18 +226,18 @@ const NodeDialog = ({ node, nodes, subjects, stages, availableTags, defaultSubje
                 primaryMotherId: structuralTypes.has(nextType) ? current.primaryMotherId : undefined,
                 trainable: nextType === "knowledge" || nextType === "ability" ? current.trainable ?? true : false,
               }));
-            }} className={fieldClass}>
+            }} className={'qs-field-input '+(fieldClass)}>
               {Object.entries(entityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </label>
           <div className="space-y-1">
             <span className="text-xs font-bold text-slate-500">学科</span>
-            <div className="flex gap-2"><select value={input.subject} onChange={(event) => setInput((current) => ({ ...current, subject: event.target.value, primaryMotherId: undefined }))} className={fieldClass}>{subjects.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select><button type="button" onClick={onManageSubjects} title="管理学科" className="btn-secondary grid h-9 w-9 shrink-0 place-items-center"><Settings2 className="h-4 w-4" /></button></div>
+            <div className="flex gap-2"><select value={input.subject} onChange={(event) => setInput((current) => ({ ...current, subject: event.target.value, primaryMotherId: undefined }))} className={'qs-field-input '+(fieldClass)}>{subjects.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select><GlassButton containerClassName="h-9 w-9 shrink-0" type="button" onClick={onManageSubjects} title="管理学科" variant="secondary" className="grid place-items-center"><Settings2 className="h-4 w-4" /></GlassButton></div>
           </div>
           {isStructural ? (
             <label className="space-y-1 sm:col-span-2">
               <span className="text-xs font-bold text-slate-500">主要母节点</span>
-              <select value={input.primaryMotherId ?? ""} onChange={(event) => update("primaryMotherId", event.target.value || undefined)} className={fieldClass}>
+              <select value={input.primaryMotherId ?? ""} onChange={(event) => update("primaryMotherId", event.target.value || undefined)} className={'qs-field-input '+(fieldClass)}>
                 <option value="">无（作为学科根层）</option>
                 {motherCandidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{entityLabels[candidate.type]} · {candidate.name}</option>)}
               </select>
@@ -247,20 +248,20 @@ const NodeDialog = ({ node, nodes, subjects, stages, availableTags, defaultSubje
             <select value={input.stageIds[0] ?? "stage_general"} onChange={(event) => {
               const selectedStage = stages.find((stage) => stage.id === event.target.value);
               setInput((current) => ({ ...current, stageIds: [event.target.value], grade: selectedStage?.name ?? "通用" }));
-            }} className={fieldClass}>{stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select>
+            }} className={'qs-field-input '+(fieldClass)}>{stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select>
           </label>
           <label className="space-y-1 sm:col-span-2">
             <span className="text-xs font-bold text-slate-500">别名</span>
-            <input value={aliasText} onChange={(event) => setAliasText(event.target.value)} placeholder="用顿号分隔，供 AI 对齐使用" className={fieldClass} />
+            <input value={aliasText} onChange={(event) => setAliasText(event.target.value)} placeholder="用顿号分隔，供 AI 对齐使用" className={'qs-field-input '+(fieldClass)} />
           </label>
           <label className="space-y-1 sm:col-span-2">
             <span className="text-xs font-bold text-slate-500">分类标签</span>
-            <input value={tagText} onChange={(event) => setTagText(event.target.value)} list="knowledge-tag-options" placeholder="例如：中考重点、易错；用顿号分隔" className={fieldClass} />
+            <input value={tagText} onChange={(event) => setTagText(event.target.value)} list="knowledge-tag-options" placeholder="例如：中考重点、易错；用顿号分隔" className={'qs-field-input '+(fieldClass)} />
             <datalist id="knowledge-tag-options">{availableTags.map((value) => <option key={value} value={value} />)}</datalist>
           </label>
           <label className="space-y-1 sm:col-span-2">
             <span className="text-xs font-bold text-slate-500">说明</span>
-            <textarea rows={2} value={input.description} onChange={(event) => update("description", event.target.value)} className={fieldClass} />
+            <textarea rows={2} value={input.description} onChange={(event) => update("description", event.target.value)} className={'qs-field-input '+(fieldClass)} />
           </label>
           <label className="flex items-center gap-2 text-sm font-bold text-slate-600 dark:text-zinc-300 sm:col-span-2">
             <input type="checkbox" checked={Boolean(input.trainable)} onChange={(event) => update("trainable", event.target.checked)} className="h-4 w-4 accent-emerald-700" />
@@ -268,7 +269,7 @@ const NodeDialog = ({ node, nodes, subjects, stages, availableTags, defaultSubje
           </label>
         </div>
         <footer className="flex justify-end gap-2 border-t border-slate-200/70 px-5 py-4 dark:border-zinc-800">
-          <button type="button" onClick={onClose} className="btn-secondary px-4 py-2 text-sm">取消</button>
+          <GlassButton type="button" onClick={onClose} variant="secondary" className="px-4 py-2 text-sm">取消</GlassButton>
           <button disabled={saving} className="btn-primary flex items-center gap-2 px-4 py-2 text-sm">
             {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}保存
           </button>
@@ -311,13 +312,13 @@ const RelationDialog = ({ selected, nodes, onClose, onSaved, onShowToast }: {
           <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-bold dark:bg-zinc-900">起点：{selected.name}</div>
           <label className="block space-y-1">
             <span className="text-xs font-bold text-slate-500">关系</span>
-            <select value={type} onChange={(event) => setType(event.target.value as KnowledgeRelationType)} className={fieldClass}>
+            <select value={type} onChange={(event) => setType(event.target.value as KnowledgeRelationType)} className={'qs-field-input '+(fieldClass)}>
               {relationOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </label>
           <label className="block space-y-1">
             <span className="text-xs font-bold text-slate-500">目标节点</span>
-            <select required value={targetNodeId} onChange={(event) => setTargetNodeId(event.target.value)} className={fieldClass}>
+            <select required value={targetNodeId} onChange={(event) => setTargetNodeId(event.target.value)} className={'qs-field-input '+(fieldClass)}>
               <option value="">请选择</option>
               {nodes.filter((candidate) => candidate.id !== selected.id).map((candidate) =>
                 <option key={candidate.id} value={candidate.id}>{entityLabels[candidate.type]} · {candidate.name}</option>,
@@ -326,11 +327,11 @@ const RelationDialog = ({ selected, nodes, onClose, onSaved, onShowToast }: {
           </label>
           <label className="block space-y-1">
             <span className="text-xs font-bold text-slate-500">说明</span>
-            <textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} className={fieldClass} />
+            <textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} className={'qs-field-input '+(fieldClass)} />
           </label>
         </div>
         <footer className="flex justify-end gap-2 border-t border-slate-200/70 px-5 py-4 dark:border-zinc-800">
-          <button type="button" onClick={onClose} className="btn-secondary px-4 py-2 text-sm">取消</button>
+          <GlassButton type="button" onClick={onClose} variant="secondary" className="px-4 py-2 text-sm">取消</GlassButton>
           <button disabled={saving} className="btn-primary px-4 py-2 text-sm">建立关系</button>
         </footer>
       </form>
@@ -404,8 +405,8 @@ const SubjectManagerDialog = ({ subjects, onClose, onSaved, onShowToast }: {
           {subjects.map((subject) => <div key={subject.id} className="flex items-center gap-3 px-3 py-2.5"><span className="w-16 shrink-0 font-mono text-[10px] font-bold text-slate-400">{subject.code}</span><span className="min-w-0 flex-1 truncate text-sm font-bold">{subject.name}</span><button type="button" onClick={() => void renameSubject(subject)} className="text-xs font-bold text-slate-500 hover:text-emerald-700">改名</button><button type="button" onClick={() => void deactivateSubject(subject)} className="text-xs font-bold text-rose-500">停用</button></div>)}
         </div>
         <form onSubmit={addSubject} className="mt-4 grid gap-2 sm:grid-cols-[1fr_120px_auto]">
-          <input required value={name} onChange={(event) => setName(event.target.value)} placeholder="新学科名称" className={fieldClass} />
-          <input required value={code} onChange={(event) => setCode(event.target.value.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8))} placeholder="英文代码" className={fieldClass} />
+          <input required value={name} onChange={(event) => setName(event.target.value)} placeholder="新学科名称" className={'qs-field-input '+(fieldClass)} />
+          <input required value={code} onChange={(event) => setCode(event.target.value.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8))} placeholder="英文代码" className={'qs-field-input '+(fieldClass)} />
           <button disabled={saving} className="btn-primary px-4 py-2 text-sm">新增</button>
         </form>
       </div>
@@ -444,7 +445,7 @@ const FocusPanel = ({ focus, loading, onSelect, onEdit, onRelation, onBackToGrap
           </div>
         </div>
         <div className="flex shrink-0 gap-1">
-          <button type="button" onClick={onBackToGraph} className="btn-secondary mr-1 flex h-8 items-center gap-1.5 px-3 text-xs"><ArrowUp className="h-3.5 w-3.5" />返回思维导图</button>
+          <GlassButton type="button" onClick={onBackToGraph} variant="secondary" containerClassName="mr-1 h-8" className="flex items-center gap-1.5 px-3 text-xs"><ArrowUp className="h-3.5 w-3.5" />返回思维导图</GlassButton>
           <button type="button" onClick={onEdit} title="编辑节点" className="grid h-8 w-8 place-items-center rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800"><Edit3 className="h-4 w-4" /></button>
           <button type="button" onClick={onRelation} title="建立辅助关系" className="grid h-8 w-8 place-items-center rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800"><Link2 className="h-4 w-4" /></button>
         </div>
@@ -569,15 +570,15 @@ export default function KnowledgeGraphWorkspace({ graph, loading, narrowLayout, 
           <div className="flex gap-2">
             <label className="min-w-0 flex-1">
               <span className="sr-only">选择学科</span>
-              <select value={subject} onChange={(event) => setSubject(event.target.value)} className={fieldClass}>
+              <select value={subject} onChange={(event) => setSubject(event.target.value)} className={'qs-field-input '+(fieldClass)}>
                 {subjects.map((value) => <option key={value.id} value={value.name}>{value.name}知识主干</option>)}
               </select>
             </label>
-            <button type="button" onClick={() => setDialog("create")} title="新增节点" className="btn-primary grid h-11 w-11 shrink-0 place-items-center"><Plus className="h-4 w-4" /></button>
+            <GlassButton containerClassName="h-11 w-11 shrink-0" type="button" onClick={() => setDialog("create")} title="新增节点" variant="primary" className="grid place-items-center"><Plus className="h-4 w-4" /></GlassButton>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索知识主干" className="min-h-11 w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-base outline-none focus:border-emerald-600 sm:text-sm dark:border-zinc-800 dark:bg-zinc-900" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索知识主干" className="qs-field-input min-h-11 w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-base outline-none focus:border-emerald-600 sm:text-sm dark:border-zinc-800 dark:bg-zinc-900" />
           </div>
           <div className="grid grid-cols-4 gap-1">
             {([['all', '全部'], ['domain', '板块'], ['topic', '主题'], ['knowledge', '知识点']] as const).map(([value, label]) => (
@@ -617,8 +618,8 @@ export default function KnowledgeGraphWorkspace({ graph, loading, narrowLayout, 
           <button type="button" onClick={() => setSubjectPickerOpen(true)} className="flex min-h-11 min-w-0 flex-1 items-center justify-between rounded-xl border border-slate-200 bg-white px-3 text-left text-sm font-bold dark:border-zinc-700 dark:bg-zinc-900">
             <span className="truncate">{subject}知识主干</span><ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
           </button>
-          <button type="button" onClick={() => setMobilePanel("index")} className="btn-secondary flex min-h-11 items-center gap-2 px-3 text-sm font-bold"><List className="h-4 w-4" />索引</button>
-          <button type="button" onClick={() => setDialog("create")} className="btn-primary grid h-11 w-11 shrink-0 place-items-center" aria-label="新增节点"><Plus className="h-4 w-4" /></button>
+          <GlassButton type="button" onClick={() => setMobilePanel("index")} variant="secondary" className="flex min-h-11 items-center gap-2 px-3 text-sm font-bold"><List className="h-4 w-4" />索引</GlassButton>
+          <GlassButton containerClassName="h-11 w-11 shrink-0" type="button" onClick={() => setDialog("create")} variant="primary" className="grid place-items-center" aria-label="新增节点"><Plus className="h-4 w-4" /></GlassButton>
         </div>
         <section ref={graphSectionRef} className="glass-panel flex min-h-0 flex-1 scroll-mt-4 flex-col overflow-hidden rounded-xl lg:block">
           {subjectNodes.length ? (
@@ -676,14 +677,14 @@ const MergeDialog = ({ selected, nodes, onClose, onSaved, onShowToast }: {
         <div className="p-5">
           <label className="block space-y-1">
             <span className="text-xs font-bold text-slate-500">保留哪个节点</span>
-            <select required value={targetId} onChange={(event) => setTargetId(event.target.value)} className={fieldClass}>
+            <select required value={targetId} onChange={(event) => setTargetId(event.target.value)} className={'qs-field-input '+(fieldClass)}>
               <option value="">请选择</option>
               {nodes.filter((node) => node.id !== selected.id && node.subject === selected.subject).map((node) => <option key={node.id} value={node.id}>{entityLabels[node.type]} · {node.name}</option>)}
             </select>
           </label>
         </div>
         <footer className="flex justify-end gap-2 border-t border-slate-200/70 px-5 py-4 dark:border-zinc-800">
-          <button type="button" onClick={onClose} className="btn-secondary px-4 py-2 text-sm">取消</button>
+          <GlassButton type="button" onClick={onClose} variant="secondary" className="px-4 py-2 text-sm">取消</GlassButton>
           <button disabled={saving} className="btn-primary px-4 py-2 text-sm">确认合并</button>
         </footer>
       </form>

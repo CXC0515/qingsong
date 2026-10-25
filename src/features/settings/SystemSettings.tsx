@@ -1,4 +1,5 @@
-﻿/**
+﻿import { GlassButton } from '../../components/glass/Glass';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -66,13 +67,13 @@ export default function SystemSettings({
             <p className="text-xs text-slate-400">在此统一配置大语言模型的智能分析深度、拦截敏感度及默认课程体系。</p>
           </div>
           
-          <button
+          <GlassButton
             onClick={handleSaveSettings}
-            className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-700/10 active:scale-95 transition-all"
+            variant="primary" className="px-4 py-2 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all"
           >
             <Save className="w-4 h-4" />
             保存全局配置
-          </button>
+          </GlassButton>
         </div>
 
         {/* 1. Textbook config */}
@@ -83,7 +84,7 @@ export default function SystemSettings({
             <select
               value={textbook}
               onChange={(e) => setTextbook(e.target.value)}
-              className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-zinc-800 focus:outline-none"
+              className="qs-field-input w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-zinc-800 focus:outline-none"
             >
               <option>部编版 (初中语文)</option>
               <option>苏教版 (初中语文)</option>
@@ -99,7 +100,7 @@ export default function SystemSettings({
             <select
               value={researchSource}
               onChange={(e) => setResearchSource(e.target.value)}
-              className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-zinc-800 focus:outline-none"
+              className="qs-field-input w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-zinc-800 focus:outline-none"
             >
               <option>国家中小学智慧教育平台 + 语文报教研大纲</option>
               <option>各地历年中考真题精选库</option>
@@ -191,7 +192,7 @@ export default function SystemSettings({
             <select
               value={exportFormat}
               onChange={(e) => setExportFormat(e.target.value)}
-              className="w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-zinc-800 focus:outline-none"
+              className="qs-field-input w-full px-3 py-2 border rounded-xl bg-slate-50 dark:bg-zinc-800 focus:outline-none"
             >
               <option>PDF + Excel</option>
               <option>单纯结构化 CSV 数据</option>

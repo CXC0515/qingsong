@@ -75,3 +75,22 @@ test('HTTP rename and lesson contracts enforce versions, date validity and respo
  assert.equal((await (await request(filter+'&freeOnly=true')).json()).counts.participation,1);
  assert.equal((await request(filter+'&freeOnly=garbage')).status,400);
 });
+
+test('behavior round HTTP contract persists empty rounds and rejects stale or invalid writes',async()=>{
+ const contextUrl='/classroom-behavior/rounds?classId=class&kind=focus&occurredDate=2026-10-20';
+ assert.equal((await request(contextUrl,undefined,false)).status,401);
+ assert.equal((await (await request(contextUrl)).json()).round,1);
+ const input={classId:'class',kind:'focus',occurredDate:'2026-10-20',operationId:'http-round',basedOn:1};
+ assert.equal((await request('/classroom-behavior/rounds',input,false)).status,401);
+ assert.equal((await request('/classroom-behavior/rounds',{...input,basedOn:'1'})).status,400);
+ assert.equal((await request('/classroom-behavior/rounds',input)).status,200);
+ assert.equal((await (await request('/classroom-behavior/rounds',input)).json()).round,2);
+ assert.equal((await (await request(contextUrl)).json()).round,2);
+ assert.equal((await request('/classroom-behavior/rounds',{...input,operationId:'http-stale-round'})).status,409);
+ const event={operationId:'http-round-event',studentId:'student',classId:'class',kind:'focus',note:'本轮',occurredDate:'2026-10-20',round:2};
+ assert.equal((await request('/classroom-behavior',{...event,round:0})).status,400);
+ assert.equal((await request('/classroom-behavior',{...event,round:99})).status,409);
+ assert.equal((await request('/classroom-behavior',event)).status,200);
+ const result=await (await request('/classroom-behavior?classId=class&kind=focus&round=2&freeOnly=true&from=2026-10-20&to=2026-10-20')).json();
+ assert.equal(result.counts.focus,1);assert.equal(result.studentCounts.student,1);assert.equal(result.events[0].round,2);
+});

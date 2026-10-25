@@ -1,4 +1,5 @@
-﻿/**
+﻿import { GlassButton } from '../../components/glass/Glass';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -102,7 +103,7 @@ export default function StudentProfile({
           <select
             value={selectedStudent.id}
             onChange={(e) => onSelectStudent(e.target.value)}
-            className="px-3 py-1.5 bg-slate-50 dark:bg-zinc-850 border border-slate-200 dark:border-zinc-700 rounded-xl text-xs text-slate-600 dark:text-slate-200 font-semibold cursor-pointer"
+            className="qs-field-input px-3 py-1.5 bg-slate-50 dark:bg-zinc-850 border border-slate-200 dark:border-zinc-700 rounded-xl text-xs text-slate-600 dark:text-slate-200 font-semibold cursor-pointer"
           >
             {students.map(s => (
               <option key={s.id} value={s.id}>{s.name} ({s.className})</option>
@@ -233,7 +234,7 @@ export default function StudentProfile({
               <select
                 value={newObsCategory}
                 onChange={(e) => setNewObsCategory(e.target.value as any)}
-                className="px-2 py-1 bg-slate-100 border rounded-lg text-xs"
+                className="qs-field-input px-2 py-1 bg-slate-100 border rounded-lg text-xs"
               >
                 <option value="study">学习状态</option>
                 <option value="behavior">行为态度</option>
@@ -247,16 +248,16 @@ export default function StudentProfile({
               value={newObsText}
               onChange={(e) => setNewObsText(e.target.value)}
               placeholder="记录孩子今天的亮点表现或潜在异常状态..."
-              className="w-full h-20 p-2.5 text-xs bg-slate-50 dark:bg-zinc-850/20 border border-slate-200 rounded-xl focus:outline-none"
+              className="qs-field-input w-full h-20 p-2.5 text-xs bg-slate-50 dark:bg-zinc-850/20 border border-slate-200 rounded-xl focus:outline-none"
             />
 
-            <button
+            <GlassButton
               onClick={handleAddObsSubmit}
-              className="w-full py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1 cursor-pointer active:scale-98"
+              variant="primary" containerClassName="w-full" className="py-2 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               保存课堂随记到档案
-            </button>
+            </GlassButton>
           </div>
 
         </div>
@@ -318,24 +319,24 @@ export default function StudentProfile({
         </div>
 
         <div className="flex items-center gap-2 w-full md:w-auto">
-          <button
+          <GlassButton
             onClick={() => {
               onShowToast(`📄 正在生成学生 [${selectedStudent.name}] 的“学情诊断致家长的一封信” PDF 报告...导出成功！`);
             }}
-            className="flex-1 md:flex-none px-4 py-2 bg-white border text-slate-700 hover:bg-slate-50 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+            variant="secondary" containerClassName="flex-1 md:flex-none" className="px-4 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <Download className="w-4 h-4" />
             生成家长汇报单
-          </button>
-          <button
+          </GlassButton>
+          <GlassButton
             onClick={() => {
               onShowToast(`🌟 已成功为 [${selectedStudent.name}] 定制了《文言常识与虚词特训方案》，配套自适应微课切片及 5 道精选题，已同步推送至其课后答题器中！`);
             }}
-            className="flex-1 md:flex-none px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-emerald-700/10"
+            variant="primary" containerClassName="flex-1 md:flex-none" className="px-4 py-2 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <Brain className="w-4 h-4" />
             一键AI定制辅导方案
-          </button>
+          </GlassButton>
         </div>
       </div>
 

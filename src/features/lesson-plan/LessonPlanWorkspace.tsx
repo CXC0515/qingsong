@@ -4,6 +4,8 @@
  */
 
 import React, { useState } from 'react';
+import { GlassButton, GlassSegments } from '../../components/glass/Glass';
+import { SearchField, WorkspaceToolbar } from '../../components/WorkspaceUI';
 import {
   BookOpenCheck, CheckSquare, FileText, Layers, Plus, Search, Sparkles
 } from 'lucide-react';
@@ -45,58 +47,31 @@ const lessonTasks = [
 ];
 
 export default function LessonPlanWorkspace({ onShowToast }: LessonPlanWorkspaceProps) {
+  const [query,setQuery]=useState('');
   const [activeTab, setActiveTab] = useState<LessonPlanTab>('tasks');
 
   return (
     <div className="space-y-5 animate-fade-in" id="lesson-plan-workspace-page">
-      <div className="glass-panel rounded-2xl p-2 flex flex-wrap gap-1.5 bg-slate-100/60 dark:bg-zinc-900/60">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === tab.id
-                ? 'bg-white text-slate-900 dark:bg-zinc-800 dark:text-slate-50 shadow-sm'
-                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">教学工作 / AI 教案</p>
-          <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">AI 教案</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">先保留教案生成、复核和沉淀的位置，后续接入真实资料库与课程目标。</p>
-        </div>
-        <button
-          onClick={() => onShowToast('已创建教案任务草稿，后续会进入教案工作流')}
-          className="px-4 py-2.5 rounded-2xl bg-emerald-700 text-white text-sm font-bold flex items-center gap-1.5 active:scale-95 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          新建教案任务
-        </button>
-      </div>
+      <WorkspaceToolbar label="教案工作区">
+        <GlassSegments label="教案页面" value={activeTab} options={tabs.map(tab=>({value:tab.id,label:tab.label}))} onChange={setActiveTab}/>
+        <div className="qs-toolbar-actions"><span className="qs-muted">功能预览 · 暂未接入生成与保存</span><GlassButton disabled title="教案生成与保存暂未接入"><Plus className="w-4 h-4"/>新建教案任务</GlassButton></div>
+      </WorkspaceToolbar>
 
       {activeTab === 'tasks' && (
         <div className="glass-panel rounded-[24px] overflow-hidden">
           <div className="p-4 border-b border-slate-200/70 dark:border-zinc-800/80 flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input placeholder="搜索教案任务、班级、课文" className="w-full pl-9 pr-3 py-2 rounded-2xl bg-slate-50/80 dark:bg-zinc-900/60 border border-slate-200/70 dark:border-zinc-800/80 text-sm focus:outline-none" />
-            </div>
+            <SearchField className="qs-search-grow" placeholder="搜索示例教案、班级、课文" value={query} onChange={event=>setQuery(event.target.value)}/>
+
           </div>
 
-          <div className="grid grid-cols-[1fr_140px_140px_140px] px-5 py-3 text-[11px] font-black text-slate-400 uppercase border-b border-slate-200/70 dark:border-zinc-800/80">
+          <div className="qs-lesson-row qs-lesson-heading px-5 py-3 text-[11px] font-black text-slate-400 uppercase border-b border-slate-200/70 dark:border-zinc-800/80">
             <span>任务</span>
             <span>班级</span>
             <span>当前节点</span>
             <span>状态</span>
           </div>
-          {lessonTasks.map(task => (
-            <div key={task.title} className="grid grid-cols-[1fr_140px_140px_140px] px-5 py-4 items-center border-b border-slate-200/60 dark:border-zinc-800/70 last:border-b-0 hover:bg-slate-50/70 dark:hover:bg-zinc-900/50 transition-all">
+          {lessonTasks.filter(task=>(task.title+' '+task.className).includes(query)).map(task => (
+            <div key={task.title} className="qs-lesson-row px-5 py-4 items-center border-b border-slate-200/60 dark:border-zinc-800/70 last:border-b-0 hover:bg-slate-50/70 dark:hover:bg-zinc-900/50 transition-all">
               <div>
                 <p className="text-sm font-black text-slate-800 dark:text-slate-100">{task.title}</p>
                 <p className="text-xs text-slate-400 mt-1">截止：{task.deadline}</p>
@@ -114,7 +89,7 @@ export default function LessonPlanWorkspace({ onShowToast }: LessonPlanWorkspace
           <div className="glass-panel rounded-[24px] p-6 space-y-5">
             <div className="flex items-center gap-2">
               <BookOpenCheck className="w-5 h-5 text-emerald-700 dark:text-emerald-300" />
-              <h3 className="text-base font-black text-slate-900 dark:text-slate-50">教案工作流占位</h3>
+              <h3 className="text-base font-black text-slate-900 dark:text-slate-50">教案工作流预览</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               {['选择课文与课时', '读取资料与目标', '生成教学流程', '教师调整确认'].map((step, index) => (
@@ -125,7 +100,7 @@ export default function LessonPlanWorkspace({ onShowToast }: LessonPlanWorkspace
               ))}
             </div>
             <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10">
-              <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-2">未来这里承载真实教案生成链路</p>
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-2">教案生成暂未接入</p>
               <p className="text-xs text-slate-500 leading-relaxed">
                 输入课文、课时、班级学情和教学目标后，生成教学目标、重难点、课堂流程、板书、提问链和作业建议，并进入教案复核队列。
               </p>
@@ -151,7 +126,7 @@ export default function LessonPlanWorkspace({ onShowToast }: LessonPlanWorkspace
         <div className="glass-panel rounded-[24px] p-8 text-center">
           <CheckSquare className="w-12 h-12 mx-auto text-slate-300 stroke-1 mb-3" />
           <h3 className="text-base font-black text-slate-900 dark:text-slate-50">教案复核队列</h3>
-          <p className="text-sm text-slate-500 mt-2">后续用于复核 AI 生成教案、讲评课方案、提问链和对外导出内容。</p>
+          <p className="text-sm text-slate-500 mt-2">教案生成功能接入后，可在这里复核结果。当前没有待复核教案。</p>
         </div>
       )}
     </div>

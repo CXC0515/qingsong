@@ -147,21 +147,21 @@ export default function Workbench({
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button
+              <GlassButton
                 id="wb-config-btn"
                 onClick={() => onNavigate('settings')}
-                className="rounded-xl border border-slate-200 bg-white/80 px-3.5 py-2 text-sm font-medium text-slate-700 transition-all hover:bg-white active:scale-95 dark:border-zinc-700 dark:bg-zinc-800/80 dark:text-slate-300 dark:hover:bg-zinc-800"
+                variant="secondary" className="px-3.5 py-2 text-sm font-medium transition-all"
               >
                 配置批改策略
-              </button>
-              <button
+              </GlassButton>
+              <GlassButton
                 id="wb-quick-action"
                 onClick={() => onNavigate('grading-flow')}
-                className="flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-emerald-800 active:scale-95 dark:bg-emerald-600 dark:hover:bg-emerald-700"
+                variant="primary" className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium transition-all"
               >
                 <Sparkles className="h-4 w-4" />
                 开启新作业批改
-              </button>
+              </GlassButton>
             </div>
           </div>
 
@@ -214,12 +214,12 @@ export default function Workbench({
 
                 <div className="flex w-full items-center justify-end gap-3 sm:w-auto">
                   <span className="hidden sm:inline">{getStatusBadge(task.status)}</span>
-                  <button
+                  <GlassButton
                     onClick={() => onTriggerTask(task)}
-                    className="min-h-11 whitespace-nowrap rounded-lg bg-emerald-700/10 px-4 text-xs font-semibold text-emerald-800 transition-all hover:bg-emerald-700 hover:text-white active:scale-95 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500"
+                    variant="primary" className="min-h-11 whitespace-nowrap px-4 text-xs font-semibold transition-all"
                   >
                     去处理
-                  </button>
+                  </GlassButton>
                 </div>
               </div>
               );
@@ -273,14 +273,14 @@ export default function Workbench({
                 <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">查看座位安排、学生状态和课堂观察。</p>
               </div>
             </div>
-            <button
+            <GlassButton
               id="wb-enter-classroom"
               onClick={() => onEnterClass(selectedClassId)}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-emerald-900 active:scale-98 dark:bg-emerald-700 dark:hover:bg-emerald-600"
+              variant="primary" containerClassName="mt-4 w-full" className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-all"
             >
               进入教室
               <ArrowRight className="h-4 w-4" />
-            </button>
+            </GlassButton>
           </div>
 
           {/* Student Alerts & Risks */}

@@ -1,9 +1,8 @@
 import { StudentSearch, RecordingNote } from '../../components/RecordingFields';
-import RecordingRoundPicker from './RecordingRoundPicker';
+import { RecordingRoundControls } from './RecordingRoundPicker';
 import { GlassButton } from '../../components/glass/Glass';
 import ClassroomBatchScope from './ClassroomBatchScope';
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { RecordProject, TaskResult } from '../../domain/classroomTasks';
 import type { RosterStudent } from '../../domain/types';
 import ResponsiveDialog from '../../components/ResponsiveDialog';
@@ -26,14 +25,15 @@ export default function ClassroomQuickRecord({classId,identityKey,project,date,o
   const selectedExceptions=exceptions.filter(id=>batchEligible.some(p=>p.studentId===id));
   const negative=project.negative,positive=project.positive;
   return <div className="space-y-2">
-    {roundControls&&createPortal(<RecordingRoundPicker value={context?.round??round??1} rounds={[...new Set([...(context?.availableRounds??[]),context?.round??round??1])].sort((a,b)=>a-b)} disabled={busy||loading} onChange={setRound}/>,roundControls)}
     {!writable&&<p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">本轮已结束或归档，请在本次记录中恢复，或新开一轮。</p>}
     <RecordingFeedback {...queue} discard={id=>queue.queue.discard(id)}/>
-    {loadError&&<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{loadError}<button className={action+' ml-2'} onClick={()=>void load().catch(()=>undefined)}>重新读取</button></p>}
+    {loadError&&<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{loadError}<GlassButton variant="secondary" className={action+' ml-2'} onClick={()=>void load().catch(()=>undefined)}>重新读取</GlassButton></p>}
     <div className="qs-record-meta"><StudentSearch aria-label="搜索姓名或学号" value={query} onChange={e=>setQuery(e.target.value)}/>
       <span className="text-sm text-emerald-700">{positive} {rows.filter(p=>p.result==='positive').length}</span><span className="text-sm text-amber-800">{negative} {rows.filter(p=>p.result==='negative').length}</span><span className="text-sm text-slate-500">未登记 {eligibleAll.length}</span><RecordingStatus jobs={queue.jobs} syncing={loading}/>
-      <RecordingNote label="检查内容" maxLength={100} aria-label="本次检查内容（可选）" placeholder="检查内容（可选）" value={detail?(detail.task.name===project.label?'':detail.task.name):content} onChange={e=>setContent(e.target.value)} disabled={busy||Boolean(detail)} title={detail?'已开始的检查内容请在本次记录中修改':undefined}/>
-      <GlassButton disabled={!eligibleAll.length||!writable||loading} onClick={()=>{setExceptions([]);setAllScope(true);setBatch(true);}}>登记{negative}名单</GlassButton><GlassButton disabled={!canUndo} onClick={()=>void undo()}>撤销</GlassButton><GlassButton disabled={!detail||busy||loading} onClick={()=>{setRound((context?.latestRound??0)+1);setContent('');}}>＋新一轮</GlassButton><GlassButton disabled={!detail||busy} onClick={()=>detail&&onOpenTask(detail.task.id)}>本次记录</GlassButton>
+      <RecordingNote label="检查内容" maxLength={100} aria-label="本次检查内容（可选）" placeholder="如：第八课（可选）" value={detail?(detail.task.name===project.label?'':detail.task.name):content} onChange={e=>setContent(e.target.value)} disabled={busy||Boolean(detail)} title={detail?'已开始的检查内容请在本次记录中修改':undefined}/>
+      <div className="qs-record-actions"><GlassButton disabled={!eligibleAll.length||!writable||loading} onClick={()=>{setExceptions([]);setAllScope(true);setBatch(true);}}>登记{negative}名单</GlassButton><GlassButton disabled={!canUndo} onClick={()=>void undo()}>撤销</GlassButton><GlassButton disabled={!detail||busy||loading} onClick={()=>{setRound((context?.latestRound??0)+1);setContent('');}}>＋新一轮</GlassButton><GlassButton disabled={!detail||busy} onClick={()=>detail&&onOpenTask(detail.task.id)}>本次记录</GlassButton>
+      <RecordingRoundControls target={roundControls} value={context?.round??round??1} rounds={[...new Set([...(context?.availableRounds??[]),context?.round??round??1])].sort((a,b)=>a-b)} disabled={busy||loading} onChange={setRound}/>
+      </div>
     </div>
     <div className="qs-student-grid">{visible.map(p=>{
       const result=p.result, allowed=writable&&p.included&&!p.current?.exempt;
@@ -44,6 +44,6 @@ export default function ClassroomQuickRecord({classId,identityKey,project,date,o
       </div>;
     })}</div>
     <p className="text-xs text-slate-500">点卡片记{positive}，点“{negative}”登记例外；{negative}后再点卡片可补做。</p>
-    {batch&&<ResponsiveDialog title={'登记'+negative+'名单'} onClose={()=>setBatch(false)}><ClassroomBatchScope name="quick-batch-scope" allScope={allScope} onChange={value=>{setAllScope(value);setExceptions([]);}} visibleCount={visible.length} allCount={rows.length} visibleEligible={eligible.length} allEligible={eligibleAll.length}/><p className="text-sm">范围：{allScope?'整个名册':query?'当前搜索结果':'本轮名单'}中的 {batchEligible.length} 名未登记学生。已有结果保留。只勾选{negative}者，其余确认{positive}。</p><p className="font-bold">本次{positive} {batchEligible.length-selectedExceptions.length}人 · {negative} {selectedExceptions.length}人</p>{batchEligible.map(p=><label key={p.studentId} className="flex min-h-11 items-center gap-3 rounded-xl border p-3"><input type="checkbox" checked={exceptions.includes(p.studentId)} onChange={e=>setExceptions(ids=>e.target.checked?[...ids,p.studentId]:ids.filter(id=>id!==p.studentId))}/>{p.studentNo} {p.name}<span className="ml-auto text-sm">{exceptions.includes(p.studentId)?negative:positive}</span></label>)}<button className={primary+' w-full'} disabled={!batchEligible.length||loading} onClick={()=>{if(record(batchEligible.map(p=>({studentId:p.studentId,result:(exceptions.includes(p.studentId)?'negative':'positive') as TaskResult}))))setBatch(false);}}>确认登记 {batchEligible.length} 人</button></ResponsiveDialog>}
+    {batch&&<ResponsiveDialog title={'登记'+negative+'名单'} onClose={()=>setBatch(false)}><ClassroomBatchScope name="quick-batch-scope" allScope={allScope} onChange={value=>{setAllScope(value);setExceptions([]);}} visibleCount={visible.length} allCount={rows.length} visibleEligible={eligible.length} allEligible={eligibleAll.length}/><p className="text-sm">范围：{allScope?'整个名册':query?'当前搜索结果':'本轮名单'}中的 {batchEligible.length} 名未登记学生。已有结果保留。只勾选{negative}者，其余确认{positive}。</p><p className="font-bold">本次{positive} {batchEligible.length-selectedExceptions.length}人 · {negative} {selectedExceptions.length}人</p>{batchEligible.map(p=><label key={p.studentId} className="flex min-h-11 items-center gap-3 rounded-xl border p-3"><input type="checkbox" checked={exceptions.includes(p.studentId)} onChange={e=>setExceptions(ids=>e.target.checked?[...ids,p.studentId]:ids.filter(id=>id!==p.studentId))}/>{p.studentNo} {p.name}<span className="ml-auto text-sm">{exceptions.includes(p.studentId)?negative:positive}</span></label>)}<GlassButton variant="primary" className={primary+' w-full'} disabled={!batchEligible.length||loading} onClick={()=>{if(record(batchEligible.map(p=>({studentId:p.studentId,result:(exceptions.includes(p.studentId)?'negative':'positive') as TaskResult}))))setBatch(false);}}>确认登记 {batchEligible.length} 人</GlassButton></ResponsiveDialog>}
   </div>;
 }

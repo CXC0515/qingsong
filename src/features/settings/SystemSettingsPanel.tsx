@@ -1,4 +1,5 @@
-﻿/**
+﻿import { GlassButton, GlassSegments  } from '../../components/glass/Glass';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -219,34 +220,16 @@ export default function SystemSettingsPanel({
           <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">我的设置</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">管理当前教师工作区的资料、教学设置和外观偏好。</p>
         </div>
-        <button
+        <GlassButton
           onClick={() => void handleSaveSettings()}
-          className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-2xl text-sm font-bold flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-700/10 active:scale-95 transition-all"
+          variant="primary" className="px-4 py-2.5 text-sm font-bold flex items-center gap-1.5 cursor-pointer transition-all"
         >
           <Save className="w-4 h-4" />
           保存设置
-        </button>
+        </GlassButton>
       </div>
 
-      <div className="glass-panel rounded-2xl p-2 flex flex-wrap gap-1.5 bg-slate-100/60 dark:bg-zinc-900/60">
-        {tabs.map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                activeTab === tab.id
-                  ? 'bg-white text-slate-900 dark:bg-zinc-800 dark:text-slate-50 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      <GlassSegments label="设置分类" value={activeTab} options={tabs.map(tab=>({value:tab.id,label:<><tab.icon className="w-4 h-4"/>{tab.label}</>}))} onChange={setActiveTab}/>
 
       <div className="glass-panel rounded-[24px] p-6">
         {activeTab === 'teacher' && (
@@ -269,7 +252,7 @@ export default function SystemSettingsPanel({
               <select
                 value={selectedClassId}
                 onChange={(event) => onSelectClass(event.target.value)}
-                className="w-full px-3 py-2 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-sm focus:outline-none"
+                className="qs-field-input w-full px-3 py-2 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-sm focus:outline-none"
               >
                 {classes.filter(c => c.status === 'active').map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -285,8 +268,8 @@ export default function SystemSettingsPanel({
             </label>
             <section className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2 dark:border-zinc-800 dark:bg-zinc-900/60">
               <div><strong className="block text-sm text-slate-700 dark:text-slate-200">班委职位</strong><span className="mt-1 block text-xs text-slate-400">这里维护全校通用的职位名称；具体学生在班级详情中委派。</span></div>
-              <div className="space-y-2">{committeeRoles.map(role=><div key={role.id} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-950"><input value={roleDrafts[role.id]??role.name} onChange={event=>setRoleDrafts(current=>({...current,[role.id]:event.target.value}))} className="min-w-0 flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"/><button type="button" onClick={()=>void onUpdateCommitteeRole(role.id,(roleDrafts[role.id]??role.name).trim())} className="rounded-lg border border-slate-200 p-2 text-slate-500" aria-label={`保存${role.name}`}><Pencil className="h-3.5 w-3.5"/></button><button type="button" disabled={role.isDefault} onClick={()=>void onDeleteCommitteeRole(role.id).catch(error=>onShowToast(error instanceof Error&&error.message==='COMMITTEE_ROLE_IN_USE'?'该职位仍有人任职，请先解除委派':'班委职位删除失败'))} className="rounded-lg border border-red-100 p-2 text-red-500 disabled:cursor-not-allowed disabled:opacity-30" aria-label={`删除${role.name}`}><Trash2 className="h-3.5 w-3.5"/></button></div>)}</div>
-              <div className="flex gap-2"><input value={newCommitteeRole} onChange={event=>setNewCommitteeRole(event.target.value)} placeholder="如：生活委员、数学课代表" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-950"/><button type="button" disabled={!newCommitteeRole.trim()} onClick={()=>void onCreateCommitteeRole(newCommitteeRole.trim()).then(()=>setNewCommitteeRole('')).catch(()=>onShowToast('职位已存在或无法保存'))} className="inline-flex items-center gap-1 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-40"><Plus className="h-3.5 w-3.5"/>添加职位</button></div>
+              <div className="space-y-2">{committeeRoles.map(role=><div key={role.id} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-950"><input value={roleDrafts[role.id]??role.name} onChange={event=>setRoleDrafts(current=>({...current,[role.id]:event.target.value}))} className="qs-field-input min-w-0 flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"/><GlassButton type="button" onClick={()=>void onUpdateCommitteeRole(role.id,(roleDrafts[role.id]??role.name).trim())} variant="secondary" className="p-2" aria-label={`保存${role.name}`}><Pencil className="h-3.5 w-3.5"/></GlassButton><GlassButton type="button" disabled={role.isDefault} onClick={()=>void onDeleteCommitteeRole(role.id).catch(error=>onShowToast(error instanceof Error&&error.message==='COMMITTEE_ROLE_IN_USE'?'该职位仍有人任职，请先解除委派':'班委职位删除失败'))} variant="danger" className="p-2 disabled:cursor-not-allowed disabled:opacity-30" aria-label={`删除${role.name}`}><Trash2 className="h-3.5 w-3.5"/></GlassButton></div>)}</div>
+              <div className="flex gap-2"><input value={newCommitteeRole} onChange={event=>setNewCommitteeRole(event.target.value)} placeholder="如：生活委员、数学课代表" className="qs-field-input min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-950"/><GlassButton type="button" disabled={!newCommitteeRole.trim()} onClick={()=>void onCreateCommitteeRole(newCommitteeRole.trim()).then(()=>setNewCommitteeRole('')).catch(()=>onShowToast('职位已存在或无法保存'))} variant="primary" className="inline-flex items-center gap-1 px-3 py-2 text-xs font-bold disabled:opacity-40"><Plus className="h-3.5 w-3.5"/>添加职位</GlassButton></div>
             </section>
             <section id="schedule-period-settings" className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2 dark:border-zinc-800 dark:bg-zinc-900/60">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -296,9 +279,9 @@ export default function SystemSettingsPanel({
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   {hasUnsavedScheduleChanges && <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">有未保存修改</span>}
-                  <button type="button" onClick={removeLastSchedulePeriod} disabled={localSchedulePeriods.length <= 1} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-950"><Trash2 className="h-3.5 w-3.5"/>减少一节</button>
-                  <button type="button" onClick={addSchedulePeriod} disabled={localSchedulePeriods.length >= 12} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-bold text-emerald-700 disabled:opacity-40 dark:border-emerald-900 dark:bg-zinc-950 dark:text-emerald-300"><Plus className="h-3.5 w-3.5"/>增加一节</button>
-                  <button type="button" onClick={() => void saveSchedulePeriodSettings()} disabled={!hasUnsavedScheduleChanges || isScheduleSaving} className="inline-flex min-h-11 min-w-[88px] items-center justify-center rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white disabled:bg-slate-300 dark:disabled:bg-zinc-700">{isScheduleSaving ? '保存中…' : hasUnsavedScheduleChanges ? '保存作息' : '已同步'}</button>
+                  <GlassButton type="button" onClick={removeLastSchedulePeriod} disabled={localSchedulePeriods.length <= 1} variant="secondary" className="inline-flex min-h-11 items-center gap-1 px-3 py-2 text-xs font-bold disabled:opacity-40"><Trash2 className="h-3.5 w-3.5"/>减少一节</GlassButton>
+                  <GlassButton type="button" onClick={addSchedulePeriod} disabled={localSchedulePeriods.length >= 12} variant="secondary" className="inline-flex min-h-11 items-center gap-1 px-3 py-2 text-xs font-bold disabled:opacity-40"><Plus className="h-3.5 w-3.5"/>增加一节</GlassButton>
+                  <GlassButton containerClassName="min-w-[88px]" type="button" onClick={() => void saveSchedulePeriodSettings()} disabled={!hasUnsavedScheduleChanges || isScheduleSaving} variant="primary" className="inline-flex min-h-11 items-center justify-center px-3 py-2 text-xs font-bold">{isScheduleSaving ? '保存中…' : hasUnsavedScheduleChanges ? '保存作息' : '已同步'}</GlassButton>
                 </div>
               </div>
               {scheduleSaveError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">{scheduleSaveError}</p>}
@@ -309,7 +292,7 @@ export default function SystemSettingsPanel({
                       value={period.label}
                       aria-label={`第${period.period}节名称`}
                       onChange={event => updateSchedulePeriod(index, { label: event.target.value })}
-                      className="col-span-2 min-h-11 min-w-0 rounded-xl border border-slate-200 px-3 py-2 text-base font-bold sm:col-span-1 dark:border-zinc-700 dark:bg-zinc-900"
+                      className="qs-field-input col-span-2 min-h-11 min-w-0 rounded-xl border border-slate-200 px-3 py-2 text-base font-bold sm:col-span-1 dark:border-zinc-700 dark:bg-zinc-900"
                     />
                     <ScheduleTimeInput id={`period-${period.period}-start`} label="开始时间" value={period.startTime} onChange={startTime => updateSchedulePeriod(index, { startTime })} onInvalid={message => setScheduleSaveError(message)} />
                     <ScheduleTimeInput id={`period-${period.period}-end`} label="结束时间" value={period.endTime} onChange={endTime => updateSchedulePeriod(index, { endTime })} onInvalid={message => setScheduleSaveError(message)} />
@@ -437,7 +420,7 @@ function SettingInput({
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full px-3 py-2 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-sm focus:outline-none"
+        className="qs-field-input w-full px-3 py-2 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-sm focus:outline-none"
       />
     </label>
   );
@@ -460,7 +443,7 @@ function SettingSelect({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full px-3 py-2 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-sm focus:outline-none"
+        className="qs-field-input w-full px-3 py-2 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-sm focus:outline-none"
       >
         {options.map(option => (
           <option key={option} value={option}>{option}</option>

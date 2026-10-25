@@ -1,3 +1,4 @@
+import { GlassButton } from '../../components/glass/Glass';
 import { useEffect, useRef, useState } from 'react';
 import { ClassroomTaskError } from '../../services/classroomTaskApi';
 import { RecordingQueue, type RecordingJob } from './recordingQueue';
@@ -84,9 +85,9 @@ export function RecordingFeedback<I, P>({ jobs, error, checking, reconcile, retr
     {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {unknown.map(job => <div key={job.id} role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-950">
       {job.label}：保存结果待核对。
-      <button className={action + ' ml-2'} disabled={checking} onClick={() => void reconcile(job.id)}>核对保存状态</button>
-      {(job.intent || job.request) && <button className={action + ' ml-2'} disabled={checking} onClick={() => retry(job.id)}>重试原操作</button>}
-      <button className={action + ' ml-2'} disabled={checking} onClick={() => { if (window.confirm('请先核对保存状态及历史。尚在处理的原请求可能随后保存；仅确认无须重试后清除此项，其他排队点名将继续。确定吗？')) discard(job.id); }}>核对后清除</button>
+      <GlassButton variant="secondary" className={action + ' ml-2'} disabled={checking} onClick={() => void reconcile(job.id)}>核对保存状态</GlassButton>
+      {(job.intent || job.request) && <GlassButton variant="secondary" className={action + ' ml-2'} disabled={checking} onClick={() => retry(job.id)}>重试原操作</GlassButton>}
+      <GlassButton variant="secondary" className={action + ' ml-2'} disabled={checking} onClick={() => { if (window.confirm('请先核对保存状态及历史。尚在处理的原请求可能随后保存；仅确认无须重试后清除此项，其他排队点名将继续。确定吗？')) discard(job.id); }}>核对后清除</GlassButton>
     </div>)}
   </div>;
 }

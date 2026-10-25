@@ -1,3 +1,4 @@
+import { GlassButton } from '../../components/glass/Glass';
 import ClassPicker from '../../components/ClassPicker';
 /**
  * @license
@@ -401,8 +402,8 @@ export default function VirtualClassroom({
     <p className="text-xs leading-5 text-slate-500">向下：首行到末行；向上：末行到首行。空位一起轮换，保存前可预览。</p>
     {undoQuickAction}
     <div className="grid grid-cols-2 gap-2 border-t border-slate-200 pt-3 dark:border-zinc-700">
-      <button type="button" onClick={() => setShowLayoutSettings(true)} className="min-h-11 rounded-lg border border-slate-200 text-sm font-semibold dark:border-zinc-700">行列设置</button>
-      <button type="button" onClick={() => setShowArrangeMore(true)} className="min-h-11 rounded-lg border border-slate-200 text-sm font-semibold dark:border-zinc-700">更多</button>
+      <GlassButton type="button" onClick={() => setShowLayoutSettings(true)} variant="secondary" className="min-h-11 text-sm font-semibold">行列设置</GlassButton>
+      <GlassButton type="button" onClick={() => setShowArrangeMore(true)} variant="secondary" className="min-h-11 text-sm font-semibold">更多</GlassButton>
     </div>
   </div>;
 
@@ -455,9 +456,9 @@ export default function VirtualClassroom({
         {!unassignedStudents.length && <p className="py-4 text-center text-xs text-slate-400">全部学生已安排</p>}
       </div>
       {placementStudentId && seatedStudentIds.has(placementStudentId) && (
-        <button type="button" onClick={removePlacementStudent} className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">
+        <GlassButton type="button" onClick={removePlacementStudent} variant="danger" containerClassName="mt-3 w-full" className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold">
           <LogOut className="h-4 w-4" />移出座位
-        </button>
+        </GlassButton>
       )}
       {placementStudentId && (
         <button type="button" onClick={() => setPlacementStudentId(null)} className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold text-slate-500">
@@ -474,9 +475,9 @@ export default function VirtualClassroom({
     return (
       <div className={`relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-slate-200 bg-slate-50 dark:border-zinc-800 dark:bg-zinc-950/40 ${expanded ? 'p-2 sm:p-3' : 'p-3 sm:p-4'}`}>
         {!expanded && (
-          <button type="button" onClick={openExpandedSeats} aria-label="放大座位图" title="放大座位图" className="absolute right-2 top-2 z-10 grid h-11 w-11 place-items-center rounded-xl border border-slate-200 bg-white/95 text-slate-700 shadow-sm backdrop-blur hover:border-emerald-400 hover:text-emerald-700 dark:border-zinc-700 dark:bg-zinc-900/95 dark:text-slate-200">
+          <GlassButton containerClassName="absolute right-2 top-2 z-10 h-11 w-11" type="button" onClick={openExpandedSeats} aria-label="放大座位图" title="放大座位图" variant="secondary" className="grid place-items-center backdrop-blur">
             <Maximize2 className="h-5 w-5" />
-          </button>
+          </GlassButton>
         )}
         <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
           <div
@@ -570,7 +571,7 @@ export default function VirtualClassroom({
         <GraduationCap className="mx-auto h-11 w-11 text-emerald-700" />
         <h2 className="mt-4 text-xl font-black text-slate-900 dark:text-slate-100">还没有可以排座位的班级</h2>
         <p className="mt-2 text-sm leading-6 text-slate-500">先建立班级并导入学生，再回来安排座位和记录课堂观察。</p>
-        <button type="button" onClick={onCreateClass} className="mt-5 min-h-11 rounded-xl bg-emerald-700 px-5 text-sm font-bold text-white">创建第一个班级</button>
+        <GlassButton type="button" onClick={onCreateClass} variant="primary" containerClassName="mt-5" className="min-h-11 px-5 text-sm font-bold">创建第一个班级</GlassButton>
       </div>
     </section>
   );
@@ -584,43 +585,43 @@ export default function VirtualClassroom({
             {activeClass.name}座位图
           </h2>
           <p className="mt-1 text-xs text-slate-500">已安排 {activeLayout?.seats.length ?? 0} 人 · 待安排 {unassignedStudents.length} 人</p>
-          {!editMode && <button type="button" onClick={() => onOpenClassroomTasks(effectiveClassId)} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200"><BookOpen className="h-4 w-4" />记录本班课堂任务</button>}
+          {!editMode && <GlassButton type="button" onClick={() => onOpenClassroomTasks(effectiveClassId)} variant="primary" containerClassName="mt-2" className="inline-flex min-h-11 items-center gap-2 px-3 text-sm font-semibold"><BookOpen className="h-4 w-4" />记录本班课堂任务</GlassButton>}
         </div>
         <div className={`grid w-full items-center gap-2 md:flex md:w-auto ${editMode ? 'grid-cols-2' : 'grid-cols-[minmax(0,1fr)_44px_auto]'}`}>
           <ClassPicker disabled={saving} classes={classes.filter(c=>c.status==='active')} value={effectiveClassId} onChange={id=>{if(!editMode||window.confirm('座位修改尚未保存，切换班级将放弃修改。继续切换吗？'))onSelectClass(id);}}/>
 
           {editMode ? (
             <>
-              <button
+              <GlassButton containerClassName="min-w-0"
                 type="button"
                 disabled={saving}
                 onClick={() => { setDraft(null); setShowLayoutSettings(false); setShowArrangeMore(false); setSelectedStudentId(null); setPlacementStudentId(null); setMessage(null); }}
-                className="inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold whitespace-nowrap text-slate-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-300"
+                variant="secondary" className="inline-flex min-h-11 items-center justify-center gap-1.5 px-3 text-sm font-semibold whitespace-nowrap"
               >
                 <X className="h-4 w-4" />取消
-              </button>
-              <button
+              </GlassButton>
+              <GlassButton containerClassName="min-w-0"
                 type="button"
                 onClick={() => void saveDraft()}
                 disabled={saving}
-                className="inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-md bg-emerald-700 px-3 text-sm font-semibold whitespace-nowrap text-white disabled:opacity-60"
+                variant="primary" className="inline-flex min-h-11 items-center justify-center gap-1.5 px-3 text-sm font-semibold whitespace-nowrap disabled:opacity-60"
               >
                 {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 保存座位
-              </button>
+              </GlassButton>
             </>
           ) : (
             <>
-              <button
+              <GlassButton containerClassName="h-11 w-11 md:w-auto"
                 type="button"
                 onClick={() => void exportLayout()}
                 disabled={!layout || exporting}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-semibold text-slate-700 disabled:opacity-50 md:w-auto md:gap-1.5 md:px-3 dark:border-zinc-700 dark:bg-zinc-900 dark:text-slate-200"
+                variant="secondary" className="inline-flex items-center justify-center text-sm font-semibold disabled:opacity-50 md:gap-1.5 md:px-3"
               >
                 {exporting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 <span className="sr-only md:not-sr-only">导出 Excel</span>
-              </button>
-              <button
+              </GlassButton>
+              <GlassButton
                 type="button"
                 onClick={() => {
                   if (!layout) return;
@@ -631,10 +632,10 @@ export default function VirtualClassroom({
                   setUndoLayout(null);
                 }}
                 disabled={!layout}
-                className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-50"
+                variant="primary" className="inline-flex min-h-11 items-center justify-center gap-1.5 px-3 text-sm font-semibold disabled:opacity-50"
               >
                 <BookOpen className="h-4 w-4" />编辑座位
-              </button>
+              </GlassButton>
             </>
           )}
         </div>
@@ -690,9 +691,9 @@ export default function VirtualClassroom({
               <h2 className="truncate text-sm font-black text-slate-900 dark:text-slate-100 sm:text-base">{activeClass.name}座位图</h2>
               <p className="text-xs text-slate-500">讲台视角 · {editMode ? '排座草稿，点击座位继续换位' : `已安排 ${activeLayout.seats.length} 人`}</p>
             </div>
-            <button type="button" autoFocus onClick={closeExpandedSeats} aria-label="退出放大预览" className="ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-700 hover:border-emerald-400 hover:text-emerald-700 dark:border-zinc-700 dark:text-slate-200">
+            <GlassButton type="button" autoFocus onClick={closeExpandedSeats} aria-label="退出放大预览" variant="secondary" containerClassName="ml-auto h-11 w-11 shrink-0" className="grid place-items-center">
               <Minimize2 className="h-5 w-5" />
-            </button>
+            </GlassButton>
           </header>
           {portraitViewport && (
             <p role="status" className="shrink-0 bg-amber-50 px-3 py-2 text-center text-xs font-semibold text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">旋转手机以横屏查看完整座位图</p>
@@ -714,16 +715,16 @@ export default function VirtualClassroom({
         <div className="space-y-5">
           <section className="space-y-2">
             <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">自动排列</h3>
-            <button type="button" disabled={saving} onClick={autoArrange} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold disabled:opacity-40 dark:border-zinc-700">
+            <GlassButton type="button" disabled={saving} onClick={autoArrange} variant="secondary" containerClassName="w-full" className="inline-flex min-h-11 items-center justify-center gap-2 px-3 text-sm font-semibold disabled:opacity-40">
               <Sparkles className="h-4 w-4 text-amber-500" />按学号排列
-            </button>
+            </GlassButton>
             <p className="text-xs text-slate-500">将覆盖当前草稿，执行前会再次确认。</p>
           </section>
           <section className="space-y-2 border-t border-slate-200 pt-4 dark:border-zinc-700">
             <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">交换两行或两列</h3>
             <div className="grid gap-2 sm:grid-cols-3">
-              <select aria-label="交换行或列" value={swapAxis} onChange={event => { setSwapAxis(event.target.value as 'row' | 'column'); setSwapFrom(0); setSwapTo(1); }} className="min-h-11 rounded-lg border px-2 text-base dark:bg-zinc-900"><option value="column">交换两列</option><option value="row">交换两行</option></select>
-              {[swapFrom, swapTo].map((value, index) => <select key={index} aria-label={index === 0 ? '交换起点' : '交换终点'} value={value} onChange={event => (index === 0 ? setSwapFrom : setSwapTo)(Number(event.target.value))} className="min-h-11 rounded-lg border px-2 text-base dark:bg-zinc-900">
+              <select aria-label="交换行或列" value={swapAxis} onChange={event => { setSwapAxis(event.target.value as 'row' | 'column'); setSwapFrom(0); setSwapTo(1); }} className="qs-field-input min-h-11 rounded-lg border px-2 text-base dark:bg-zinc-900"><option value="column">交换两列</option><option value="row">交换两行</option></select>
+              {[swapFrom, swapTo].map((value, index) => <select key={index} aria-label={index === 0 ? '交换起点' : '交换终点'} value={value} onChange={event => (index === 0 ? setSwapFrom : setSwapTo)(Number(event.target.value))} className="qs-field-input min-h-11 rounded-lg border px-2 text-base dark:bg-zinc-900">
                 {Array.from({ length: swapAxis === 'row' ? draft.rowCount : draft.columnCount }, (_, i) => <option key={i} value={i}>第 {i + 1} {swapAxis === 'row' ? '行' : '列'}</option>)}
               </select>)}
             </div>
@@ -803,35 +804,35 @@ export default function VirtualClassroom({
                   value={observationText}
                   onChange={event => setObservationText(event.target.value)}
                   placeholder="课堂观察"
-                  className="h-24 w-full resize-none rounded-md border border-slate-200 p-2.5 text-sm outline-none focus:border-emerald-500 dark:border-zinc-700 dark:bg-zinc-950"
+                  className="qs-field-input h-24 w-full resize-none rounded-md border border-slate-200 p-2.5 text-sm outline-none focus:border-emerald-500 dark:border-zinc-700 dark:bg-zinc-950"
                 />
-                <button
+                <GlassButton
                   type="button"
                   onClick={() => void submitObservation()}
                   disabled={!observationText.trim() || submittingObservation}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-emerald-700 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                  variant="primary" containerClassName="w-full" className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold disabled:opacity-50"
                 >
                   {submittingObservation && <LoaderCircle className="h-4 w-4 animate-spin" />}
                   保存观察
-                </button>
+                </GlassButton>
               </section>
             </div>
 
             <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-slate-100 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-              <button
+              <GlassButton
                 type="button"
                 onClick={() => { setSelectedStudentId(null); onManageStudent(selectedStudent.id); }}
-                className="rounded-md border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-700 dark:border-zinc-700 dark:text-slate-200"
+                variant="secondary" className="px-3 py-2.5 text-xs font-semibold"
               >
                 学生管理
-              </button>
-              <button
+              </GlassButton>
+              <GlassButton
                 type="button"
                 onClick={() => { setSelectedStudentId(null); onViewStudentProfile(selectedStudent.id); }}
-                className="rounded-md bg-slate-900 px-3 py-2.5 text-xs font-semibold text-white dark:bg-emerald-700"
+                variant="primary" className="px-3 py-2.5 text-xs font-semibold"
               >
                 查看完整画像
-              </button>
+              </GlassButton>
             </div>
           </aside>
         </>,

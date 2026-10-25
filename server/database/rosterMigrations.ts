@@ -384,6 +384,22 @@ const migrations: Migration[] = [
     `
   }
 
+  ,{
+    version: 16,
+    sql: `
+      CREATE TABLE classroom_behavior_rounds (
+        class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT,
+        project_key TEXT NOT NULL, occurred_date TEXT NOT NULL,
+        lesson_key TEXT NOT NULL, round INTEGER NOT NULL CHECK(round > 1),
+        operation_id TEXT NOT NULL UNIQUE, fingerprint TEXT NOT NULL,
+        PRIMARY KEY(class_id,project_key,occurred_date,lesson_key,round)
+      );
+      CREATE INDEX classroom_behavior_scope ON classroom_behavior_events(
+        class_id,occurred_date,json_extract(data_json,'$.kind'),
+        COALESCE(json_extract(data_json,'$.scheduleItemId'),''),COALESCE(json_extract(data_json,'$.round'),1)
+      );
+    `
+  }
 ];
 
 export const runRosterMigrations = (database: Database.Database) => {

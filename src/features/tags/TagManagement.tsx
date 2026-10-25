@@ -1,4 +1,5 @@
-﻿/**
+﻿import { GlassButton } from '../../components/glass/Glass';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -149,12 +150,12 @@ export default function TagManagement({ onShowToast }: TagManagementProps) {
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
                 placeholder="输入新标签"
-                className="min-w-0 flex-1 px-3 py-2 rounded-2xl bg-slate-50/80 dark:bg-zinc-900/60 border border-slate-200/70 dark:border-zinc-800/80 text-sm focus:outline-none"
+                className="qs-field-input min-w-0 flex-1 px-3 py-2 rounded-2xl bg-slate-50/80 dark:bg-zinc-900/60 border border-slate-200/70 dark:border-zinc-800/80 text-sm focus:outline-none"
               />
-              <button onClick={addTag} className="min-h-11 shrink-0 px-3 py-2 rounded-2xl bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all">
+              <GlassButton containerClassName="shrink-0" onClick={addTag} variant="primary" className="min-h-11 px-3 py-2 text-xs font-bold flex items-center gap-1.5 transition-all">
                 <Plus className="w-4 h-4" />
                 添加
-              </button>
+              </GlassButton>
             </div>
           </div>
 

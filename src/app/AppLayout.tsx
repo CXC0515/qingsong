@@ -79,7 +79,8 @@ export default function AppLayout({
   const selectPage=(pageId:PageId)=>{onSelectPage(pageId);setMobileNavOpen(false);};
   const currentGroup=navGroups.find(group=>group.items.some(item=>item.id===activePage));
   const currentItem=currentGroup?.items.find(item=>item.id===activePage);
-  const hasLocalClassPicker=['classroom-tasks','classroom','diagnosis-workspace','schedule'].includes(activePage);
+  // Only the workbench uses the global class for its quick-entry defaults.
+  const showGlobalClassPicker=activePage==='workbench';
   const avatar=(teacherProfile.nickname.trim()||teacherProfile.realName.trim()||'师')[0];
   const accountButton=(compact=false)=><button type="button" onClick={()=>setAccountMenuOpen(true)} aria-label="账号菜单" aria-haspopup="dialog" aria-expanded={accountMenuOpen} className={compact?'qs-account-trigger qs-account-compact':'qs-account-trigger'}>
     <span className="qs-avatar">{avatar}</span>{!compact&&<span className="min-w-0"><strong>{teacherProfile.nickname||teacherProfile.realName}</strong><small>{accountEmail}</small></span>}<ChevronDown className="h-4 w-4 shrink-0"/>
@@ -115,7 +116,7 @@ export default function AppLayout({
           {isLibraryWorkspace&&<div className="qs-mobile-top-tools"><button type="button" aria-label="知识图谱" onClick={()=>selectPage('knowledge-graph')}><Network className="h-4 w-4"/></button><button type="button" aria-label="资料编辑" onClick={()=>selectPage('library-editor')}><Boxes className="h-4 w-4"/></button></div>}
           {activePage==='schedule'&&<div className="qs-mobile-top-tools"><button type="button" aria-label="课表" onClick={()=>onSelectScheduleSection('schedule')} aria-pressed={scheduleSection==='schedule'}><CalendarDays className="h-4 w-4"/></button><button type="button" aria-label="日程" onClick={()=>onSelectScheduleSection('reminders')} aria-pressed={scheduleSection==='reminders'}><Bell className="h-4 w-4"/></button><button type="button" aria-label="更多课表操作" onClick={onOpenScheduleTools}><MoreHorizontal className="h-4 w-4"/></button></div>}
           <div ref={headerContextRef} className="qs-topbar-context"/>
-          {!hasLocalClassPicker&&<div className="qs-topbar-class"><ClassPicker classes={classes.filter(c=>c.status==='active')} value={selectedClassId} onChange={onSelectClass} label="切换当前班级"/></div>}
+          {showGlobalClassPicker&&<div className="qs-topbar-class"><span className="qs-muted">快捷入口班级</span><ClassPicker classes={classes.filter(c=>c.status==='active')} value={selectedClassId} onChange={onSelectClass} label="选择快捷入口班级"/></div>}
           <div className="qs-mobile-account">{accountButton(true)}</div>
         </header>
         <main className={'app-shell-main qs-main '+(isImmersiveWorkspace?'flex min-h-0 flex-col overflow-hidden':activePage==='workbench'?'overflow-y-auto md:flex md:min-h-0 md:flex-col md:overflow-hidden':'overflow-y-auto')}>{children}</main>
