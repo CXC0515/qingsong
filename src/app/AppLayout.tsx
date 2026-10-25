@@ -116,7 +116,7 @@ export default function AppLayout({
           {isLibraryWorkspace&&<div className="qs-mobile-top-tools"><button type="button" aria-label="知识图谱" onClick={()=>selectPage('knowledge-graph')}><Network className="h-4 w-4"/></button><button type="button" aria-label="资料编辑" onClick={()=>selectPage('library-editor')}><Boxes className="h-4 w-4"/></button></div>}
           {activePage==='schedule'&&<div className="qs-mobile-top-tools"><button type="button" aria-label="课表" onClick={()=>onSelectScheduleSection('schedule')} aria-pressed={scheduleSection==='schedule'}><CalendarDays className="h-4 w-4"/></button><button type="button" aria-label="日程" onClick={()=>onSelectScheduleSection('reminders')} aria-pressed={scheduleSection==='reminders'}><Bell className="h-4 w-4"/></button><button type="button" aria-label="更多课表操作" onClick={onOpenScheduleTools}><MoreHorizontal className="h-4 w-4"/></button></div>}
           <div ref={headerContextRef} className="qs-topbar-context"/>
-          {showGlobalClassPicker&&<div className="qs-topbar-class"><span className="qs-muted">快捷入口班级</span><ClassPicker classes={classes.filter(c=>c.status==='active')} value={selectedClassId} onChange={onSelectClass} label="选择快捷入口班级"/></div>}
+          {showGlobalClassPicker&&<div className="qs-topbar-class"><ClassPicker classes={classes.filter(c=>c.status==='active')} value={selectedClassId} onChange={onSelectClass} label="选择快捷入口班级"/></div>}
           <div className="qs-mobile-account">{accountButton(true)}</div>
         </header>
         <main className={'app-shell-main qs-main '+(isImmersiveWorkspace?'flex min-h-0 flex-col overflow-hidden':activePage==='workbench'?'overflow-y-auto md:flex md:min-h-0 md:flex-col md:overflow-hidden':'overflow-y-auto')}>{children}</main>

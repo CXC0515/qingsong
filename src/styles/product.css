@@ -57,7 +57,7 @@
 .qs-workbench-daily{display:grid;gap:14px;min-width:0;min-height:0}
 .qs-app .qs-workbench-daily-card{display:flex;flex-direction:column;gap:12px;min-height:0;padding:16px;overflow:hidden}.qs-workbench-daily-card>div:first-child{flex-shrink:0;gap:8px}.qs-workbench-daily-list{min-height:0;overflow:auto;overscroll-behavior:contain}.qs-workbench-daily-list>*+*{margin-top:8px}
 .qs-assistant-space{min-width:0;min-height:180px}.qs-assistant-panel{height:100%}.qs-assistant-panel>.lg-content{padding:16px}
-@media(min-width:768px){#workbench-page.qs-workbench-grid{display:grid;flex:1;min-height:0;gap:16px;grid-template-columns:minmax(260px,.85fr) minmax(280px,1.25fr);grid-template-rows:auto minmax(0,1fr);grid-template-areas:'quick .' 'daily assistant';overflow:hidden}.qs-workbench-quick{grid-area:quick}.qs-workbench-daily{grid-area:daily;grid-template-rows:repeat(2,minmax(0,1fr))}.qs-assistant-space{grid-area:assistant;align-self:end;height:clamp(170px,31vh,260px);max-height:100%;min-height:0}}
+@media(min-width:768px){#workbench-page.qs-workbench-grid{display:grid;flex:1;min-height:0;gap:16px;grid-template-columns:minmax(260px,.85fr) minmax(280px,1.25fr);grid-template-rows:auto minmax(0,1fr);grid-template-areas:'quick assistant' 'daily assistant';overflow:hidden}.qs-workbench-quick{grid-area:quick}.qs-workbench-daily{grid-area:daily;grid-template-rows:repeat(2,minmax(0,1fr))}.qs-assistant-space{grid-area:assistant;align-self:stretch;height:auto;max-height:none;min-height:0}}
 @media(min-width:768px) and (max-height:600px){.qs-workbench-quick>.lg-content{padding:10px}.qs-workbench-shortcuts{gap:6px;margin-top:8px}.qs-workbench-shortcuts .qs-workbench-tile,.qs-workbench-shortcuts .qs-workbench-tile .qs-button{min-height:44px}.qs-app .qs-workbench-daily-card{padding:8px;gap:6px}#workbench-page.qs-workbench-grid{gap:10px}.qs-workbench-daily{gap:8px}}
 .qs-classroom-heading{display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px}.qs-classroom-heading>div:first-child{min-width:0}.qs-classroom-tools{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0;flex:1}.qs-classroom-tools .qs-class-picker{margin-left:auto}.qs-classroom-record-action .qs-button{white-space:nowrap}
 .qs-category-count{font-size:12px;color:var(--qs-muted);font-weight:400}
@@ -101,8 +101,8 @@
 /* Persistent opacity/transform animations create backdrop roots and flatten nested glass. */
 .qs-app .animate-fade-in{animation:none}
 
-.qs-topbar-class{display:flex;align-items:center;gap:8px;max-width:none}.qs-topbar-class>span{white-space:nowrap}
-@media(max-width:899px){.qs-topbar-class>span{display:none}}
+.qs-topbar-class{display:flex;align-items:center;gap:8px;max-width:none}
+
 @media(max-width:639px){.qs-topbar-class{display:none}}
 
 .qs-button-host{min-width:44px;min-height:44px}.qs-button{min-width:44px}

@@ -117,11 +117,6 @@ export default function TagManagement({ onShowToast }: TagManagementProps) {
 
   return (
     <div className="space-y-5 animate-fade-in" id="tag-management-page">
-      <div>
-        <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">管理 / 标签管理</p>
-        <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">标签管理</h2>
-      </div>
-
       <GlassSegments label="标签大类" value={activeGroupId} options={groups.map(group=>({value:group.id,label:<><span>{{family:'家庭关注',academic:'学情状态',behavior:'日常表现',risk:'风险提醒'}[group.id]}</span><span className="qs-category-count">{group.tags.length}</span></>}))} onChange={setActiveGroupId}/>
       <div>
         <section className="glass-panel rounded-[24px] overflow-hidden">
