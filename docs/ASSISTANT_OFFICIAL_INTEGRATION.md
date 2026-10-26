@@ -1,8 +1,8 @@
 # 官方教学助手接入
 
-版本：1.1 · 2026-10-27（Asia/Shanghai）
+版本：1.2 · 2026-10-27（Asia/Shanghai）
 状态：用户批准本地代码集成；本地实现及样本检查完成，待用户验收。未 push、PR、合并、部署，未调用真实模型。
-修改历史：1.0 将完整官方 Web 接入青松登录与只读教学工具；1.1 修正容器留白、历史状态和共享弹窗白边，检查详情见本次QA。
+修改历史：1.0 将完整官方 Web 接入青松登录与只读教学工具；1.1 修正留白、历史状态和弹窗白边；1.2 移除外层标题与重复会话按钮，统一使用官方导航，检查详情见本次QA。
 
 ## 问题与最短路径
 
@@ -27,7 +27,7 @@
 - HTTP 精确 endpoint 白名单；WS 对每个 logical open 重新检查，不裸透传。官方 job/list 只读状态订阅被允许；配置写入、凭据读取、目录和任意工具不可用。
 - settings/describe 只返回固定只读 locale 投影，不暴露模型配置或其他 namespaces；settings/mutate 被拒绝。官方服务仍以 native owner 工作，外层 API 策略和禁用插件是必要权限边界，不能只隐藏按钮。
 - 模型输入及队列编辑均只允许文本，最多8000字。现有 Express 请求体和 WS 每帧上限1MB。
-- 旧 SDK 会话读取保留；旧创建、发送、取消接口统一410中文提示，不再启动第二套生成队列。旧存储不迁移、不删。
+- 旧 SDK 会话读取接口保留，UI旧会话入口已按用户批准移除；旧创建、发送、取消接口统一410中文提示，不再启动第二套生成队列。旧存储不迁移、不删。
 - 赞踩为官方会话事件，支持分类、说明、版本冲突控制、更新及撤销；不改 memory，不自动训练。没有反馈运营后台。
 - 这是同一操作系统用户下的服务隔离，不是 OS 沙箱。用户独立 home、插件裁剪、工具 guard、端点校验要共同保留。官方 UI 客户端仍有按会话 ID 的浏览器偏好/草稿缓存；服务器历史与业务读取必须再次鉴权。
 
@@ -39,7 +39,7 @@
 - agent/official-ui/：官方插件、locale 和局部样式。
 - server/services/assistant/officialAssistant.ts、officialBudget.ts：身份映射、进程、转发、工具桥和共享排队。
 - server/app.ts、server/index.ts：挂载与关闭；server/routes/assistant.ts：旧会话只读。
-- src/features/assistant/AssistantPanel.tsx：官方容器及青松入口。
+- src/features/assistant/AssistantPanel.tsx：官方容器及连接反馈（会话入口统一由官方侧栏提供）。
 - 相关专项测试、交接与截图；agent 直接声明既有 ws@8.22.0，未升级 DSH 或全量依赖。
 
 ## 检查证据与边界

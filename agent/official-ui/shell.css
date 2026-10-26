@@ -14,8 +14,8 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 
 [data-slot="conversation.hero.workspace"],[data-slot="conversation.hero.agentPreset"],[data-slot="conversation.hero.options"]{display:none!important}
 /* Native sidebar state is the only source of truth; no parallel overlay. */
-.pI_x6G_frame[data-sidebar-collapsed]{grid-template-columns:0 minmax(0,1fr) 0!important}
-.pI_x6G_frame[data-sidebar-collapsed]>.pI_x6G_sidebarCol{visibility:hidden}
+.pI_x6G_frame[data-sidebar-collapsed]{grid-template-columns:56px minmax(0,1fr) 0!important}
+.pI_x6G_sidebarCol .hHd-Xa_root{width:100%!important}
 .pI_x6G_frame:not([data-sidebar-collapsed]){grid-template-columns:min(280px,45%) minmax(0,1fr) 0!important}
 .pI_x6G_handle{display:none!important}
 @media(max-width:650px){
@@ -29,3 +29,6 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 .wSkVaW_heroWorkspaceRow,.uV2eYG_add{display:none!important}
 
 .hHd-Xa_settingsArea,.hHd-Xa_footerActions{display:none!important}
+
+/* Keep native navigation reachable without a second host toolbar. */
+.hHd-Xa_toggle,.hHd-Xa_newSession,.hHd-Xa_iconButton{min-width:44px;min-height:44px}
