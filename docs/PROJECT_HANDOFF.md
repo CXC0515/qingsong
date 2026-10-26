@@ -1,19 +1,23 @@
 # 青松教师 项目当前交接
 
 > 本文是当前统一交接入口。历史专项文档只用于追溯当时的决策，不再代表当前 Git、数据路径或部署状态。
-> 更新时间：2026-10-26；当前应用生产提交：70af83d787c92a8ecd83c96421258b6e0fcfde76（PR #76，Node统一及DSH基础包）。
+> 更新时间：2026-10-27；当前应用生产提交：e87ab6eb8c8026774184e0e0d99d0a029bb0cbba（PR #78，青松基础助手）。
 
 > 改名进度：中文品牌「青松教师」，英文项目名 `qingsong`；GitHub 仓库为 `CXC0515/qingsong`，母文件夹已迁至 `/Users/cxc/Projects/qingsong`。品牌代码经 PR #55 合并，已随PR #57部署服务器；实际切换与验证见 [改名记录](./QINGSONG_RENAME.md)。
 
 ## 1. 当前阶段与产品边界
 
-### 2026-10-27 青松基础助手（本地候选，待发布）
+### 2026-10-27 青松基础助手（已发布，真实模型与教师验收待用户）
 
 - 用户批准工作台聊天、DSH原生配置、身份隔离及首批只读课表/名单/课堂查询，并授权检查、PR、合并、备份与部署。用户当前两三个低并发账号，采用全局1条处理+3条排队，worker每轮结束回收，管理页按需启动/10分钟回收。
 - 从origin/main@273a590在本会话独立worktree新建codex/assistant-integration。具体实现、存储、原生管理及未交付边界见[基础助手](ASSISTANT_BASELINE.md)，样本壳层证据见[QA](qa/2026-10-27-assistant/README.md)。
 - 复用官方SDK/Cordis插件，不重新实现模型循环或供应商表单；本地fixture覆盖真实文本增量、原生会话恢复、工具允许列表、预算、双用户隔离与取消。SDK的turn/end失败单独判定，不能只凭run返回标记成功。真实模型调用0。
 - 本地类型检查、构建及226项现有/新增服务端测试通过，随后新增WebSocket准入回归通过；另2项原生DSH工具/流式/恢复/循环上限验证通过。真实壳层1280/900/375检查及原生模型配置保存回读通过；真实模型调用0。
-- 当前生产仍为下述PR #76应用版本；本候选尚未推送部署，不宣称真实教师可用。
+- PR #78合并为e87ab6eb8c8026774184e0e0d99d0a029bb0cbba，母文件夹稳定main打包，归档SHA256 `42cc72f735d49cc5df55c250bcceee2280939df2dfbaa9d4e0eaa1bec0fe9e87`。服务器独立安装根/agent，类型/构建、227项应用测试和2项DSH集成测试通过；另在NoNewPrivileges/PrivateTmp/ProtectHome/ProtectSystem等同生产限制下通过10项fixture检查，样本进程组峰值522.3MB（不是生产负载承诺）。
+- 切换前后台任务0；停写后在线恢复点`/var/lib/teacher-dashboard/backups/manual/product-2026-10-27-pre-assistant-e87ab6e`校验1285文件/7库。旧Nginx定义保存于`/var/lib/teacher-dashboard/backups/manual/assistant-ops-e87ab6e/nginx-td.unreached.top.conf`；保留70af83d旧release及既有恢复点。未迁移或恢复数据库，生产数据根不变。
+- current为`/opt/teacher-dashboard/releases/e87ab6eb8c8026774184e0e0d99d0a029bb0cbba`，实际进程Node24.22.1，active/running，NRestarts=0。Nginx只增WebSocket升级头并通过nginx -t，证书定义保留。备份服务实跑Result=success/退出0、timer active；7库integrity_check=ok，外键错误0，三个roster仍schema16。
+- 回环/公网首页、live、ready为200；匿名助手status/sessions/模型管理入口401，公网原生管理WebSocket匿名升级403。JS `index-DgvFw8bw.js` SHA256 `0cda8ab6b8e78e3064a2647140ac4c435423d435809ffbf2cbd28c85b0dee98a`，CSS `index-e5vlamit.css` SHA256 `27c1f1a6ca39e44697cb19600520bbee70f1a4dcba22edd732dcaca719f5e144`，本地/服务器/公网一致。
+- 入口https://td.unreached.top/，刷新后在工作台教学助手使用。管理员的「模型管理」打开DSH原生页，再到账号菜单→设置→模型编辑自有模型；教师不显示管理入口。代理没有使用生产账号试聊或调用真实模型，供应商连通、回答质量、真实教师、真机键盘及完整跨浏览器仍待用户验收。RAG、业务写入、五层规则/个人长期记忆完整管理和QQ没有交付。
 
 
 ### 2026-10-26 Harness基础与Node统一（基础包已发布，助手尚未接通）
