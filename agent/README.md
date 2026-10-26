@@ -1,14 +1,7 @@
-# 青松 DSH 独立运行包
+# 青松 DSH 接入包
 
-固定DSH与官方SDK为0.2.1-rc.3，本项目统一固定Node24.22.1。与青松根依赖和Node运行时分开管理。
+固定Node24.22.1及官方DSH/SDK0.2.1-rc.3；DSH负责原生模型循环、工具调度和持久会话。根应用通过runtime.mjs与model-admin.mjs接入，teaching-plugin.mjs只提供受控教学查询及增量反馈，不重写模型协议。
 
-```sh
-npm ci --prefix agent --no-audit --no-fund
-npm run probe --prefix agent
-```
+安装：`npm ci --prefix agent --no-audit --no-fund`。探针：`npm run probe --prefix agent`；原生工具/增量/恢复/循环上限：`node --test agent/integration.test.mjs`。两者只访问本机fixture，不调用真实模型。
 
-`probe.mjs`在新临时目录启动官方sdk-minimal profile，使用本机虚构OpenAI兼容服务完成两轮对话，中间关闭并重新启动运行进程。断言原生会话恢复、旧消息保留、输出上限和通用工具不暴露；结束后关闭进程并删除本次临时目录。它不读取真实模型配置或生产资料，不调用真实模型。
-
-该探针不是生产profile，也不提供青松助手、业务工具或原生Web入口。生产接入须另验身份绑定、工具允许列表、凭据、资源和界面流程。当前未将它作为正式服务运行。
-
-模型配置优先复用DSH原生Settings→Models及其配置/凭据机制；自有模型走自定义供应商。SDK使用模型配置与提供原生模型管理界面是两个不同接入面，不能把配置文件生成器宣称为已复用完整原生设置页面。
+教师入口为青松工作台；模型管理复用DSH原生Web，受青松owner鉴权。运行策略、配置权威、身份与凭据边界及未交付能力见[基础助手](../docs/ASSISTANT_BASELINE.md)，生产事实见[交接](../docs/PROJECT_HANDOFF.md)。

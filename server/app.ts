@@ -29,7 +29,9 @@ import materialPoolRouter from './routes/materialPool';
 import scheduleRouter from './routes/schedule';
 import registrationRouter from './routes/registration';
 import accountRouter from './routes/account';
-import { requireAuthenticatedWorkspace } from './middleware/authenticated';
+import assistantRouter from './routes/assistant';
+import { modelAdminProxy } from './services/assistant/modelAdmin';
+import { requireOwner, requireAuthenticatedWorkspace } from './middleware/authenticated';
 import { requireSameOriginMutation } from './middleware/csrf';
 import { securityHeaders } from './middleware/security';
 
@@ -104,8 +106,11 @@ export const createApp = (config: RuntimeConfig = runtimeConfig) => {
   app.all('/api/auth/*splat', toNodeHandler(auth));
 
   app.use(express.json({ limit: '1mb' }));
-  app.use('/api', requireSameOriginMutation, registrationRouter);
-  app.use('/api', requireAuthenticatedWorkspace, requireSameOriginMutation);
+  app.use('/api', (request,response,next) => request.path.replace(/\/+$/, '') === '/register' ? requireSameOriginMutation(request,response,next) : next(), registrationRouter);
+  app.use('/api', requireAuthenticatedWorkspace);
+  app.use('/api/assistant/manage', requireOwner, modelAdminProxy);
+  app.use('/api', requireSameOriginMutation);
+  app.use('/api', assistantRouter);
   app.use('/api', accountRouter);
 
   app.use('/api', rosterRouter);

@@ -119,3 +119,27 @@
 @media(max-width:639px){.qs-lesson-heading{display:none}}
 
 @media(max-width:639px){.qs-category-count{display:none}}
+
+/* Teaching assistant uses the existing workbench surface and glass tokens. */
+.qs-assistant-panel>.lg-content{display:flex;flex-direction:column;min-height:0;height:100%;gap:10px;overflow:hidden}
+.qs-chat-heading,.qs-chat-toolbar,.qs-chat-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0}
+.qs-chat-management,.qs-chat-sources a{font-size:12px;color:#047857;text-decoration:underline;text-underline-offset:3px}
+.qs-chat-toolbar select{flex:1;min-width:0;max-width:100%;height:44px}
+.qs-chat-messages{flex:1;min-height:80px;overflow:auto;overscroll-behavior:contain;overflow-wrap:anywhere;padding:2px 4px 8px}
+.qs-chat-empty{font-size:14px;line-height:1.7;color:#64748b;padding:16px 0}
+.qs-chat-message{padding:12px;border-radius:12px;margin:8px 0;background:rgba(255,255,255,.5)}
+.qs-chat-user{background:rgba(209,250,229,.45)}
+.qs-chat-role{font-size:12px;color:#64748b;margin-bottom:6px}
+.qs-chat-text{white-space:pre-wrap;font-size:14px;line-height:1.7}
+.qs-chat-sources{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.qs-chat-error{flex-shrink:0;font-size:12px;line-height:1.5;color:#9a3412;max-height:72px;overflow:auto}
+.qs-chat-composer{display:flex;flex-direction:column;gap:8px;flex-shrink:0}
+.qs-chat-composer textarea{resize:vertical;min-height:64px;max-height:140px;font-size:16px;line-height:1.5}
+.qs-chat-model{min-width:0;width:100%;height:44px;font-size:14px}
+.qs-chat-actions>span{font-size:12px;color:#64748b}
+.qs-chat-actions button,.qs-chat-toolbar button,.qs-chat-management{min-height:44px}
+.qs-chat-management{display:flex;align-items:center}
+@media(max-width:767px){.qs-assistant-space{height:min(620px,82dvh);min-height:420px}.qs-assistant-panel>.lg-content{padding:12px}.qs-chat-text{font-size:16px}.qs-chat-actions>span{max-width:58%}}
+@media(min-width:768px) and (max-height:600px){.qs-assistant-panel>.lg-content{padding:12px;gap:6px}.qs-chat-messages{min-height:32px}.qs-chat-composer{gap:6px}.qs-chat-composer textarea{min-height:52px;max-height:80px}.qs-chat-error{max-height:36px}}
+@media(min-width:768px) and (max-height:450px){.qs-assistant-panel>.lg-content{overflow-y:auto}}
+@media(max-width:767px){.qs-chat-toolbar select,.qs-chat-model{font-size:16px}}

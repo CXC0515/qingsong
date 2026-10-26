@@ -139,3 +139,9 @@ systemctl list-timers --all | grep certbot
 | --- | --- | --- | --- |
 | v1.x | 2026-09-08 至 2026-09-12 | 已归档 | MacBook、Cloudflare Tunnel 和备案期间本地运行方案。 |
 | v2.0 | 2026-09-16 | 当前 | 改为腾讯云硅谷、Nginx、systemd、Let's Encrypt 和服务器产品快照运维。 |
+
+## 教学助手运行与发布补充（2026-10-27）
+
+助手由原应用管理DSH子进程，不新增常驻系统服务。必须同时安装agent依赖，并保留Nginx的HTTP/1.1及WebSocket升级头。聊天SSE使用X-Accel-Buffering: no；模型管理的专用升级路径是/api/assistant/manage/api/remote.mux，应用层检查登录、owner与同源。
+
+发布前除现有批改/材料/资料任务外，也要检查各工作区assistant会话JSON中的queued/running状态，避免中断正在使用的对话。手工产品快照应在停写后创建并校验；它包含system下DSH配置/凭据及工作区会话，不得把其中的文件、模型密钥或管理启动凭据输出到日志或聊天。恢复或回滚需明确授权，保留旧发布，不以恢复数据库代替代码切换。真实模型验证由用户在已登录助手中进行；代理fixture通过不代表供应商连通或回答质量已验收。

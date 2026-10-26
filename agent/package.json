@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "@deepseek-ai/dsh": "0.2.1-rc.3",
-    "@deepseek-ai/dsh-sdk-client": "0.2.1-rc.3"
+    "@deepseek-ai/dsh-sdk-client": "0.2.1-rc.3",
+    "yaml": "2.9.1"
   },
   "scripts": {
     "probe": "node probe.mjs"

@@ -1,3 +1,5 @@
+import { stopAssistant } from './services/assistant/assistantService';
+import { modelAdminUpgrade, closeModelAdmin } from './services/assistant/modelAdmin';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -43,6 +45,8 @@ const server = app.listen(runtimeConfig.port, runtimeConfig.host, () => {
   });
 });
 
+server.on('upgrade',(request,socket,head)=>{void modelAdminUpgrade(request,socket,head);});
+
 let shuttingDown = false;
 const shutdown = (reason: string, exitCode: number) => {
   if (shuttingDown) return;
@@ -54,7 +58,9 @@ const shutdown = (reason: string, exitCode: number) => {
     process.exit(exitCode || 1);
   }, runtimeConfig.shutdownTimeoutMs);
   forceTimer.unref();
-  server.close(() => {
+  void Promise.allSettled([stopAssistant(),closeModelAdmin()]);
+  server.close(async () => {
+    await Promise.allSettled([stopAssistant(),closeModelAdmin()]);
     clearTimeout(forceTimer);
     closeRosterDatabase();
     closeResourceDatabase();
