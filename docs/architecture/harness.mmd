@@ -1,0 +1,28 @@
+flowchart TB
+    Teacher[教师：目标、确认与纠正] --> UI[青松助手界面]
+    UI --> Gateway[助手接入层：登录、会话、事件与取消]
+    Gateway --> Context[上下文与记忆服务]
+    Context --> Rules[(公共规则、工作区规则、个人规则)]
+    Context --> Memory[(教师长期记忆)]
+    Gateway --> Manager[共享运行管理器：队列、租约与预算]
+    Manager --> Worker[教师与工作区隔离的 Harness 运行进程]
+    Context -->|版本化规则与相关记忆| Worker
+    Worker --> Sessions[(Harness 原生会话与持久化)]
+    Worker --> Model[模型服务]
+    Worker -->|受控工具调用| Tools[教学业务工具适配层：逐次鉴权]
+    Tools --> Query[结构化业务查询]
+    Tools --> Retrieval[权限内资料检索与原文读取]
+    Query --> Business[(名册、课表、课堂记录、批改等业务事实)]
+    Retrieval --> Materials[(原文件、解析产物与派生索引)]
+    Tools --> Preview[业务预览]
+    Preview --> Approval[(审批与操作回执台账)]
+    Gateway -->|教师确认具体参数与版本| Approval
+    Approval -->|服务端核验已确认动作| Commit[幂等提交与结果回读]
+    Commit --> Business
+    Commit --> Approval
+    Sessions --> Gateway
+    Approval --> Gateway
+    Query -->|结构化事实与来源| Tools
+    Retrieval -->|原文证据与页段引用| Tools
+    Tools -->|结果与依据| Worker
+    Gateway -->|进度、来源与保存结果| UI
