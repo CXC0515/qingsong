@@ -7,6 +7,10 @@
 
 ## 1. 当前阶段与产品边界
 
+### 2026-10-27 官方教学助手UI（本地，待用户验收）
+
+用户批准复用完整官方DSH Web并接青松身份/工具。在原专项worktree、codex/assistant-official-integration分支实现，基线origin/main@a53258b。HTTP/WS绑定青松登录及UID+workspace，原生历史/反馈隔离，只有只读教学工具；旧SDK会话只读，统一1执行+3排队。官方插件/locale/样式适配替代原型DOM桥。未push、PR、合并、部署或真实模型调用，生产状态仍以下文发布记录为准。方案与预览见[官方接入](ASSISTANT_OFFICIAL_INTEGRATION.md)，本地检查见[QA](qa/2026-10-27-assistant-official/README.md)。
+
 ### 2026-10-27 全部GPT模型统一（已发布，真实调用待用户验收）
 
 - 用户明确授权将所有AI功能的gpt-5.6-luna统一为gpt-6-luna并迅速实施。独立分支codex/unify-gpt6-luna从origin/main@8c9df7d开始，复用本会话独立worktree。

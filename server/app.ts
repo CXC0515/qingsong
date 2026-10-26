@@ -1,3 +1,4 @@
+import { officialAssistantProxy } from './services/assistant/officialAssistant';
 import classroomBehaviorRouter from './routes/classroomBehavior';
 /**
  * @license
@@ -109,6 +110,7 @@ export const createApp = (config: RuntimeConfig = runtimeConfig) => {
   app.use('/api', (request,response,next) => request.path.replace(/\/+$/, '') === '/register' ? requireSameOriginMutation(request,response,next) : next(), registrationRouter);
   app.use('/api', requireAuthenticatedWorkspace);
   app.use('/api/assistant/manage', requireOwner, modelAdminProxy);
+  app.use('/api/assistant/official', officialAssistantProxy);
   app.use('/api', requireSameOriginMutation);
   app.use('/api', assistantRouter);
   app.use('/api', accountRouter);

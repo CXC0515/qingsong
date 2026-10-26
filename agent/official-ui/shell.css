@@ -1,0 +1,20 @@
+/* DSH 0.2.1-rc.3: supported index-inject hook, no DOM rewriting. */
+html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw-alias-bg-layer-1:transparent;--dsh-boot-bg:transparent;--dsw-alias-bg-layer-3:#f8fbf8}
+[data-slot="conversation.header"],[data-slot="conversation.session.header"],[data-slot="sidebar.footer"]{display:none!important}
+.wSkVaW_root[data-phase=hero] .wSkVaW_scrollBody{justify-content:flex-end!important}
+.wSkVaW_composerHero{padding-bottom:0!important}
+.pXSMma_headline{color:#7b8580!important;font-size:18px!important;font-weight:400!important;line-height:26px!important}
+.pXSMma_titleGroup{flex-direction:column;gap:5px!important}
+.pXSMma_previewBadge{align-self:center!important;color:#929b96!important;background:transparent!important;border:0!important;font-family:inherit!important;font-weight:400!important}
+@media(max-width:600px){[data-composer-input]{font-size:16px!important}button[aria-label="发送消息"],button[aria-label*="停止"],button[aria-label^="选择模型"]{min-width:44px!important;min-height:44px!important}}
+
+.pXSMma_titleGroup{display:none!important}.qs-welcome{color:#7b8580;font-size:18px;font-weight:400;line-height:26px;text-align:center}.qs-welcome small{display:block;margin-top:5px;color:#929b96;font-size:12px}
+
+[data-slot="conversation.hero.workspace"],[data-slot="conversation.hero.agentPreset"],[data-slot="conversation.hero.options"]{display:none!important}
+.pI_x6G_frame{grid-template-columns:minmax(0,1fr)!important}.pI_x6G_frame>:has(>[data-slot="sidebar"]){display:none!important}.pI_x6G_centerCol{grid-column:1!important}
+html.qs-history .pI_x6G_frame>:has(>[data-slot="sidebar"]){display:block!important;position:absolute;inset:0 auto 0 0;width:min(300px,90%);z-index:50;background:#f4f8f4;box-shadow:6px 0 30px #18342720}
+
+/* Workspace selection and file/command launchers are outside teaching scope. */
+.wSkVaW_heroWorkspaceRow,.uV2eYG_add{display:none!important}
+
+.hHd-Xa_settingsArea,.hHd-Xa_footerActions{display:none!important}

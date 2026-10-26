@@ -1,16 +1,12 @@
 import { Router, type Request, type Response } from 'express';
 import { fromNodeHeaders } from 'better-auth/node';
-import { z } from 'zod';
 import { auth } from '../auth/auth';
 import { getAuthDatabase } from '../database/authDatabase';
 import { getWorkspaceContext } from '../context/workspaceContext';
 import {
   models,
-  createChat,
   listChats,
   getChat,
-  submitChat,
-  cancelChat,
   registerAssistantStream,
 } from '../services/assistant/assistantService';
 const router = Router();
@@ -70,49 +66,14 @@ router.get(
   '/assistant/sessions',
   handle((_req, res) => res.json(listChats(getWorkspaceContext()))),
 );
-router.post(
-  '/assistant/sessions',
-  handle(async (req, res) => {
-    const input = z
-      .object({ provider: z.string().max(128), model: z.string().max(256) })
-      .strict()
-      .parse(req.body);
-    res
-      .status(201)
-      .json(
-        await createChat(getWorkspaceContext(), input.provider, input.model),
-      );
-  }),
-);
+// Legacy records remain readable; only the official runtime may start new turns.
+router.post(['/assistant/sessions', '/assistant/sessions/:id/messages', '/assistant/sessions/:id/cancel'], (_req, res) => {
+  res.status(410).json({message: '旧会话已改为只读，已有记录保留。请从教学助手新建会话继续。'});
+});
 router.get(
   '/assistant/sessions/:id',
   handle((req, res) =>
     res.json(getChat(getWorkspaceContext(), String(req.params.id))),
-  ),
-);
-router.post(
-  '/assistant/sessions/:id/messages',
-  handle(async (req, res) => {
-    const input = z
-      .object({ requestId: z.uuid(), text: z.string().trim().min(1).max(8000) })
-      .strict()
-      .parse(req.body);
-    res
-      .status(202)
-      .json(
-        await submitChat(
-          getWorkspaceContext(),
-          String(req.params.id),
-          input,
-          authorize(req),
-        ),
-      );
-  }),
-);
-router.post(
-  '/assistant/sessions/:id/cancel',
-  handle(async (req, res) =>
-    res.json(await cancelChat(getWorkspaceContext(), String(req.params.id))),
   ),
 );
 router.get(
