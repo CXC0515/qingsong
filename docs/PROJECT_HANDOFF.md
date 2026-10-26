@@ -1,18 +1,25 @@
 # 青松教师 项目当前交接
 
 > 本文是当前统一交接入口。历史专项文档只用于追溯当时的决策，不再代表当前 Git、数据路径或部署状态。
-> 更新时间：2026-10-26；当前应用生产提交：b10db2fd0a1b5b565e6b43f001e1957cd523edda（PR #72）。
+> 更新时间：2026-10-26；当前应用生产提交：78e933d0b7bff7aa73e721d1a8196150942dbf79（PR #74）。
 
 > 改名进度：中文品牌「青松教师」，英文项目名 `qingsong`；GitHub 仓库为 `CXC0515/qingsong`，母文件夹已迁至 `/Users/cxc/Projects/qingsong`。品牌代码经 PR #55 合并，已随PR #57部署服务器；实际切换与验证见 [改名记录](./QINGSONG_RENAME.md)。
 
 ## 1. 当前阶段与产品边界
 
-### 2026-10-26 普通业务弹窗补齐（本地候选，未发布）
+### 2026-10-26 普通业务弹窗补齐（已发布，真实使用待用户验收）
 
 - 用户批准先保留有独立依据的专用界面，统一其余已盘点普通弹窗；从最新origin/main@5ee1f08新建`codex/unify-business-dialogs`及独立worktree。母文件夹、其他专项和生产数据保留。
 - 学生导入、资料上传/编辑、知识图谱四类弹窗、批改方式与删除答卷确认，以及虚拟教室学生画像复用ResponsiveDialog；统一高度、内容滚动和固定主要操作。共享层扣除玻璃内容面边距，嵌套弹窗按打开数量管理滚动锁。没有改业务API、迁移或光学参数。
-- 类型检查、构建和11项名册专项通过；隔离实际壳层验证500行×50列Excel预览、长表单、嵌套焦点/滚动锁与必填校验。手机/低高度模拟通过；批改两个流程末端仅代码review，真机、软键盘与反馈用户原文件仍未验收。方案及证据见[普通业务弹窗补齐](BUSINESS_DIALOG_UNIFICATION.md)。本轮未推送、PR、合并或部署，生产仍为本文顶部版本。
+- 类型检查、构建和11项名册专项通过；隔离实际壳层验证500行×50列Excel预览、长表单、嵌套焦点/滚动锁与必填校验。手机/低高度模拟通过；批改两个流程末端仅代码review，真机、软键盘与反馈用户原文件仍未验收。方案及证据见[普通业务弹窗补齐](BUSINESS_DIALOG_UNIFICATION.md)。用户随后明确授权推送部署，已按下面的发布记录执行。
 
+
+### 2026-10-26 普通业务弹窗生产发布
+
+- PR #74合并为78e933d0b7bff7aa73e721d1a8196150942dbf79；从母文件夹稳定main执行git archive，归档SHA256 `a12da8478e17d7aef164352ae252843421110cd5df9dca0f4ed8c618f75f7548`。服务器独立npm ci、类型检查、构建和11项名册专项通过，保留既有大包提示。
+- 切换前重新核对current仍为b10db2f且无运行中后台任务；短暂停写，经SQLite在线备份创建并验证1285文件/7库恢复点`/var/lib/teacher-dashboard/backups/manual/product-2026-10-26-pre-dialogs-78e933d`。无后端、依赖或schema变更，不执行迁移/恢复；原数据根不变，保留b10db2f及旧恢复点。
+- current已原子切到78e933d；服务active/running、NRestarts=0，备份timer active，回环live/ready正常。公网首页/live/ready均200，匿名名册接口401；7库integrity_check=ok、外键错误0，三个roster保持schema16。公网JS `index-BFveHg9P.js` SHA256 `62e8b384829f732ad3b069bc64036a147682a6145e9765eee44b159c4b45de00`、CSS `index-DYxTNwXu.css` SHA256 `7c575ace9be0fd08ef0bf471283a63950dda0357f780c2e41135949074ecea74`，与本地/服务器构建一致。
+- 线上入口https://td.unreached.top/；请原账号刷新后到学生管理→批量导入名册。500×50虚构Excel和移动壳层证据属于隔离环境检查，生产真实账号、原Excel、真机和批改流程末端仍由用户验收。
 
 ### 2026-10-26 液态玻璃与真实课次/表现轮次（已发布，真实使用由用户验收）
 
@@ -165,7 +172,7 @@ flowchart LR
 - DNS：阿里云 `td` A 记录指向 `43.172.77.153`，TTL 10 分钟。
 - 公网只使用 80/443；80 自动跳转 HTTPS，应用端口 4317 只监听回环。
 - 服务：`teacher-dashboard.service`；每日备份：`teacher-dashboard-backup.timer`。
-- 代码：2026-10-26 current指向 `/opt/teacher-dashboard/releases/b10db2fd0a1b5b565e6b43f001e1957cd523edda`，对应PR #72；上一版2d87132及手工恢复点保留，本轮不清理服务器历史发布目录。
+- 代码：2026-10-26 current指向 `/opt/teacher-dashboard/releases/78e933d0b7bff7aa73e721d1a8196150942dbf79`，对应PR #74；上一版b10db2f、更早2d87132及手工恢复点保留，本轮不清理服务器历史发布目录。
 - 数据：`/var/lib/teacher-dashboard/product-2026-09-16-r2`。
 - 证书：Let's Encrypt，当前证书到期日 2026-12-15，Certbot 自动续期。
 - 健康检查：`/api/health/live` 与 `/api/health/ready`。
