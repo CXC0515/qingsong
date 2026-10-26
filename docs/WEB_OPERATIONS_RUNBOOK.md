@@ -49,7 +49,7 @@ curl -sSI https://td.unreached.top/
 正式服务只能发布已验收并合入 `origin/main` 的提交：
 
 1. 在 `/opt/teacher-dashboard/releases/<commit>` 创建新发布目录。
-2. 执行 `npm ci`、`npm run build` 和与风险相称的测试。
+2. 先按 `.node-version` 安装/选用项目运行时（Linux安装器：`sudo bash ops/linux/install-node-runtime.sh`），把对应 `bin` 放到 PATH 首位。当前固定Node24.22.1；应用、DSH和备份使用同版。新发布分别执行根目录与agent的 `npm ci --no-audit --no-fund`、类型检查、构建和与风险相称的测试。不要复用旧Node的原生模块；详见 [Node统一](NODE24_UNIFICATION.md)。
 3. 确认数据结构变更及恢复点；需要迁移时先按 [WEB_DATA_MIGRATION_RUNBOOK.md](./WEB_DATA_MIGRATION_RUNBOOK.md) 创建在线产品快照。
 4. 原子更新 `/opt/teacher-dashboard/current` 符号链接。
 5. `sudo systemctl restart teacher-dashboard`，检查日志、回环健康和公网健康。
@@ -86,8 +86,8 @@ sudo journalctl -u teacher-dashboard-backup.service -n 100 --no-pager
 ```bash
 sudo systemctl stop teacher-dashboard
 cd /opt/teacher-dashboard/current
-sudo -u teacher-dashboard /usr/bin/node --import tsx server/scripts/verifyProductData.ts <snapshot>
-sudo -u teacher-dashboard /usr/bin/node --import tsx server/scripts/restoreProductData.ts <snapshot> <new-target>
+sudo -u teacher-dashboard /opt/teacher-dashboard/runtimes/node-v24.22.1-linux-x64/bin/node --import tsx server/scripts/verifyProductData.ts <snapshot>
+sudo -u teacher-dashboard /opt/teacher-dashboard/runtimes/node-v24.22.1-linux-x64/bin/node --import tsx server/scripts/restoreProductData.ts <snapshot> <new-target>
 ```
 
 随后把环境文件中的 `APP_DATA_ROOT` 指向新目录，启动服务并验收。禁止把快照覆盖到原目录，禁止普通复制在线 SQLite。
