@@ -1,11 +1,20 @@
 # 青松教师 项目当前交接
 
 > 本文是当前统一交接入口。历史专项文档只用于追溯当时的决策，不再代表当前 Git、数据路径或部署状态。
-> 更新时间：2026-10-23；当前应用生产提交：2d87132e1b838358d9393e41b7bd9cb170dcc957（PR #70）。
+> 更新时间：2026-10-26；当前应用生产提交：b10db2fd0a1b5b565e6b43f001e1957cd523edda（PR #72）。
 
 > 改名进度：中文品牌「青松教师」，英文项目名 `qingsong`；GitHub 仓库为 `CXC0515/qingsong`，母文件夹已迁至 `/Users/cxc/Projects/qingsong`。品牌代码经 PR #55 合并，已随PR #57部署服务器；实际切换与验证见 [改名记录](./QINGSONG_RENAME.md)。
 
 ## 1. 当前阶段与产品边界
+
+### 2026-10-26 液态玻璃与真实课次/表现轮次（已发布，真实使用由用户验收）
+
+- PR #72已合并，应用提交b10db2fd0a1b5b565e6b43f001e1957cd523edda；母文件夹main同步后git archive打包，SHA256 c71b1a67cc9de219e99f2587648791e82405caadccdbadbfe237ffb8c582562f。全站公共控件、最新工作台和课堂任务设计按DESIGN.md v1.4；历史候选段落仅用于追溯。
+- 本地及服务器类型检查、构建、31项课堂专项和25项迁移/隔离/中断恢复/队列/投影/在线快照测试通过。已知大包警告、简化鉴权测试夹具诊断保留，不宣称无警告。
+- 切换前核对无运行中后台任务；停服后通过SQLite在线备份创建并验证1285文件/7库恢复点 `/var/lib/teacher-dashboard/backups/manual/product-2026-10-26-pre-glass-b10db2f`。3个工作区roster由14迁到16，全部旧表记录数及内容哈希不变，新增元数据表初始为空；7库完整性ok、外键错误0。
+- 服务器current切到本提交；回环live/ready正常、服务active/running、NRestarts=0、备份timer active。启动等待阶段出现短暂连接失败，随后正常，未触发回滚。公网首页/live/ready均200、匿名课堂接口401；公网JS `index-B1goqmEd.js` SHA256 `189fa2c424f05cf38223e99ffc193987230de9d9232d40f31e4d2561dd5c84fb`，CSS `index-H7D4UmUc.css` SHA256 `73d5e8005805356a42c7cfbe466e96042a04ae309d5339380d1ce26ac360cdab`，与本地构建逐字节一致。
+- Harness方案v1.1仅文档，未安装/集成/调用模型。UI功能、真机/软键盘/跨浏览器和学生弹窗完整关闭保护仍由用户验收；不以构建/健康检查代替真实使用。
+
 
 ### 2026-10-26 UI交付与Harness方案文档
 
@@ -149,7 +158,7 @@ flowchart LR
 - DNS：阿里云 `td` A 记录指向 `43.172.77.153`，TTL 10 分钟。
 - 公网只使用 80/443；80 自动跳转 HTTPS，应用端口 4317 只监听回环。
 - 服务：`teacher-dashboard.service`；每日备份：`teacher-dashboard-backup.timer`。
-- 代码：2026-10-23核对current指向/opt/teacher-dashboard/releases/2d87132e1b838358d9393e41b7bd9cb170dcc957，对应PR #70；上一版b8eeb63保留，未清理其他发布目录。
+- 代码：2026-10-26 current指向 `/opt/teacher-dashboard/releases/b10db2fd0a1b5b565e6b43f001e1957cd523edda`，对应PR #72；上一版2d87132及手工恢复点保留，本轮不清理服务器历史发布目录。
 - 数据：`/var/lib/teacher-dashboard/product-2026-09-16-r2`。
 - 证书：Let's Encrypt，当前证书到期日 2026-12-15，Certbot 自动续期。
 - 健康检查：`/api/health/live` 与 `/api/health/ready`。
