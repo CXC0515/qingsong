@@ -92,7 +92,7 @@ export const createReminderDrafts = async (
   fetcher: typeof fetch = fetch,
   now: Date = new Date()
 ): Promise<{ drafts: ReminderImportDraft[]; warnings: string[] }> => {
-  const model = config.reminderModel || 'gpt-5.6-luna';
+  const model = config.reminderModel || 'gpt-6-luna';
   if (!config.apiKey || !model) throw new Error('REMINDER_MODEL_NOT_CONFIGURED');
   const classes = listClasses().filter(item => item.status === 'active');
   const prompt = buildReminderImportPrompt(text, classes.map(item => item.name), localReferenceTime(now));
