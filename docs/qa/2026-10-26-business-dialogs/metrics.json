@@ -1,0 +1,162 @@
+{
+  "excel": {
+    "metrics": [
+      {
+        "width": 375,
+        "height": 568,
+        "bodyHeight": 329,
+        "scrollHeight": 17869,
+        "scrollTop": 17540,
+        "footerBottom": 561,
+        "horizontalOverflow": false
+      },
+      {
+        "width": 844,
+        "height": 390,
+        "bodyHeight": 207,
+        "scrollHeight": 17537,
+        "scrollTop": 17330,
+        "footerBottom": 367.3984375,
+        "horizontalOverflow": false
+      },
+      {
+        "width": 640,
+        "height": 360,
+        "bodyHeight": 179,
+        "scrollHeight": 17679,
+        "scrollTop": 17473,
+        "footerBottom": 338.59375,
+        "horizontalOverflow": false
+      }
+    ],
+    "closed": 0,
+    "overflow": ""
+  },
+  "graph": {
+    "metrics": [
+      {
+        "width": 1280,
+        "height": 720,
+        "bodyHeight": 510,
+        "scrollHeight": 650,
+        "scrollTop": 139.5,
+        "footerBottom": 684.1953125,
+        "horizontalOverflow": false
+      },
+      {
+        "width": 375,
+        "height": 568,
+        "bodyHeight": 388,
+        "scrollHeight": 722,
+        "scrollTop": 334,
+        "footerBottom": 561,
+        "horizontalOverflow": false
+      },
+      {
+        "width": 844,
+        "height": 390,
+        "bodyHeight": 207,
+        "scrollHeight": 650,
+        "scrollTop": 384,
+        "footerBottom": 367.3984375,
+        "horizontalOverflow": false
+      },
+      {
+        "width": 640,
+        "height": 360,
+        "bodyHeight": 179,
+        "scrollHeight": 650,
+        "scrollTop": 411.5,
+        "footerBottom": 338.59375,
+        "horizontalOverflow": false
+      }
+    ],
+    "validation": {
+      "invalid": true,
+      "focused": true
+    },
+    "nestedOpen": {
+      "count": 2,
+      "overflow": "hidden"
+    },
+    "afterNestedClose": {
+      "count": 1,
+      "overflow": "hidden",
+      "focus": "管理学科"
+    },
+    "afterClose": {
+      "count": 0,
+      "overflow": ""
+    },
+    "relationValidation": true
+  },
+  "resource": {
+    "metrics": [
+      {
+        "width": 1280,
+        "height": 720,
+        "bodyHeight": 510,
+        "scrollHeight": 564,
+        "scrollTop": 53.5,
+        "footerBottom": 684.1953125,
+        "horizontalOverflow": false
+      },
+      {
+        "width": 375,
+        "height": 568,
+        "bodyHeight": 388,
+        "scrollHeight": 784,
+        "scrollTop": 396,
+        "footerBottom": 561,
+        "horizontalOverflow": false
+      },
+      {
+        "width": 844,
+        "height": 390,
+        "bodyHeight": 207,
+        "scrollHeight": 564,
+        "scrollTop": 357,
+        "footerBottom": 367.3984375,
+        "horizontalOverflow": false
+      }
+    ],
+    "validation": {
+      "invalid": true,
+      "focused": true
+    },
+    "sourceChanged": "true"
+  },
+  "student": {
+    "metrics": [
+      {
+        "width": 1280,
+        "height": 720,
+        "bodyHeight": 568,
+        "scrollHeight": 568,
+        "scrollTop": 0,
+        "footerBottom": 713,
+        "horizontalOverflow": false
+      },
+      {
+        "width": 375,
+        "height": 568,
+        "bodyHeight": 388,
+        "scrollHeight": 625,
+        "scrollTop": 236.5,
+        "footerBottom": 561,
+        "horizontalOverflow": false
+      },
+      {
+        "width": 844,
+        "height": 390,
+        "bodyHeight": 238,
+        "scrollHeight": 524,
+        "scrollTop": 286,
+        "footerBottom": 383,
+        "horizontalOverflow": false
+      }
+    ],
+    "closed": 0,
+    "overflow": ""
+  }
+}

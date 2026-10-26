@@ -186,20 +186,6 @@ export default function VirtualClassroom({
     };
   }, [expandedSeats]);
 
-  useEffect(() => {
-    if (!selectedStudent || editMode) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setSelectedStudentId(null);
-    };
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [editMode, selectedStudent]);
-
   const updateDraftSeats = (seats: ClassroomLayout['seats']) => {
     setDraft(current => current ? { ...current, seats } : current);
   };
@@ -732,40 +718,30 @@ export default function VirtualClassroom({
           </section>
         </div>
       </ResponsiveDialog>}
-      {selectedStudent && !editMode && createPortal(
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-40 bg-black/35 backdrop-blur-[1px]"
-            onClick={() => setSelectedStudentId(null)}
-            aria-label="关闭学生画像"
-          />
-          <aside
-            role="dialog"
-            aria-modal="true"
-            aria-label={`${selectedStudent.name}的学生画像`}
-            className="fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-white shadow-2xl sm:max-w-md dark:bg-zinc-900"
-          >
-            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 p-5 dark:border-zinc-800">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="truncate text-lg font-bold text-slate-900 dark:text-slate-100">{selectedStudent.name}</h3>
-                    {selectedStudent.committeeRoleIds.map(roleId => committeeRoleById.get(roleId)).filter(Boolean).map(roleName => (
-                      <span key={roleName} className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
-                        <Award className="h-3 w-3" />{roleName}
-                      </span>
-                    ))}
-                  </div>
-                  <p className="mt-1 text-xs font-mono text-slate-400">{selectedStudent.studentNo} · {selectedStudent.className}</p>
-                </div>
-              </div>
-              <button type="button" onClick={() => setSelectedStudentId(null)} className="rounded-md p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800" aria-label="关闭">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 space-y-5 overflow-y-auto p-5">
+      {selectedStudent && !editMode && (
+        <ResponsiveDialog sideOnMedium compactFull title={`${selectedStudent.name}的学生画像`}
+          subtitle={`${selectedStudent.studentNo} · ${selectedStudent.className}`}
+          busy={submittingObservation} onClose={() => setSelectedStudentId(null)}
+          footer={<div className="grid w-full grid-cols-2 gap-2">
+              <GlassButton
+                type="button"
+                disabled={submittingObservation}
+                onClick={() => { setSelectedStudentId(null); onManageStudent(selectedStudent.id); }}
+                variant="secondary" className="px-3 py-2.5 text-xs font-semibold"
+              >
+                学生管理
+              </GlassButton>
+              <GlassButton
+                type="button"
+                disabled={submittingObservation}
+                onClick={() => { setSelectedStudentId(null); onViewStudentProfile(selectedStudent.id); }}
+                variant="primary" className="px-3 py-2.5 text-xs font-semibold"
+              >
+                查看完整画像
+              </GlassButton>
+          </div>}
+        >
+          {selectedStudent.committeeRoleIds.map(roleId => committeeRoleById.get(roleId)).filter(Boolean).map(roleName => <span key={roleName} className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-1 text-xs text-amber-800"><Award className="h-3 w-3" />{roleName}</span>)}
               <div className="grid grid-cols-2 gap-3 rounded-md bg-slate-50 p-3 text-xs dark:bg-zinc-800/40">
                 <div><span className="text-slate-400">学情状态</span><p className="mt-1"><span className={`inline-flex rounded border px-2 py-1 font-semibold ${statusMeta[selectedStudent.status].badge}`}>{statusMeta[selectedStudent.status].label}</span></p></div>
                 <div><span className="text-slate-400">在班状态</span><p className="mt-2 font-semibold text-slate-700 dark:text-slate-200">{selectedStudent.enrollmentStatus === 'active' ? '在班' : selectedStudent.enrollmentStatus === 'suspended' ? '暂缓' : '已离班'}</p></div>
@@ -816,27 +792,7 @@ export default function VirtualClassroom({
                   保存观察
                 </GlassButton>
               </section>
-            </div>
-
-            <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-slate-100 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-              <GlassButton
-                type="button"
-                onClick={() => { setSelectedStudentId(null); onManageStudent(selectedStudent.id); }}
-                variant="secondary" className="px-3 py-2.5 text-xs font-semibold"
-              >
-                学生管理
-              </GlassButton>
-              <GlassButton
-                type="button"
-                onClick={() => { setSelectedStudentId(null); onViewStudentProfile(selectedStudent.id); }}
-                variant="primary" className="px-3 py-2.5 text-xs font-semibold"
-              >
-                查看完整画像
-              </GlassButton>
-            </div>
-          </aside>
-        </>,
-        document.body
+        </ResponsiveDialog>
       )}
     </div>
   );

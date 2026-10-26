@@ -1,11 +1,11 @@
+import ResponsiveDialog from '../../components/ResponsiveDialog';
 import { GlassButton } from '../../components/glass/Glass';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import React, { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Archive,
@@ -99,37 +99,6 @@ interface WorkspaceProps {
   onShowToast: (message: string) => void;
 }
 
-const DialogShell = ({
-  title,
-  subtitle,
-  onClose,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) => createPortal(
-  <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/35 backdrop-blur-sm sm:p-4" onMouseDown={onClose}>
-    <div
-      className="glass-panel flex h-full w-full flex-col overflow-hidden shadow-2xl sm:h-auto sm:max-h-[calc(100vh-2rem)] sm:max-w-2xl sm:rounded-xl"
-      onMouseDown={(event) => event.stopPropagation()}
-    >
-      <header className="flex items-start justify-between border-b border-slate-200/70 px-5 py-4 dark:border-zinc-800">
-        <div>
-          <h3 className="font-black text-slate-900 dark:text-zinc-50">{title}</h3>
-          {subtitle ? <p className="mt-1 text-xs text-slate-400">{subtitle}</p> : null}
-        </div>
-        <button type="button" onClick={onClose} title="关闭" className="grid h-8 w-8 place-items-center rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800">
-          <X className="h-4 w-4" />
-        </button>
-      </header>
-      {children}
-    </div>
-  </div>,
-  document.body,
-);
-
 const NodeDialog = ({ node, nodes, subjects, stages, availableTags, defaultSubject, onManageSubjects, onClose, onSaved, onShowToast }: {
   node?: KnowledgeEntity;
   nodes: KnowledgeEntity[];
@@ -168,6 +137,7 @@ const NodeDialog = ({ node, nodes, subjects, stages, availableTags, defaultSubje
   });
   const [aliasText, setAliasText] = useState(input.aliases.join("、"));
   const [tagText, setTagText] = useState(input.tags.join("、"));
+  const formId = useId();
   const [saving, setSaving] = useState(false);
   const isStructural = structuralTypes.has(input.type);
   const motherCandidates = nodes.filter((candidate) =>
@@ -209,9 +179,15 @@ const NodeDialog = ({ node, nodes, subjects, stages, availableTags, defaultSubje
   };
 
   return (
-    <DialogShell title={node ? "编辑节点" : "新增节点"} subtitle={node ? `稳定编码：${node.code}` : "先确定它在知识结构中的位置"} onClose={onClose}>
-      <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto p-4 sm:grid-cols-2 sm:overflow-visible sm:p-5">
+    <ResponsiveDialog compactFull busy={saving} title={node ? "编辑节点" : "新增节点"} subtitle={node ? `稳定编码：${node.code}` : "先确定它在知识结构中的位置"} onClose={onClose} footer={<>
+        <GlassButton type="button" disabled={saving} onClick={onClose} variant="secondary">取消</GlassButton>
+        <GlassButton type="submit" form={formId} disabled={saving} variant="primary" className="flex items-center gap-2">
+          {saving && <LoaderCircle className="h-4 w-4 animate-spin" />}保存
+        </GlassButton>
+      </>}>
+      <form id={formId} onSubmit={submit}>
+        <fieldset disabled={saving} className="min-w-0">
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="space-y-1">
             <span className="text-xs font-bold text-slate-500">名称</span>
             <input required value={input.name} onChange={(event) => update("name", event.target.value)} className={'qs-field-input '+(fieldClass)} />
@@ -268,14 +244,10 @@ const NodeDialog = ({ node, nodes, subjects, stages, availableTags, defaultSubje
             可被 AI 批改与学生画像作为训练目标引用
           </label>
         </div>
-        <footer className="flex justify-end gap-2 border-t border-slate-200/70 px-5 py-4 dark:border-zinc-800">
-          <GlassButton type="button" onClick={onClose} variant="secondary" className="px-4 py-2 text-sm">取消</GlassButton>
-          <button disabled={saving} className="btn-primary flex items-center gap-2 px-4 py-2 text-sm">
-            {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}保存
-          </button>
-        </footer>
+
+      </fieldset>
       </form>
-    </DialogShell>
+    </ResponsiveDialog>
   );
 };
 
@@ -290,6 +262,7 @@ const RelationDialog = ({ selected, nodes, onClose, onSaved, onShowToast }: {
   const [targetNodeId, setTargetNodeId] = useState("");
   const [type, setType] = useState<KnowledgeRelationType>("related");
   const [description, setDescription] = useState("");
+  const formId = useId();
   const [saving, setSaving] = useState(false);
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -306,9 +279,15 @@ const RelationDialog = ({ selected, nodes, onClose, onSaved, onShowToast }: {
     }
   };
   return (
-    <DialogShell title="建立辅助关系" subtitle="知识归属请在“编辑节点”中修改主要母节点" onClose={onClose}>
-      <form onSubmit={submit}>
-        <div className="space-y-4 p-5">
+    <ResponsiveDialog compactFull busy={saving} title="建立辅助关系" subtitle="知识归属请在“编辑节点”中修改主要母节点" onClose={onClose} footer={<>
+        <GlassButton type="button" disabled={saving} onClick={onClose} variant="secondary">取消</GlassButton>
+        <GlassButton type="submit" form={formId} disabled={saving} variant="primary" className="flex items-center gap-2">
+          {saving && <LoaderCircle className="h-4 w-4 animate-spin" />}建立关系
+        </GlassButton>
+      </>}>
+      <form id={formId} onSubmit={submit}>
+        <fieldset disabled={saving} className="min-w-0">
+        <div className="space-y-4">
           <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm font-bold dark:bg-zinc-900">起点：{selected.name}</div>
           <label className="block space-y-1">
             <span className="text-xs font-bold text-slate-500">关系</span>
@@ -330,12 +309,10 @@ const RelationDialog = ({ selected, nodes, onClose, onSaved, onShowToast }: {
             <textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} className={'qs-field-input '+(fieldClass)} />
           </label>
         </div>
-        <footer className="flex justify-end gap-2 border-t border-slate-200/70 px-5 py-4 dark:border-zinc-800">
-          <GlassButton type="button" onClick={onClose} variant="secondary" className="px-4 py-2 text-sm">取消</GlassButton>
-          <button disabled={saving} className="btn-primary px-4 py-2 text-sm">建立关系</button>
-        </footer>
+
+      </fieldset>
       </form>
-    </DialogShell>
+    </ResponsiveDialog>
   );
 };
 
@@ -399,18 +376,18 @@ const SubjectManagerDialog = ({ subjects, onClose, onSaved, onShowToast }: {
     }
   };
   return (
-    <DialogShell title="管理学科" subtitle="学科代码创建后保持不变，用于生成知识点编码" onClose={onClose}>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+    <ResponsiveDialog compactFull busy={saving} title="管理学科" subtitle="学科代码创建后保持不变，用于生成知识点编码" onClose={onClose} footer={<form onSubmit={addSubject} className="grid w-full gap-2 sm:grid-cols-[minmax(0,1fr)_120px_auto]">
+          <input disabled={saving} required value={name} onChange={(event) => setName(event.target.value)} placeholder="新学科名称" className={'qs-field-input '+(fieldClass)} />
+          <input disabled={saving} required value={code} onChange={(event) => setCode(event.target.value.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8))} placeholder="英文代码" className={'qs-field-input '+(fieldClass)} />
+          <GlassButton type="submit" disabled={saving} variant="primary">新增</GlassButton>
+        </form>}>
+      <div className="min-w-0">
         <div className="divide-y divide-slate-200 rounded-lg border border-slate-200 dark:divide-zinc-800 dark:border-zinc-700">
-          {subjects.map((subject) => <div key={subject.id} className="flex items-center gap-3 px-3 py-2.5"><span className="w-16 shrink-0 font-mono text-[10px] font-bold text-slate-400">{subject.code}</span><span className="min-w-0 flex-1 truncate text-sm font-bold">{subject.name}</span><button type="button" onClick={() => void renameSubject(subject)} className="text-xs font-bold text-slate-500 hover:text-emerald-700">改名</button><button type="button" onClick={() => void deactivateSubject(subject)} className="text-xs font-bold text-rose-500">停用</button></div>)}
+          {subjects.map((subject) => <div key={subject.id} className="flex items-center gap-3 px-3 py-2.5"><span className="w-16 shrink-0 font-mono text-[10px] font-bold text-slate-400">{subject.code}</span><span className="min-w-0 flex-1 truncate text-sm font-bold">{subject.name}</span><button type="button" onClick={() => void renameSubject(subject)} disabled={saving} className="min-h-11 px-2 text-xs font-bold text-slate-500 hover:text-emerald-700">改名</button><button type="button" onClick={() => void deactivateSubject(subject)} disabled={saving} className="min-h-11 px-2 text-xs font-bold text-rose-500">停用</button></div>)}
         </div>
-        <form onSubmit={addSubject} className="mt-4 grid gap-2 sm:grid-cols-[1fr_120px_auto]">
-          <input required value={name} onChange={(event) => setName(event.target.value)} placeholder="新学科名称" className={'qs-field-input '+(fieldClass)} />
-          <input required value={code} onChange={(event) => setCode(event.target.value.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8))} placeholder="英文代码" className={'qs-field-input '+(fieldClass)} />
-          <button disabled={saving} className="btn-primary px-4 py-2 text-sm">新增</button>
-        </form>
+
       </div>
-    </DialogShell>
+    </ResponsiveDialog>
   );
 };
 
@@ -656,6 +633,7 @@ const MergeDialog = ({ selected, nodes, onClose, onSaved, onShowToast }: {
   onShowToast: (message: string) => void;
 }) => {
   const [targetId, setTargetId] = useState("");
+  const formId = useId();
   const [saving, setSaving] = useState(false);
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -672,9 +650,15 @@ const MergeDialog = ({ selected, nodes, onClose, onSaved, onShowToast }: {
     }
   };
   return (
-    <DialogShell title="合并重复节点" subtitle={`将“${selected.name}”合并到保留节点`} onClose={onClose}>
-      <form onSubmit={submit}>
-        <div className="p-5">
+    <ResponsiveDialog compactFull busy={saving} title="合并重复节点" subtitle={`将“${selected.name}”合并到保留节点`} onClose={onClose} footer={<>
+        <GlassButton type="button" disabled={saving} onClick={onClose} variant="secondary">取消</GlassButton>
+        <GlassButton type="submit" form={formId} disabled={saving} variant="danger" className="flex items-center gap-2">
+          {saving && <LoaderCircle className="h-4 w-4 animate-spin" />}确认合并
+        </GlassButton>
+      </>}>
+      <form id={formId} onSubmit={submit}>
+        <fieldset disabled={saving} className="min-w-0">
+        <div className="space-y-4">
           <label className="block space-y-1">
             <span className="text-xs font-bold text-slate-500">保留哪个节点</span>
             <select required value={targetId} onChange={(event) => setTargetId(event.target.value)} className={'qs-field-input '+(fieldClass)}>
@@ -683,11 +667,9 @@ const MergeDialog = ({ selected, nodes, onClose, onSaved, onShowToast }: {
             </select>
           </label>
         </div>
-        <footer className="flex justify-end gap-2 border-t border-slate-200/70 px-5 py-4 dark:border-zinc-800">
-          <GlassButton type="button" onClick={onClose} variant="secondary" className="px-4 py-2 text-sm">取消</GlassButton>
-          <button disabled={saving} className="btn-primary px-4 py-2 text-sm">确认合并</button>
-        </footer>
+
+      </fieldset>
       </form>
-    </DialogShell>
+    </ResponsiveDialog>
   );
 };

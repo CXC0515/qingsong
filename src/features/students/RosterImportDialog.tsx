@@ -1,6 +1,7 @@
 import { GlassButton } from '../../components/glass/Glass';
-import React, { useState } from 'react';
-import { FileSpreadsheet, RefreshCw, Upload, X } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import ResponsiveDialog from '../../components/ResponsiveDialog';
+import { FileSpreadsheet, RefreshCw, Upload } from 'lucide-react';
 import { SchoolClass } from '../../domain/types';
 import {
   describeRosterImportError,
@@ -51,6 +52,7 @@ export default function RosterImportDialog({
   onImport,
   onComplete
 }: Props) {
+  const closeRef = useRef<(() => void) | null>(null);
   const [classId, setClassId] = useState(initialClassId);
   const [text, setText] = useState('');
   const [grid, setGrid] = useState<RosterImportGrid | null>(null);
@@ -143,27 +145,20 @@ export default function RosterImportDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-0 backdrop-blur-sm sm:p-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="智能导入学生资料"
-        aria-busy={busy}
-        className="flex max-h-[100dvh] w-full max-w-4xl flex-col overflow-hidden rounded-none bg-white shadow-2xl dark:bg-zinc-900 sm:max-h-[92dvh] sm:rounded-3xl"
-      >
-        <div className="flex items-start justify-between gap-3 border-b p-4 sm:p-5">
-          <div>
-            <h3 className="font-bold">智能导入学生资料</h3>
-            <p className="mt-1 text-xs leading-5 text-slate-500">
-              系统会按第一行列名自动匹配；请确认每项学生资料来自表格中的哪一列。
-            </p>
-          </div>
-          <button type="button" onClick={onClose} aria-label="关闭" className="grid min-h-11 min-w-11 place-items-center rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
+    <ResponsiveDialog
+      title="智能导入学生资料"
+      subtitle="系统会按第一行列名自动匹配；请确认每项学生资料来自表格中的哪一列。"
+      wide compactFull busy={busy} closeRef={closeRef}
+      confirmDiscard={Boolean(text.trim() || grid)} onClose={onClose}
+      footer={<div className="grid w-full grid-cols-2 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+        <span className="col-span-2 text-xs leading-5 text-slate-500 sm:col-span-1">冲突和不可处理行不会写入数据库。</span>
+        <GlassButton type="button" disabled={busy} onClick={() => closeRef.current?.()} variant="secondary">取消</GlassButton>
+        <GlassButton type="button" disabled={!grid || !preview || busy || totals.create + totals.update === 0}
+          onClick={() => void apply()} variant="primary">
+          {busy ? '处理中…' : `确认新增/更新 ${totals.create + totals.update} 条`}
+        </GlassButton>
+      </div>}
+    >
           <label className="space-y-1">
             <span className="text-xs font-bold text-slate-500">目标班级</span>
             <select
@@ -182,14 +177,14 @@ export default function RosterImportDialog({
             </select>
           </label>
 
-          <div className="grid gap-3 md:grid-cols-[1fr_180px]">
+          <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
             <textarea
               value={text}
               disabled={busy}
               onChange={event => setText(event.target.value)}
               rows={7}
               placeholder={'序号\t学号\t学生姓名\t性别\n1\t20260001\t张三\t女'}
-              className="qs-field-input rounded-2xl border bg-slate-50 p-3 font-mono text-base disabled:opacity-60 sm:text-sm"
+              className="qs-field-input min-w-0 w-full rounded-2xl border bg-slate-50 p-3 font-mono text-base disabled:opacity-60 sm:text-sm"
             />
             <div className="flex flex-col gap-2">
               <GlassButton
@@ -259,7 +254,7 @@ export default function RosterImportDialog({
                         value={selectedIndex}
                         disabled={busy}
                         onChange={event => void updateFieldMapping(field.value, event.target.value)}
-                        className="qs-field-input min-h-11 rounded-lg border bg-white px-3 py-2 text-base disabled:opacity-60 sm:text-sm"
+                        className="qs-field-input min-w-0 w-full min-h-11 rounded-lg border bg-white px-3 py-2 text-base disabled:opacity-60 sm:text-sm"
                       >
                         <option value="">不导入</option>
                         {grid.headers.map((header, index) => {
@@ -317,24 +312,7 @@ export default function RosterImportDialog({
               </div>
             </>
           )}
-        </div>
-
-        <div className="flex flex-col gap-3 border-t p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-xs leading-5 text-slate-500">冲突和不可处理行不会写入数据库。</span>
-          <div className="grid grid-cols-2 gap-2 sm:flex">
-            <button type="button" onClick={onClose} className="min-h-11 rounded-xl bg-slate-100 px-4 text-sm">取消</button>
-            <GlassButton
-              type="button"
-              disabled={!grid || !preview || busy || totals.create + totals.update === 0}
-              onClick={() => void apply()}
-              variant="primary" className="min-h-11 px-4 text-sm font-bold disabled:opacity-40"
-            >
-              {busy ? '处理中…' : `确认新增/更新 ${totals.create + totals.update} 条`}
-            </GlassButton>
-          </div>
-        </div>
-      </div>
-    </div>
+    </ResponsiveDialog>
   );
 }
 
