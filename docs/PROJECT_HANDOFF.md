@@ -1,18 +1,26 @@
 # 青松教师 项目当前交接
 
 > 本文是当前统一交接入口。历史专项文档只用于追溯当时的决策，不再代表当前 Git、数据路径或部署状态。
-> 更新时间：2026-10-26；当前应用生产提交：78e933d0b7bff7aa73e721d1a8196150942dbf79（PR #74）。
+> 更新时间：2026-10-26；当前应用生产提交：70af83d787c92a8ecd83c96421258b6e0fcfde76（PR #76，Node统一及DSH基础包）。
 
 > 改名进度：中文品牌「青松教师」，英文项目名 `qingsong`；GitHub 仓库为 `CXC0515/qingsong`，母文件夹已迁至 `/Users/cxc/Projects/qingsong`。品牌代码经 PR #55 合并，已随PR #57部署服务器；实际切换与验证见 [改名记录](./QINGSONG_RENAME.md)。
 
 ## 1. 当前阶段与产品边界
 
-### 2026-10-26 Harness基础与Node统一（实施中，助手尚未接通）
+### 2026-10-26 Harness基础与Node统一（基础包已发布，助手尚未接通）
 
 - 用户已选择青松工作台作为入口，复用DSH/Cordis后台、原生模型配置及自有模型；未来QQ渠道另行接入。采用薄的教学身份/工具/规则适配，现有Express业务服务保留。
 - 独立`codex/harness-runtime`从origin/main@d207481开始，固定DSH/SDK0.2.1-rc.3。用户随后明确批准应用、DSH、构建与备份统一Node24.22.1；不替换系统Node22，保留旧发布恢复路径。范围见[Node统一](NODE24_UNIFICATION.md)。
 - 本地精确24.22.1：类型检查、构建、219项测试、SQLite读写、sharp缩放及DSH会话关闭恢复探针通过。探针使用本机虚构模型2次、工具为空、真实模型调用0。锁文件仅变更Node约束，没有升级依赖。
-- 服务器已安装并校验官方Node24.22.1，服务仍在原版本；待服务器独立检查、恢复点和切换。青松助手界面及业务工具尚未接通，不能据探针宣称助手可用。见[基础接入实施](HARNESS_BASELINE_IMPLEMENTATION.md)。
+- 服务器独立类型检查、构建、219项测试、SQLite/sharp和DSH探针通过；已校验1285文件/7库在线恢复点并切换到70af83d，进程实际可执行文件为项目专属Node24.22.1，NRestarts=0。青松助手界面及业务工具尚未接通，不能据探针宣称助手可用。见[基础接入实施](HARNESS_BASELINE_IMPLEMENTATION.md)。
+
+
+### 2026-10-26 Node24生产发布证据
+
+- PR #76合并为70af83d787c92a8ecd83c96421258b6e0fcfde76；母文件夹同步稳定main后打包，归档SHA256 `85284b853bf9d2e8ccb61e0f6dbe0ccc575f08430eb99c1c9f3aab433ec0815b`。服务器重新安装根与agent依赖，类型/构建/219测试及原生模块和DSH虚构模型探针通过；真实模型调用0。
+- 切换前运行中任务0，短暂停写，在线恢复点`/var/lib/teacher-dashboard/backups/manual/product-2026-10-26-pre-node24-70af83d`已验证1285文件/7 SQLite。旧服务定义保存在独立`/var/lib/teacher-dashboard/backups/manual/node24-units-70af83d`；旧release78e933d、系统Node22与既有手工备份保留。
+- current为`/opt/teacher-dashboard/releases/70af83d787c92a8ecd83c96421258b6e0fcfde76`，应用实际进程为`/opt/teacher-dashboard/runtimes/node-v24.22.1-linux-x64/bin/node`。应用/备份定义统一此路径与PATH；系统`/usr/bin/node`不替换。不执行数据库迁移或恢复。
+- 实际执行新Node下的备份服务成功（Result=success，ExecMainStatus=0），备份timer active；7库integrity_check=ok、外键错误0，三个roster仍为schema16。回环/公网首页/live/ready为200，匿名roster为401；JS/CSS哈希与PR #74发布一致。真实教师流程和真机验收仍待用户；本次没有新增用户界面。DSH包及探针已上线到release，尚无常驻助手进程、聊天入口或业务工具接通。
 
 
 ### 2026-10-26 教学助手整体架构方案v2.0（仅文档，待评审）
