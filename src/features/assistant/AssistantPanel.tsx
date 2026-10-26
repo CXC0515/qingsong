@@ -234,6 +234,7 @@ export default function AssistantPanel() {
           disabled={sending}
           onClick={() => {
             setChat(null);
+            setModel(current => available.some(m => `${m.provider}/${m.id}` === current) ? current : available[0] ? `${available[0].provider}/${available[0].id}` : '');
             setError('');
             requestRef.current = null;
             try {
