@@ -1,5 +1,6 @@
+import AssistantPanel from '../assistant/AssistantPanel';
 import { GlassButton, GlassSurface } from '../../components/glass/Glass';
-import { BookOpen, Calendar, Clock, FileText, Workflow, MessageSquare, ClipboardCheck } from 'lucide-react';
+import { BookOpen, Calendar, Clock, FileText, Workflow, ClipboardCheck } from 'lucide-react';
 import type { SchoolClass, ScheduleItem, TimerReminder } from '../../domain/types';
 
 interface WorkbenchProps {
@@ -43,7 +44,7 @@ export default function Workbench({classes,schedule,reminders,selectedClassId,on
           <div className="glass-panel qs-workbench-daily-card rounded-2xl"><div className="flex items-center justify-between"><h3 className="flex items-center gap-1.5 text-sm font-bold"><Clock className="h-4 w-4 text-amber-600"/>提醒日程</h3><button onClick={()=>onNavigate('schedule')} className="text-[11px] font-bold text-emerald-700 hover:underline">查看全部</button></div><div className="qs-workbench-daily-list">{activeReminders.slice(0,3).map(item=><div key={item.id} className={`rounded-xl border-l-4 p-3 ${reminderIsOverdue(item)?'border-l-red-500 bg-red-50/70':'border-l-amber-500 bg-amber-50/70'}`}><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold">{item.name}</p><span className="text-[10px] font-bold text-slate-500">{item.timeKind==='none'?'时间待定':item.startAt?.slice(11,16)||item.time}</span></div><p className="mt-1 text-[10px] text-slate-400">{reminderIsOverdue(item)?'已过期':'待处理'}{item.className?` · ${item.className}`:''}</p></div>)}{!activeReminders.length&&<p className="rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-400">暂无待处理提醒</p>}</div></div>
     </div>
     <aside className="qs-assistant-space" aria-labelledby="workbench-assistant-heading">
-      <GlassSurface className="qs-assistant-panel"><h2 id="workbench-assistant-heading" className="flex items-center gap-2 text-sm font-semibold"><MessageSquare className="h-4 w-4"/>教学助手</h2><p className="mt-2 text-sm text-slate-500">会话空间预留</p></GlassSurface>
+      <AssistantPanel/>
     </aside>
   </div>;
 }
