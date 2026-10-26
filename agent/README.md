@@ -1,6 +1,6 @@
 # 青松 DSH 独立运行包
 
-固定DSH与官方SDK为0.2.1-rc.3，要求Node>=24.9.0。与青松根依赖和Node运行时分开管理。
+固定DSH与官方SDK为0.2.1-rc.3，本项目统一固定Node24.22.1。与青松根依赖和Node运行时分开管理。
 
 ```sh
 npm ci --prefix agent --no-audit --no-fund
