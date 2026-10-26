@@ -1,7 +1,7 @@
 # DeepSeek Harness：现状与整体方案入口
 
 版本：2.1 · 2026-10-27
-状态：整体方向及首批接入已获批准；Node24与DSH基础包已发布，青松基础助手实现验证中。当前实现与边界见ASSISTANT_BASELINE.md，生产事实以PROJECT_HANDOFF.md为准。下文源码盘点保留原核对日期。
+状态：整体方向及首批接入已获批准；Node24与DSH基础包已发布，青松基础助手已通过PR #78发布，真实模型及用户验收待用户。当前实现与边界见ASSISTANT_BASELINE.md，生产事实以PROJECT_HANDOFF.md为准。下文源码盘点保留原核对日期。
 
 ## 本次概要与阅读路径
 
