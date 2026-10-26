@@ -1,3 +1,4 @@
+import { GlassSegments } from '../../components/glass/Glass';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -195,26 +196,8 @@ export default function KnowledgeLibrary({
               : `${resources.length} 份资料 · ${resources.filter((item) => item.status === "processing").length} 项正在解析`}
           </p>
         </div>
-        <div className="glass-panel flex shrink-0 items-center gap-1 rounded-xl p-1">
-          <button
-            onClick={() => onSwitchMode("graph")}
-            className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-xs font-bold ${mode === "graph" ? "bg-emerald-700 text-white shadow-sm" : "text-slate-500 hover:bg-white/70 dark:hover:bg-zinc-800"}`}
-          >
-            <Network className="w-4 h-4" />
-            知识图谱
-          </button>
-          <button
-            onClick={() => {
-              setOpenReaderOnCompact(false);
-              onSwitchMode("editor");
-            }}
-            className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-xs font-bold ${mode === "editor" ? "bg-emerald-700 text-white shadow-sm" : "text-slate-500 hover:bg-white/70 dark:hover:bg-zinc-800"}`}
-          >
-            <Boxes className="w-4 h-4" />
-            资料编辑
-          </button>
-        </div>
-      </div>
+        <GlassSegments label="资料库模式" value={mode} options={[{value:'graph',label:<><Network className="w-4 h-4"/>知识图谱</>},{value:'editor',label:<><Boxes className="w-4 h-4"/>资料编辑</>}]} onChange={next=>{if(next==='editor')setOpenReaderOnCompact(false);onSwitchMode(next);}}/>
+     </div>
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <div className={mode === "graph" ? "h-full overflow-hidden lg:overflow-y-auto lg:pr-1" : "hidden"}>
           <KnowledgeGraphWorkspace

@@ -1,5 +1,5 @@
-import { listRecordProjects, createRecordProject, queryRecordProject } from '../services/classroom/classroomTaskService';
-import { createRecordProjectSchema } from '../schemas/classroomTask';
+import { listRecordProjects, createRecordProject, queryRecordProject, renameRecordProject, queryProjectRename } from '../services/classroom/classroomTaskService';
+import { createRecordProjectSchema, renameRecordProjectSchema } from '../schemas/classroomTask';
 import { quickContextSchema, quickRecordSchema } from '../schemas/classroomTask';
 import { readQuickContext, recordQuick } from '../services/classroom/classroomTaskService';
 /** @license SPDX-License-Identifier: Apache-2.0 */
@@ -28,6 +28,8 @@ router.post('/classroom-tasks',handle(request => createClassroomTask(parsed(comm
 router.get('/classroom-tasks/projects',handle(()=>({projects:listRecordProjects()})));
 router.get('/classroom-tasks/projects/operations/:operationId',handle(request=>queryRecordProject(String(request.params.operationId))));
 router.post('/classroom-tasks/projects',handle(request=>createRecordProject(parsed(createRecordProjectSchema,request.body))));
+router.post('/classroom-tasks/projects/rename',handle(request=>renameRecordProject(parsed(renameRecordProjectSchema,request.body))));
+router.get('/classroom-tasks/projects/renames/:operationId',handle(request=>queryProjectRename(String(request.params.operationId))));
 router.get('/classroom-tasks/quick-context',handle(request => readQuickContext(parsed(quickContextSchema,request.query))));
 router.post('/classroom-tasks/quick-record',handle(request => recordQuick(parsed(quickRecordSchema,request.body))));
 router.get('/classroom-tasks/:taskId',handle(request => requireTask(String(request.params.taskId))));

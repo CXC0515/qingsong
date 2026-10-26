@@ -1,3 +1,4 @@
+import { GlassButton } from '../../components/glass/Glass';
 import React, { useState } from 'react';
 import { FileSpreadsheet, RefreshCw, Upload, X } from 'lucide-react';
 import { SchoolClass } from '../../domain/types';
@@ -173,7 +174,7 @@ export default function RosterImportDialog({
                 setPreview(null);
                 setError('班级已切换，请重新预览后再确认导入。');
               }}
-              className="block min-h-11 w-full rounded-xl border bg-slate-50 px-3 py-2 text-base sm:text-sm"
+              className="qs-field-input block min-h-11 w-full rounded-xl border bg-slate-50 px-3 py-2 text-base sm:text-sm"
             >
               {classes.filter(item => item.status === 'active').map(item => (
                 <option key={item.id} value={item.id}>{item.name}</option>
@@ -188,17 +189,17 @@ export default function RosterImportDialog({
               onChange={event => setText(event.target.value)}
               rows={7}
               placeholder={'序号\t学号\t学生姓名\t性别\n1\t20260001\t张三\t女'}
-              className="rounded-2xl border bg-slate-50 p-3 font-mono text-base disabled:opacity-60 sm:text-sm"
+              className="qs-field-input rounded-2xl border bg-slate-50 p-3 font-mono text-base disabled:opacity-60 sm:text-sm"
             />
             <div className="flex flex-col gap-2">
-              <button
+              <GlassButton
                 type="button"
                 disabled={busy}
                 onClick={() => void requestPreview(parseText(text))}
-                className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+                variant="primary" className="flex min-h-11 items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-bold disabled:opacity-50"
               >
                 <FileSpreadsheet className="h-4 w-4" />解析粘贴内容
-              </button>
+              </GlassButton>
               <label className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 px-3 py-2.5 text-sm font-bold text-emerald-700 ${busy ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
                 <Upload className="h-4 w-4" />上传 Excel
                 <input
@@ -222,14 +223,14 @@ export default function RosterImportDialog({
             <div role="alert" className="flex flex-col gap-2 rounded-xl bg-red-50 px-3 py-3 text-sm font-semibold text-red-700 sm:flex-row sm:items-center sm:justify-between">
               <span>{error}</span>
               {grid?.headers.length && grid.rows.length ? (
-                <button
+                <GlassButton containerClassName="shrink-0"
                   type="button"
                   disabled={busy}
                   onClick={() => void requestPreview(grid)}
-                  className="flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-3 text-sm disabled:opacity-50"
+                  variant="secondary" className="flex min-h-11 items-center justify-center gap-1.5 px-3 text-sm disabled:opacity-50"
                 >
                   <RefreshCw className="h-4 w-4" />重新预览
-                </button>
+                </GlassButton>
               ) : null}
             </div>
           )}
@@ -258,7 +259,7 @@ export default function RosterImportDialog({
                         value={selectedIndex}
                         disabled={busy}
                         onChange={event => void updateFieldMapping(field.value, event.target.value)}
-                        className="min-h-11 rounded-lg border bg-white px-3 py-2 text-base disabled:opacity-60 sm:text-sm"
+                        className="qs-field-input min-h-11 rounded-lg border bg-white px-3 py-2 text-base disabled:opacity-60 sm:text-sm"
                       >
                         <option value="">不导入</option>
                         {grid.headers.map((header, index) => {
@@ -322,14 +323,14 @@ export default function RosterImportDialog({
           <span className="text-xs leading-5 text-slate-500">冲突和不可处理行不会写入数据库。</span>
           <div className="grid grid-cols-2 gap-2 sm:flex">
             <button type="button" onClick={onClose} className="min-h-11 rounded-xl bg-slate-100 px-4 text-sm">取消</button>
-            <button
+            <GlassButton
               type="button"
               disabled={!grid || !preview || busy || totals.create + totals.update === 0}
               onClick={() => void apply()}
-              className="min-h-11 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white disabled:opacity-40"
+              variant="primary" className="min-h-11 px-4 text-sm font-bold disabled:opacity-40"
             >
               {busy ? '处理中…' : `确认新增/更新 ${totals.create + totals.update} 条`}
-            </button>
+            </GlassButton>
           </div>
         </div>
       </div>

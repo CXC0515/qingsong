@@ -367,6 +367,39 @@ const migrations: Migration[] = [
     `
   }
 
+  ,{
+    version: 15,
+    sql: `
+      CREATE TABLE classroom_project_names (
+        project_key TEXT PRIMARY KEY, label TEXT NOT NULL, version INTEGER NOT NULL CHECK(version>0), updated_at TEXT NOT NULL
+      );
+      CREATE TABLE classroom_project_renames (id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, data_json TEXT NOT NULL);
+      CREATE TABLE classroom_lesson_rounds (
+        schedule_item_id TEXT NOT NULL, check_date TEXT NOT NULL, project_key TEXT NOT NULL,
+        class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT,
+        round INTEGER NOT NULL CHECK(round>0), task_id TEXT NOT NULL UNIQUE REFERENCES classroom_tasks(id) ON DELETE RESTRICT,
+        lesson_json TEXT NOT NULL,
+        PRIMARY KEY(schedule_item_id,check_date,project_key,round)
+      );
+    `
+  }
+
+  ,{
+    version: 16,
+    sql: `
+      CREATE TABLE classroom_behavior_rounds (
+        class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE RESTRICT,
+        project_key TEXT NOT NULL, occurred_date TEXT NOT NULL,
+        lesson_key TEXT NOT NULL, round INTEGER NOT NULL CHECK(round > 1),
+        operation_id TEXT NOT NULL UNIQUE, fingerprint TEXT NOT NULL,
+        PRIMARY KEY(class_id,project_key,occurred_date,lesson_key,round)
+      );
+      CREATE INDEX classroom_behavior_scope ON classroom_behavior_events(
+        class_id,occurred_date,json_extract(data_json,'$.kind'),
+        COALESCE(json_extract(data_json,'$.scheduleItemId'),''),COALESCE(json_extract(data_json,'$.round'),1)
+      );
+    `
+  }
 ];
 
 export const runRosterMigrations = (database: Database.Database) => {

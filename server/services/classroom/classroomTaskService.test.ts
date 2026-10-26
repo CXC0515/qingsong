@@ -171,3 +171,59 @@ test('custom projects persist, replay safely, isolate workspaces and record inde
   assert.throws(()=>service.readQuickContext({classId:a.classId,projectKey:project.key,checkDate:'2026-10-20'}));
  });
 }));
+
+const seedLesson=(classId:string,period:number,day=2)=>{
+ const id=randomUUID();getRosterDatabase().prepare("INSERT INTO schedule_items(id,day,period,title,class_id,class_name,item_type,time_text,scope,teacher_name,created_at,updated_at) VALUES(?,?,?,'语文',?,'旧班名','class','08:00 - 08:40','teacher','','now','now')").run(id,day,period,classId);return id;
+};
+const commitContext=(scope:Parameters<typeof service.readQuickContext>[0])=>{
+ const c=service.readQuickContext(scope);return service.recordQuick({...scope,round:c.round,contextToken:c.contextToken,operationId:randomUUID(),expectedMetadataVersion:c.detail?.task.metadataVersion??0,members:[{studentId:c.participants[0].studentId,expectedVersion:c.detail?.participants[0].version??0,result:'positive'}]});
+};
+test('lesson occurrences resume their own rounds, free records stay separate, and return visits use global next round',()=>runWithWorkspace(context,()=>{
+ const input=seed(),base={classId:input.classId,projectKey:'collection',checkDate:input.checkDate};
+ const lessonA=seedLesson(input.classId,1),lessonB=seedLesson(input.classId,3);
+ const a={...base,scheduleItemId:lessonA},b={...base,scheduleItemId:lessonB};
+ assert.equal(service.readQuickContext(a).detail,null);assert.equal(service.listClassroomTasks({classId:input.classId}).total,0);
+ const first=commitContext(a);assert.equal(service.readQuickContext(a).detail?.task.id,first.taskId);
+ const second=commitContext(b);assert.notEqual(first.taskId,second.taskId);assert.equal(service.readQuickContext(b).round,2);
+ assert.equal(service.readQuickContext(a).round,1);assert.deepEqual(service.readQuickContext(a).availableRounds,[1]);
+ assert.throws(()=>service.readQuickContext({...a,round:2}),(e:unknown)=>(e as {code:string}).code==='ROUND_CHANGED');
+ const free=commitContext(base);assert.equal(service.readQuickContext(base).round,3);assert.notEqual(free.taskId,first.taskId);
+ const extra=commitContext({...a,round:4});assert.equal(service.readQuickContext(a).round,4);assert.deepEqual(service.readQuickContext(a).availableRounds,[1,4]);
+ assert.equal(service.readQuickContext(b).detail?.task.id,second.taskId);assert.notEqual(extra.taskId,first.taskId);
+ assert.equal(service.readQuickContext({...a,checkDate:'2026-10-27'}).detail,null);
+ const other=seed();assert.throws(()=>service.readQuickContext({...a,classId:other.classId}));
+ assert.throws(()=>runWithWorkspace(createWorkspaceContext('other','foreign-lessons','teacher'),()=>service.readQuickContext(a)));
+ getRosterDatabase().prepare("UPDATE schedule_items SET title='改课' WHERE id=?").run(lessonA);
+ assert.throws(()=>service.readQuickContext(a),(e:unknown)=>(e as {code:string}).code==='LESSON_CHANGED');
+ assert.equal(service.requireTask(first.taskId).counts.positive,1);
+}));
+test('stale simultaneous first contexts reject collision atomically; retries resolve after a schedule change',()=>runWithWorkspace(context,()=>{
+ const input=seed(),base={classId:input.classId,projectKey:'correction',checkDate:input.checkDate};
+ const a={...base,scheduleItemId:seedLesson(input.classId,1)},b={...base,scheduleItemId:seedLesson(input.classId,2)};
+ const ca=service.readQuickContext(a),cb=service.readQuickContext(b);
+ const request={...a,round:ca.round,contextToken:ca.contextToken,operationId:randomUUID(),expectedMetadataVersion:0,members:[{studentId:ca.participants[0].studentId,expectedVersion:0,result:'positive' as const}]};
+ const saved=service.recordQuick(request);
+ assert.throws(()=>service.recordQuick({...request,...b,operationId:randomUUID(),round:cb.round,contextToken:cb.contextToken}));
+ assert.equal(service.listClassroomTasks({classId:input.classId}).total,1);
+ getRosterDatabase().prepare('DELETE FROM schedule_items WHERE id=?').run(a.scheduleItemId);
+ assert.equal(service.recordQuick(request).taskId,saved.taskId);assert.equal(service.requireTask(saved.taskId).counts.positive,1);
+ assert.equal(service.readQuickContext(b).round,2);
+ getRosterDatabase().prepare("UPDATE schedule_items SET item_type='meeting' WHERE id=?").run(b.scheduleItemId);assert.throws(()=>service.readQuickContext(b));
+}));
+test('renames cover defaults and custom projects, preserve snapshots and stable keys, use version checks and idempotent journals',()=>runWithWorkspace(context,()=>{
+ const input=seed(),quick={classId:input.classId,projectKey:'recitation',checkDate:input.checkDate};const saved=commitContext(quick);
+ const original=service.requireTask(saved.taskId),project=service.resolveRecordProject('recitation');
+ const request={operationId:randomUUID(),projectKey:project.key,name:'朗读过关',expectedVersion:project.version??0};
+ const renamed=service.renameRecordProject(request);assert.equal(renamed.key,'recitation');assert.equal(renamed.version,(project.version??0)+1);
+ assert.deepEqual(service.renameRecordProject(request),renamed);assert.deepEqual(service.queryProjectRename(request.operationId),renamed);
+ assert.deepEqual(service.requireTask(saved.taskId),original);assert.equal(service.readQuickContext(quick).detail?.task.id,saved.taskId);
+ assert.throws(()=>service.renameRecordProject({...request,operationId:randomUUID(),name:'过期改名'}),(e:unknown)=>(e as {code:string}).code==='PROJECT_VERSION_CONFLICT');
+ assert.throws(()=>service.renameRecordProject({...request,name:'另一个名称'}),(e:unknown)=>(e as {code:string}).code==='OPERATION_ID_CONFLICT');
+ const creation={operationId:randomUUID(),name:'周测',category:'study' as const,mode:'pass' as const};const custom=service.createRecordProject(creation);
+ service.renameRecordProject({operationId:randomUUID(),projectKey:custom.key,name:'单元测',expectedVersion:0});
+ assert.equal(service.queryRecordProject(creation.operationId).label,'单元测');assert.equal(service.createRecordProject(creation).label,'单元测');
+ const reused=service.createRecordProject({...creation,operationId:randomUUID()});assert.notEqual(reused.key,custom.key);assert.equal(reused.label,'周测');
+ assert.equal(service.listClassroomTasks({classId:input.classId}).tasks[0].currentProjectLabel,'朗读过关');
+ assert.throws(()=>service.renameRecordProject({operationId:randomUUID(),projectKey:custom.key,name:'朗读过关',expectedVersion:1}));
+ runWithWorkspace(createWorkspaceContext('other','foreign-names','teacher'),()=>{assert.equal(service.resolveRecordProject('recitation').label,'背诵检查');assert.throws(()=>service.queryProjectRename(request.operationId));assert.throws(()=>service.renameRecordProject({operationId:randomUUID(),projectKey:custom.key,name:'越权',expectedVersion:1}));});
+}));

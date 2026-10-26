@@ -83,12 +83,21 @@ const readTaskRoute = () => {
     : null;
 };
 
+type LessonRoute = { scheduleItemId:string; classId:string; date:string };
+const readLessonRoute = (userId:string):LessonRoute|null => {
+  const query=new URLSearchParams(window.location.search);
+  const scheduleItemId=query.get('lesson'),classId=query.get('lessonClass'),date=query.get('lessonDate');
+  return query.get('page')==='classroom-tasks'&&query.get('lessonTeacher')===userId&&scheduleItemId&&classId&&date&&/^\d{4}-\d{2}-\d{2}$/.test(date)?{scheduleItemId,classId,date}:null;
+};
+
 export default function App() {
   const authState = useAuth();
   const [adminRoute, setAdminRoute] = useState(() => window.location.pathname.startsWith('/admin'));
   const teacherReturnPage = useRef<PageId>('workbench');
   // Navigation & View State
   const [activePage, setActivePageState] = useState<PageId>(() => readTaskRoute() ? 'classroom-tasks' : 'workbench');
+  const [lessonRoute,setLessonRoute]=useState<LessonRoute|null>(()=>readLessonRoute(authState.user.id));
+  const [classroomHeaderTarget,setClassroomHeaderTarget]=useState<HTMLDivElement|null>(null);
   const [classroomTaskId, setClassroomTaskId] = useState<string | undefined>(() => readTaskRoute()?.taskId);
   const [classroomTaskStudentId, setClassroomTaskStudentId] = useState<string | undefined>();
   const [taskNavigation, setTaskNavigation] = useState<TaskNavigationContext | null>(null);
@@ -97,7 +106,7 @@ export default function App() {
   const [libraryResourceRequest, setLibraryResourceRequest] = useState<{ id: string; sequence: number } | null>(null);
   const [scheduleSection, setScheduleSection] = useState<'schedule' | 'reminders'>('schedule');
   const [scheduleToolsRequest, setScheduleToolsRequest] = useState(0);
-  const [selectedClassId, setSelectedClassId] = useState<string>('');
+  const [selectedClassId, setSelectedClassId] = useState<string>(()=>readLessonRoute(authState.user.id)?.classId??'');
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [studentManagementTargetId, setStudentManagementTargetId] = useState<string | null>(null);
   const [diagnosisRequestedTab, setDiagnosisRequestedTab] = useState<DiagnosisTab | null>(null);
@@ -157,8 +166,21 @@ export default function App() {
     lastTeacherUrl.current = url.href;
   };
 
+  const clearLessonRoute = () => {
+    setLessonRoute(null);
+    const url=new URL(window.location.href);
+    for(const name of ['lesson','lessonClass','lessonDate','lessonTeacher'])url.searchParams.delete(name);
+    window.history.replaceState({},'',url);lastTeacherUrl.current=url.href;
+  };
+  const selectRecordingClass=(id:string)=>{
+    if(!canLeaveTask())return;
+    if(lessonRoute&&id!==lessonRoute.classId)clearLessonRoute();
+    setSelectedClassId(id);
+  };
+
   const setActivePage = (pageId: PageId) => {
     if (pageId === activePage || !canLeaveTask()) return;
+    clearLessonRoute();
     if (pageId === 'classroom-tasks') {
       setTaskNavigation(null);
       setClassroomTaskId(undefined);
@@ -182,12 +204,21 @@ export default function App() {
       const sourcePage = activePage === 'workbench' || activePage === 'classroom' || activePage === 'diagnosis-workspace' ? activePage : null;
       setTaskNavigation(sourcePage ? { sourcePage, classId: selectedClassId, studentId: selectedStudentId, scrollTop: document.querySelector<HTMLElement>('.app-shell-main')?.scrollTop ?? 0 } : null);
     }
+    if (taskId===undefined) clearLessonRoute();
     if (classId) setSelectedClassId(classId);
     if (studentId) setSelectedStudentId(studentId);
     if (activePage !== 'classroom-tasks') setClassroomTaskStudentId(studentId || undefined);
     setClassroomTaskId(taskId);
     writeTaskUrl(taskId);
     setActivePageState('classroom-tasks');
+  };
+
+  const openLessonRecord = (item:ScheduleItem,date:string) => {
+    if(!canLeaveTask()||!item.classId||item.type!=='class')return;
+    openClassroomTask(undefined,item.classId);
+    const route={scheduleItemId:item.id,classId:item.classId,date};setLessonRoute(route);
+    const url=new URL(window.location.href);url.searchParams.set('lesson',item.id);url.searchParams.set('lessonClass',item.classId);url.searchParams.set('lessonDate',date);url.searchParams.set('lessonTeacher',authState.user.id);
+    window.history.replaceState({},'',url);lastTeacherUrl.current=url.href;
   };
 
   const returnFromClassroomTask = () => {
@@ -222,6 +253,7 @@ export default function App() {
       setAdminRoute(window.location.pathname.startsWith('/admin'));
       if (window.location.pathname.startsWith('/admin')) return;
       const route = readTaskRoute();
+      const lesson=readLessonRoute(authState.user.id);setLessonRoute(lesson);if(lesson)setSelectedClassId(lesson.classId);
       setClassroomTaskId(route?.taskId);
       setActivePageState(route ? 'classroom-tasks' : taskNavigation?.sourcePage ?? 'workbench');
       if (!route && taskNavigation) {
@@ -286,7 +318,8 @@ export default function App() {
       setClasses(snapshot.classes);
       setStudents(snapshot.students);
       setCommitteeRoles(snapshot.committeeRoles);
-      const preferredClass = snapshot.classes.find(item => item.status === 'active');
+      const route=readLessonRoute(authState.user.id);
+      const preferredClass = snapshot.classes.find(item => item.status === 'active'&&item.id===route?.classId)??snapshot.classes.find(item=>item.status==='active');
       if (preferredClass) setSelectedClassId(preferredClass.id);
       if (snapshot.students.length) setSelectedStudentId(snapshot.students[0].id);
     } catch (error) {
@@ -320,13 +353,7 @@ export default function App() {
   };
 
   // State Handlers
-  // 1. Task Completed toggle in Workbench
-  const handleToggleTask = (taskId: string) => {
-    setTasks(tasks.map(t => t.id === taskId ? { ...t, status: t.status === 'completed' ? 'pending' : 'completed' } : t));
-    triggerToast('任务状态更新成功！');
-  };
-
-  // 2. Schedule Item edit/addition
+  // Schedule Item edit/addition
   const handleAddScheduleItem = async (item: ScheduleItem) => {
     const saved = await saveScheduleItem(item);
     setSchedule(current => [...current.filter(existing => existing.id !== saved.id), saved]);
@@ -687,6 +714,7 @@ export default function App() {
 
   return (
     <AppLayout
+      headerContextRef={setClassroomHeaderTarget}
       activePage={activePage}
       classes={classes}
       expandedGroups={expandedGroups}
@@ -702,7 +730,7 @@ export default function App() {
       isOwner={authState.role === 'owner'}
       onEnterAdmin={enterAdmin}
       onSignOut={signOut}
-      onSelectClass={setSelectedClassId}
+      onSelectClass={selectRecordingClass}
       onSelectPage={setActivePage}
       onSelectScheduleSection={setScheduleSection}
       onOpenScheduleTools={() => setScheduleToolsRequest((request) => request + 1)}
@@ -714,6 +742,12 @@ export default function App() {
               students={students}
               classes={classes}
               initialClassId={selectedClassId}
+              scheduleItemId={lessonRoute?.scheduleItemId}
+              lessonDate={lessonRoute?.date}
+              headerContextTarget={classroomHeaderTarget}
+              lessonLabel={(()=>{const lesson=schedule.find(s=>s.id===lessonRoute?.scheduleItemId);return lesson?'第'+lesson.period+'节 · '+lesson.title:undefined;})()}
+              onClearLesson={clearLessonRoute}
+              onSelectClass={selectRecordingClass}
               initialTaskId={classroomTaskId}
               initialStudentId={classroomTaskStudentId}
               identityKey={authState.user.id}
@@ -725,24 +759,15 @@ export default function App() {
           {(activePage === 'workbench' || (activePage === 'classroom-tasks' && taskNavigation?.sourcePage === 'workbench')) && (
             <div className={activePage === 'workbench' ? 'contents' : 'hidden'} aria-hidden={activePage !== 'workbench'}>
             <Workbench
-              active={activePage === 'workbench'}
-              tasks={tasks}
               classes={classes}
-              students={students}
               schedule={schedule}
               reminders={reminders}
               selectedClassId={selectedClassId}
               onNavigate={handleNavigate}
-              onOpenClassroomTask={(taskId, classId) => openClassroomTask(taskId, classId)}
+              onRecordLesson={openLessonRecord}
               onEnterClass={(classId) => {
                 setSelectedClassId(classId);
                 handleNavigate('classroom');
-              }}
-              onSelectTask={(taskId) => {
-                handleToggleTask(taskId);
-              }}
-              onTriggerTask={(task) => {
-                handleNavigate('grading-workspace');
               }}
             />
             </div>

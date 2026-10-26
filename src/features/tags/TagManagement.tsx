@@ -1,4 +1,5 @@
-﻿/**
+﻿import { GlassButton, GlassSegments } from '../../components/glass/Glass';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -116,25 +117,8 @@ export default function TagManagement({ onShowToast }: TagManagementProps) {
 
   return (
     <div className="space-y-5 animate-fade-in" id="tag-management-page">
+      <GlassSegments label="标签大类" value={activeGroupId} options={groups.map(group=>({value:group.id,label:<><span>{{family:'家庭关注',academic:'学情状态',behavior:'日常表现',risk:'风险提醒'}[group.id]}</span><span className="qs-category-count">{group.tags.length}</span></>}))} onChange={setActiveGroupId}/>
       <div>
-        <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">管理 / 标签管理</p>
-        <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">标签管理</h2>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-5">
-        <aside className="glass-panel rounded-[24px] grid grid-cols-4 gap-1 p-1 lg:block lg:space-y-2 lg:p-4">
-          {groups.map(group => (
-            <button
-              key={group.id}
-              onClick={() => setActiveGroupId(group.id)}
-              className={`min-h-11 min-w-0 w-full px-1 py-3 rounded-2xl text-center lg:px-4 lg:text-left transition-all ${activeGroupId === group.id ? 'bg-emerald-700 text-white shadow-lg' : 'hover:bg-white/70 dark:hover:bg-zinc-800 text-slate-600 dark:text-slate-300'}`}
-            >
-              <span className="block text-sm font-black"><span className="lg:hidden">{{family: '家庭关注', academic: '学情状态', behavior: '日常表现', risk: '风险提醒'}[group.id]}</span><span className="hidden lg:inline">{group.name}</span></span>
-              <span className={`hidden lg:block text-xs mt-1 ${activeGroupId === group.id ? 'text-white/75' : 'text-slate-400'}`}>{group.tags.length} 个标签</span>
-            </button>
-          ))}
-        </aside>
-
         <section className="glass-panel rounded-[24px] overflow-hidden">
           <div className="p-5 border-b border-slate-200/70 dark:border-zinc-800/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
@@ -149,12 +133,12 @@ export default function TagManagement({ onShowToast }: TagManagementProps) {
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
                 placeholder="输入新标签"
-                className="min-w-0 flex-1 px-3 py-2 rounded-2xl bg-slate-50/80 dark:bg-zinc-900/60 border border-slate-200/70 dark:border-zinc-800/80 text-sm focus:outline-none"
+                className="qs-field-input min-w-0 flex-1 px-3 py-2 rounded-2xl bg-slate-50/80 dark:bg-zinc-900/60 border border-slate-200/70 dark:border-zinc-800/80 text-sm focus:outline-none"
               />
-              <button onClick={addTag} className="min-h-11 shrink-0 px-3 py-2 rounded-2xl bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all">
+              <GlassButton containerClassName="shrink-0" onClick={addTag} variant="primary" className="min-h-11 px-3 py-2 text-xs font-bold flex items-center gap-1.5 transition-all">
                 <Plus className="w-4 h-4" />
                 添加
-              </button>
+              </GlassButton>
             </div>
           </div>
 

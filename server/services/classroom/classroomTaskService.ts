@@ -1,5 +1,5 @@
 import { behaviorKinds } from '../../../src/domain/classroomBehavior';
-import type { RecordProject, CreateRecordProject } from '../../../src/domain/classroomTasks';
+import type { RecordProject, CreateRecordProject, RenameRecordProject, LessonSnapshot } from '../../../src/domain/classroomTasks';
 import { quickProjects, type QuickContextInput, type QuickContext, type QuickRecordInput } from '../../../src/domain/classroomTasks';
 /** @license SPDX-License-Identifier: Apache-2.0 */
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -39,7 +39,13 @@ const verifyPreview = (token: string | undefined, scope: string, value: unknown)
   } catch (error) { if (error instanceof ClassroomTaskError) throw error; fail('PREVIEW_INVALID',409,'预览凭据无效，记录未保存，请重新预览。'); }
 };
 export const requireTask = (taskId: string): TaskDetail => getTaskDetail(taskId) ?? fail('TASK_NOT_FOUND',404,'找不到这项课堂任务，请返回列表重新选择。');
-const asListItem = (detail: TaskDetail): TaskListItem => ({...detail.task,counts:detail.counts});
+type RecordContext = Pick<TaskListItem,'projectKey'|'currentProjectLabel'|'lessonSnapshot'>;
+const recordContexts = () => {
+  const labels=new Map(listRecordProjects().map(p=>[p.key,p.label]));
+  const rows=getRosterDatabase().prepare('SELECT q.task_id,q.project_key,l.lesson_json FROM classroom_quick_rounds q LEFT JOIN classroom_lesson_rounds l ON l.task_id=q.task_id').all() as {task_id:string;project_key:string;lesson_json:string|null}[];
+  return new Map(rows.map(row=>[row.task_id,{projectKey:row.project_key,currentProjectLabel:labels.get(row.project_key),...(row.lesson_json?{lessonSnapshot:JSON.parse(row.lesson_json)}:{})}]));
+};
+const asListItem = (detail: TaskDetail,contexts?:Map<string,RecordContext>): TaskListItem => ({...detail.task,counts:detail.counts,...contexts?.get(detail.task.id)});
 const roster = (input: CreateTaskInput) => {
   const db = getRosterDatabase();
   const schoolClass = db.prepare('SELECT id,name FROM classes WHERE id=?').get(input.classId) as {id:string;name:string} | undefined;
@@ -54,7 +60,7 @@ const roster = (input: CreateTaskInput) => {
 const normalizedCreate = (input: CreateTaskInput) => ({classId:input.classId,name:input.name,mode:input.mode,checkDate:input.checkDate,dueDate:input.dueDate ?? null,description:input.description ?? '',excludedStudentIds:[...(input.excludedStudentIds ?? [])].sort()});
 export const previewTaskCreation = (input: CreateTaskInput): CreationPreview => taskTransaction(() => {
   const snapshot = roster(input);
-  const duplicates = listTaskDetails().filter(({task}) => task.classId === input.classId && task.name === input.name && task.checkDate === input.checkDate).map(asListItem);
+  const duplicates = listTaskDetails().filter(({task}) => task.classId === input.classId && task.name === input.name && task.checkDate === input.checkDate).map(detail=>asListItem(detail));
   return {participants:snapshot.participants,duplicates,...signedPreview('create',{input:normalizedCreate(input),snapshot})};
 });
 const replay = (id: string, hash: string, taskId?: string) => {
@@ -80,17 +86,19 @@ export const createClassroomTask = (input: CreateTaskInput & {operationId:string
 });
 export interface TaskListFilter { classId?:string; lifecycle?:string; search?:string; from?:string; to?:string; offset?:number; limit?:number; negativeOnly?:boolean; }
 export const listClassroomTasks = (filter: TaskListFilter = {}) => {
-  const rounds=listQuickTaskRounds();
-  const matches = listTaskDetails().filter(({task,counts}) => (!filter.negativeOnly || counts.negative > 0) && (!filter.classId || task.classId === filter.classId) && (!filter.lifecycle || task.lifecycle === filter.lifecycle) && (!filter.search || (task.name + task.description + task.className).toLowerCase().includes(filter.search.toLowerCase())) && (!filter.from || task.checkDate >= filter.from) && (!filter.to || task.checkDate <= filter.to)).sort((a,b) => b.task.checkDate.localeCompare(a.task.checkDate) || b.task.createdAt.localeCompare(a.task.createdAt) || a.task.id.localeCompare(b.task.id));
-  return {tasks:matches.slice(filter.offset ?? 0,(filter.offset ?? 0)+(filter.limit ?? 100)).map(detail=>({...asListItem(detail),...(rounds.has(detail.task.id)?{round:rounds.get(detail.task.id)}:{})})),total:matches.length};
+  const rounds=listQuickTaskRounds(),contexts=recordContexts();
+  const matches = listTaskDetails().filter(({task,counts}) => (!filter.negativeOnly || counts.negative > 0) && (!filter.classId || task.classId === filter.classId) && (!filter.lifecycle || task.lifecycle === filter.lifecycle) && (!filter.search || (task.name + task.description + task.className + (contexts.get(task.id)?.currentProjectLabel??'')).toLowerCase().includes(filter.search.toLowerCase())) && (!filter.from || task.checkDate >= filter.from) && (!filter.to || task.checkDate <= filter.to)).sort((a,b) => b.task.checkDate.localeCompare(a.task.checkDate) || b.task.createdAt.localeCompare(a.task.createdAt) || a.task.id.localeCompare(b.task.id));
+  return {tasks:matches.slice(filter.offset ?? 0,(filter.offset ?? 0)+(filter.limit ?? 100)).map(detail=>({...asListItem(detail,contexts),...(rounds.has(detail.task.id)?{round:rounds.get(detail.task.id)}:{})})),total:matches.length};
 };
 export const classroomTaskSummary = (classId?:string) => {
-  const tasks = listTaskDetails().filter(({task}) => task.lifecycle === 'active' && (!classId || task.classId === classId)).map(asListItem);
+  const contexts=recordContexts();
+  const tasks = listTaskDetails().filter(({task}) => task.lifecycle === 'active' && (!classId || task.classId === classId)).map(detail=>asListItem(detail,contexts));
   return {tasks,negative:tasks.reduce((total,task) => total+task.counts.negative,0),unrecorded:tasks.reduce((total,task) => total+task.counts.unrecorded,0)};
 };
 export const studentClassroomTasks = (studentId:string) => {
   if (!getRosterDatabase().prepare('SELECT id FROM students WHERE id=?').get(studentId)) fail('STUDENT_NOT_FOUND',404,'找不到学生，请返回名单重新选择。');
-  return {tasks:listTaskDetails().flatMap(detail => { const participant = detail.participants.find(item => item.studentId === studentId); return participant ? [{...asListItem(detail),participant}] : []; })};
+  const contexts=recordContexts();
+  return {tasks:listTaskDetails().flatMap(detail => { const participant = detail.participants.find(item => item.studentId === studentId); return participant ? [{...asListItem(detail,contexts),participant}] : []; })};
 };
 const memberFrom = (input: OperationInput): OperationMember => ({participantId:input.participantId ?? '',expectedVersion:input.expectedVersion ?? -1,...(input.result ? {result:input.result}:{}),...(input.targetEventId ? {targetEventId:input.targetEventId}:{}),...(input.included !== undefined ? {included:input.included}:{}),...(input.exempt !== undefined ? {exempt:input.exempt}:{})});
 const membersFor = (detail:TaskDetail,input:OperationInput,preview=false):OperationMember[] => input.members ?? (input.participantId ? [memberFrom(input)] : preview && input.kind === 'initial' ? detail.participants.filter(item => item.included && !item.exempt && item.result === null).map(item => ({participantId:item.id,expectedVersion:item.version,result:input.result ?? 'positive'})) : []);
@@ -193,7 +201,8 @@ const defaultProjects: RecordProject[] = [
 const rowProject = (row:{project_key:string;category:'study'|'behavior';label:string;mode:RecordProject['mode']}):RecordProject => ({key:row.project_key,label:row.label,category:row.category,mode:row.mode,positive:row.mode==='pass'?'通过':row.mode==='event'?'记一笔':'完成',negative:row.mode==='pass'?'未过':row.mode==='event'?'':'未完'});
 export const listRecordProjects = ():RecordProject[] => {
   getWorkspaceContext();
-  return [...defaultProjects,...(getRosterDatabase().prepare('SELECT * FROM classroom_record_projects ORDER BY created_at,project_key').all() as Parameters<typeof rowProject>[0][]).map(rowProject)];
+  const aliases=new Map((getRosterDatabase().prepare('SELECT project_key,label,version FROM classroom_project_names').all() as {project_key:string;label:string;version:number}[]).map(row=>[row.project_key,row]));
+  return [...defaultProjects,...(getRosterDatabase().prepare('SELECT * FROM classroom_record_projects ORDER BY created_at,project_key').all() as Parameters<typeof rowProject>[0][]).map(rowProject)].map(project=>({...project,label:aliases.get(project.key)?.label??project.label,version:aliases.get(project.key)?.version??0}));
 };
 export const createRecordProject = (input:CreateRecordProject):RecordProject => taskTransaction(()=>{
   getWorkspaceContext();const db=getRosterDatabase();
@@ -201,7 +210,7 @@ export const createRecordProject = (input:CreateRecordProject):RecordProject => 
   if(!label||label.length>50||(input.category==='behavior')!==(input.mode==='event'))fail('INVALID_PROJECT',400,'项目未保存，请填写名称并选择适合的记录方式。');
   const hash=fingerprint({label,category:input.category,mode:input.mode});
   const prior=db.prepare('SELECT * FROM classroom_record_projects WHERE operation_id=?').get(input.operationId) as (Parameters<typeof rowProject>[0]&{fingerprint:string})|undefined;
-  if(prior){if(prior.fingerprint!==hash)fail('OPERATION_ID_CONFLICT',409,'这次保存编号已用于其他内容，请核对项目列表。');return rowProject(prior);}
+  if(prior){if(prior.fingerprint!==hash)fail('OPERATION_ID_CONFLICT',409,'这次保存编号已用于其他内容，请核对项目列表。');return resolveRecordProject(prior.project_key);}
   if(listRecordProjects().some(p=>p.category===input.category&&p.label.toLocaleLowerCase()===label.toLocaleLowerCase()))fail('PROJECT_EXISTS',409,'同名项目已存在，请直接选择原项目，或换一个名称。');
   const key='project-'+randomUUID();
   db.prepare('INSERT INTO classroom_record_projects VALUES(?,?,?,?,?,?,?)').run(key,input.category,label,input.mode,input.operationId,hash,new Date().toISOString());
@@ -209,7 +218,7 @@ export const createRecordProject = (input:CreateRecordProject):RecordProject => 
 });
 export const queryRecordProject = (id:string):RecordProject => {
   getWorkspaceContext();const row=getRosterDatabase().prepare('SELECT * FROM classroom_record_projects WHERE operation_id=?').get(id) as Parameters<typeof rowProject>[0]|undefined;
-  return row?rowProject(row):fail('PROJECT_NOT_FOUND',404,'查询时尚未找到项目。请稍后再查，或用原内容重试保存。');
+  return row?resolveRecordProject(row.project_key):fail('PROJECT_NOT_FOUND',404,'查询时尚未找到项目。请稍后再查，或用原内容重试保存。');
 };
 export const resolveRecordProject = (key:string):RecordProject => listRecordProjects().find(p=>p.key===key) ?? fail('UNKNOWN_PROJECT',404,'找不到记录项目，本次未保存，请刷新项目列表。');
 const quickProject = (key:string) => {
@@ -218,24 +227,54 @@ const quickProject = (key:string) => {
   return {...project,mode:project.mode as 'completion'|'pass'};
 };
 
+export const renameRecordProject = (input:RenameRecordProject):RecordProject => taskTransaction(()=>{
+  const db=getRosterDatabase();const label=input.name.trim().replace(/\s+/g,' ');
+  const hash=fingerprint({...input,name:label,actor:getWorkspaceContext().userId});
+  const old=db.prepare('SELECT fingerprint,data_json FROM classroom_project_renames WHERE id=?').get(input.operationId) as {fingerprint:string;data_json:string}|undefined;
+  if(old){if(old.fingerprint!==hash)fail('OPERATION_ID_CONFLICT');return JSON.parse(old.data_json);}
+  const project=resolveRecordProject(input.projectKey);
+  if(!label||label.length>50)fail('INVALID_PROJECT',400,'名称未保存，请填写1至50字的项目名称。');
+  if((project.version??0)!==input.expectedVersion)fail('PROJECT_VERSION_CONFLICT',409,'项目名称已被修改，本次未保存，请重新读取后核对。');
+  if(listRecordProjects().some(p=>p.key!==project.key&&p.category===project.category&&p.label.toLocaleLowerCase()===label.toLocaleLowerCase()))fail('PROJECT_EXISTS',409,'同类项目中已有这个名称，本次未保存，请换个名称。');
+  const result={...project,label,version:(project.version??0)+1};
+  db.prepare('INSERT INTO classroom_project_names VALUES(?,?,?,?) ON CONFLICT(project_key) DO UPDATE SET label=excluded.label,version=excluded.version,updated_at=excluded.updated_at').run(project.key,label,result.version,new Date().toISOString());
+  // The legacy catalog has a unique label column; keep it current so a renamed-away name can be reused. Event snapshots are untouched.
+  db.prepare('UPDATE classroom_record_projects SET label=? WHERE project_key=?').run(label,project.key);
+  db.prepare('INSERT INTO classroom_project_renames VALUES(?,?,?)').run(input.operationId,hash,JSON.stringify(result));return result;
+});
+export const queryProjectRename = (id:string):RecordProject => {
+  getWorkspaceContext();const row=getRosterDatabase().prepare('SELECT data_json FROM classroom_project_renames WHERE id=?').get(id) as {data_json:string}|undefined;
+  return row?JSON.parse(row.data_json):fail('OPERATION_NOT_FOUND',404,'暂未找到改名结果，请保留原内容和操作编号再次核对。');
+};
+export const resolveLesson = (input:{scheduleItemId?:string;classId:string;checkDate:string}):LessonSnapshot|undefined => {
+  if(!input.scheduleItemId)return undefined;
+  const row=getRosterDatabase().prepare("SELECT s.*,c.name AS current_class_name FROM schedule_items s JOIN classes c ON c.id=s.class_id WHERE s.id=? AND s.scope='teacher' AND s.item_type='class' AND c.status='active'").get(input.scheduleItemId) as {class_id:string;current_class_name:string;title:string;period:number;time_text:string;day:number}|undefined;
+  const day=new Date(input.checkDate+'T00:00:00Z').getUTCDay()||7;
+  if(!row||row.class_id!==input.classId||row.day!==day)fail('LESSON_CHANGED',409,'课表或班级已变化，本次未保存。请重新选择课程；原记录可从历史查看。');
+  return {scheduleItemId:input.scheduleItemId,checkDate:input.checkDate,classId:input.classId,className:row!.current_class_name,title:row!.title,period:row!.period,time:row!.time_text};
+};
+const quickBinding=(input:QuickContextInput,round:number,participants:PreviewStudent[],lessonSnapshot?:LessonSnapshot)=>({classId:input.classId,projectKey:input.projectKey,checkDate:input.checkDate,round,participants,...(lessonSnapshot?{lessonSnapshot}:{})});
 export const readQuickContext = (input: QuickContextInput): QuickContext => taskTransaction(() => {
-  const project = quickProject(input.projectKey); const db = getRosterDatabase();
+  const project=quickProject(input.projectKey),db=getRosterDatabase();
   if(!db.prepare("SELECT id FROM classes WHERE id=? AND status='active'").get(input.classId))fail('CLASS_NOT_ACTIVE',404,'班级不可用，本次未保存，请选择有效班级。');
-  const latest = db.prepare('SELECT MAX(round) AS n FROM classroom_quick_rounds WHERE class_id=? AND project_key=? AND check_date=?').get(input.classId,input.projectKey,input.checkDate) as { n: number | null };
-  const round = input.round ?? latest.n ?? 1;
-  if (round > (latest.n ?? 0) + 1) fail('ROUND_CHANGED',409,'检查轮次已变化，请重新读取后记录。');
-  const row = db.prepare('SELECT task_id FROM classroom_quick_rounds WHERE class_id=? AND project_key=? AND check_date=? AND round=?').get(input.classId,input.projectKey,input.checkDate,round) as {task_id:string}|undefined;
-  const detail = row ? requireTask(row.task_id) : null;
-  const participants = detail ? detail.participants.map(p => ({studentId:p.studentId,membershipId:p.membershipId,name:p.name,studentNo:p.studentNo,enrollmentStatus:p.enrollmentStatus,included:p.included})) : roster({classId:input.classId,name:project.label,mode:project.mode,checkDate:input.checkDate}).participants;
-  const binding = {classId:input.classId,projectKey:input.projectKey,checkDate:input.checkDate,round,participants};
-  return { round, latestRound:latest.n ?? 0, detail, participants, contextToken:signedPreview('quick',binding).previewToken };
+  const lessonSnapshot=resolveLesson(input);
+  const all=db.prepare('SELECT q.round,q.task_id,l.schedule_item_id,l.lesson_json FROM classroom_quick_rounds q LEFT JOIN classroom_lesson_rounds l ON l.task_id=q.task_id WHERE q.class_id=? AND q.project_key=? AND q.check_date=? ORDER BY q.round').all(input.classId,input.projectKey,input.checkDate) as {round:number;task_id:string;schedule_item_id:string|null;lesson_json:string|null}[];
+  const matching=all.filter(row=>input.scheduleItemId?row.schedule_item_id===input.scheduleItemId:!row.schedule_item_id);
+  const latestRound=all.at(-1)?.round??0;
+  const round=input.round??matching.at(-1)?.round??latestRound+1;
+  const row=all.find(item=>item.round===round);
+  if(round>latestRound+1||row&&!matching.includes(row))fail('ROUND_CHANGED',409,'该轮属于另一课次或轮次已变化，本次未保存，请重新读取。');
+  if(row?.lesson_json&&fingerprint(JSON.parse(row.lesson_json))!==fingerprint(lessonSnapshot))fail('LESSON_CHANGED',409,'这节课的安排已有变化，请先从历史核对原检查；本次未保存。');
+  const detail=row?requireTask(row.task_id):null;
+  const participants=detail?detail.participants.map(p=>({studentId:p.studentId,membershipId:p.membershipId,name:p.name,studentNo:p.studentNo,enrollmentStatus:p.enrollmentStatus,included:p.included})):roster({classId:input.classId,name:project.label,mode:project.mode,checkDate:input.checkDate}).participants;
+  return {round,latestRound,availableRounds:matching.map(row=>row.round),lessonSnapshot,detail,participants,contextToken:signedPreview('quick',quickBinding(input,round,participants,lessonSnapshot)).previewToken};
 });
 export const recordQuick = (input: QuickRecordInput): OperationResult => taskTransaction(() => {
   const db = getRosterDatabase(); const hash = fingerprint({...input,contextToken:undefined,actor:getWorkspaceContext().userId});
   const prior = db.prepare('SELECT fingerprint,task_id FROM classroom_quick_requests WHERE id=?').get(input.operationId) as {fingerprint:string;task_id:string}|undefined;
   if (prior) { if (prior.fingerprint !== hash) fail('OPERATION_ID_CONFLICT'); return queryClassroomOperation(input.operationId); }
   const context = readQuickContext(input);
-  verifyPreview(input.contextToken,'quick',{classId:input.classId,projectKey:input.projectKey,checkDate:input.checkDate,round:input.round,participants:context.participants});
+  verifyPreview(input.contextToken,'quick',quickBinding(input,input.round,context.participants,context.lessonSnapshot));
   let detail = context.detail;
   if (!detail) {
     if (input.expectedMetadataVersion !== 0 || input.members.some(m=>m.expectedVersion!==0)) fail('TASK_VERSION_CONFLICT');
@@ -243,6 +282,7 @@ export const recordQuick = (input: QuickRecordInput): OperationResult => taskTra
     const creation = {classId:input.classId,name:input.content?.trim() || project.label,mode:project.mode,checkDate:input.checkDate};
     detail = createClassroomTask({...creation,operationId:input.operationId+':create',previewToken:previewTaskCreation(creation).previewToken});
     db.prepare('INSERT INTO classroom_quick_rounds VALUES(?,?,?,?,?)').run(input.classId,input.projectKey,input.checkDate,input.round,detail.task.id);
+    if(context.lessonSnapshot)db.prepare('INSERT INTO classroom_lesson_rounds VALUES(?,?,?,?,?,?,?)').run(input.scheduleItemId,input.checkDate,input.projectKey,input.classId,input.round,detail.task.id,JSON.stringify(context.lessonSnapshot));
   }
   if(input.content?.trim()&&detail.task.name!==input.content.trim())fail('CHECK_CONTENT_CHANGED',409,'本轮检查内容已有变化，本次未保存，请重新读取并核对检查内容。');
   const taskId = detail.task.id;

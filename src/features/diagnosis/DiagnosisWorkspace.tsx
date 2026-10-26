@@ -1,4 +1,7 @@
-﻿/**
+import { GlassButton, GlassSegments  } from '../../components/glass/Glass';
+import { WorkspaceToolbar } from '../../components/WorkspaceUI';
+import ClassPicker from '../../components/ClassPicker';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -56,7 +59,6 @@ export default function DiagnosisWorkspace({
 }: DiagnosisWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<DiagnosisTab>('class');
   const [studentDetailTargetId, setStudentDetailTargetId] = useState<string | null>(null);
-  const [showClassPicker, setShowClassPicker] = useState(false);
   const activeClasses = classes.filter(item => item.status === 'active');
   const selectedClass = activeClasses.find(item => item.id === selectedClassId) ?? activeClasses[0];
 
@@ -75,48 +77,17 @@ export default function DiagnosisWorkspace({
         <BarChart3 className="mx-auto h-11 w-11 text-emerald-700" />
         <h2 className="mt-4 text-xl font-black text-slate-900 dark:text-slate-100">还没有可诊断的班级</h2>
         <p className="mt-2 text-sm leading-6 text-slate-500">先创建班级并导入学生。完成真实批改后，这里才会展示学情结果。</p>
-        <button type="button" onClick={() => onNavigate('class-mgmt')} className="mt-5 min-h-11 rounded-xl bg-emerald-700 px-5 text-sm font-bold text-white">创建第一个班级</button>
+        <GlassButton type="button" onClick={() => onNavigate('class-mgmt')} variant="primary" containerClassName="mt-5" className="min-h-11 px-5 text-sm font-bold">创建第一个班级</GlassButton>
       </div>
     </section>
   );
 
   return (
     <div className="space-y-5 animate-fade-in" id="diagnosis-workspace-page">
-      <div className="glass-panel grid grid-cols-[minmax(0,1fr)_116px] items-center gap-2 rounded-2xl bg-slate-100/60 p-2 dark:bg-zinc-900/60 sm:flex sm:justify-between">
-        <div className="grid min-w-0 grid-cols-2 gap-1.5 sm:flex">{tabs.map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-bold transition-all sm:px-4 ${
-                activeTab === tab.id
-                  ? 'bg-white text-slate-900 dark:bg-zinc-800 dark:text-slate-50 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          );
-        })}</div>
-        <div className="flex min-w-0 items-center gap-2 text-xs font-bold text-slate-400 sm:px-2">
-          <span className="hidden sm:inline">当前班级</span>
-          <button type="button" onClick={() => setShowClassPicker(true)} className="flex min-h-11 w-full min-w-0 items-center justify-between gap-1 rounded-xl border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700 sm:hidden dark:border-zinc-700 dark:bg-zinc-800 dark:text-slate-100">
-            <span className="truncate">{selectedClass?.name}</span><ChevronDown className="h-4 w-4 shrink-0" />
-          </button>
-          <select value={selectedClass?.id ?? ''} onChange={event => onSelectClass(event.target.value)} className="hidden min-h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:border-emerald-600 sm:block sm:w-auto dark:border-zinc-700 dark:bg-zinc-800 dark:text-slate-100">
-            {activeClasses.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
-        </div>
-      </div>
-
-      {showClassPicker && <ResponsiveDialog title="选择班级" onClose={() => setShowClassPicker(false)}><div className="grid gap-2">
-        {activeClasses.map(item => {
-          const selected = item.id === selectedClass?.id;
-          return <button key={item.id} type="button" onClick={() => { onSelectClass(item.id); setShowClassPicker(false); }} className={`flex min-h-12 items-center justify-between rounded-xl border px-4 text-left text-base font-bold ${selected ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30' : 'border-slate-200 dark:border-zinc-700'}`}><span>{item.name}</span>{selected ? <Check className="h-5 w-5" /> : null}</button>;
-        })}
-      </div></ResponsiveDialog>}
+      <WorkspaceToolbar label="诊断工作区">
+        <GlassSegments label="诊断页面" value={activeTab} options={tabs.map(tab=>({value:tab.id,label:<><tab.icon className="w-4 h-4"/>{tab.label}</>}))} onChange={setActiveTab}/>
+        <ClassPicker classes={activeClasses} value={selectedClass?.id??''} onChange={onSelectClass} label="诊断班级"/>
+      </WorkspaceToolbar>
 
       {activeTab === 'class' && (
         <ClassDiagnosis

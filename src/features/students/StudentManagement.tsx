@@ -1,9 +1,12 @@
-﻿/**
+﻿import ClassPicker from '../../components/ClassPicker';
+import { SearchField } from '../../components/WorkspaceUI';
+import { GlassButton } from '../../components/glass/Glass';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Users, UserPlus, FileSpreadsheet, Edit, Trash2, Tag,
   ArrowLeftRight, ArrowUpDown, Filter, Search, X, Eye, HelpCircle, MoreHorizontal, Sparkles
@@ -89,6 +92,12 @@ export default function StudentManagement({
   const relationOptions = ['母亲', '父亲', '姥姥', '奶奶', '姥爷', '爷爷', '其他'];
   const selectedFamilyTags = (formData.familyStatusTag || '').split('、').filter(Boolean);
   const selectedBehaviorTags = formData.behaviorTags || [];
+  const [initialDraft,setInitialDraft]=useState<string|null>(null);
+  const editorCloseRef=useRef<(()=>void)|null>(null);
+  const [savingStudent,setSavingStudent]=useState(false);
+  const [studentSaveError,setStudentSaveError]=useState('');
+  useEffect(()=>{if(showAddEditModal){setInitialDraft(JSON.stringify([formData,otherRelation]));setStudentSaveError('');}else setInitialDraft(null);},[showAddEditModal]);
+
 
   useEffect(() => {
     if (!targetStudentId) return;
@@ -195,10 +204,14 @@ export default function StudentManagement({
       className: currentClass ? currentClass.name : ''
     } as Student;
 
-    const saved = isEditMode
-      ? await onUpdateStudent(updated)
-      : await onAddStudent(updated);
-    if (saved) setShowAddEditModal(false);
+    if(savingStudent)return;
+    setSavingStudent(true);setStudentSaveError('');
+    try{
+      const saved = isEditMode ? await onUpdateStudent(updated) : await onAddStudent(updated);
+      if(saved)setShowAddEditModal(false);
+      else setStudentSaveError('学生档案未保存，填写内容仍保留，请核对后重试。');
+    }catch{setStudentSaveError('尚未确认学生档案是否保存，填写内容仍保留。请核对名册后再重试。');}
+    finally{setSavingStudent(false);}
   };
 
   const handleOpenImport = () => {
@@ -240,16 +253,16 @@ export default function StudentManagement({
             <h2 className="mr-auto flex items-center gap-2 text-base font-bold text-slate-800 dark:text-slate-100">
               <Users className="h-5 w-5 text-emerald-700 dark:text-emerald-400" />学生管理
             </h2>
-            <button type="button" onClick={() => setMobilePicker('more')} aria-label="更多学生操作" className="grid h-11 w-11 place-items-center rounded-xl border border-slate-200 text-slate-600 dark:border-zinc-700 dark:text-slate-300"><MoreHorizontal className="h-5 w-5" /></button>
-            <button id="add-student-btn-mobile" type="button" onClick={handleOpenAdd} className="inline-flex min-h-11 items-center gap-1 rounded-xl bg-emerald-700 px-3 text-xs font-bold text-white"><UserPlus className="h-4 w-4" />添加</button>
+            <GlassButton containerClassName="h-11 w-11" type="button" onClick={() => setMobilePicker('more')} aria-label="更多学生操作" variant="secondary" className="grid place-items-center"><MoreHorizontal className="h-5 w-5" /></GlassButton>
+            <GlassButton id="add-student-btn-mobile" type="button" onClick={handleOpenAdd} variant="primary" className="inline-flex min-h-11 items-center gap-1 px-3 text-xs font-bold"><UserPlus className="h-4 w-4" />添加</GlassButton>
           </div>
           <div className="flex min-w-0 items-center gap-2">
             <div className="relative min-w-0 flex-1">
-              <input id="student-search-input-mobile" type="search" placeholder="搜索姓名或学号" value={searchQuery} onChange={event => setSearchQuery(event.target.value)} className="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-base text-slate-700 outline-none focus:border-emerald-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-slate-200" />
+              <input id="student-search-input-mobile" type="search" placeholder="搜索姓名或学号" value={searchQuery} onChange={event => setSearchQuery(event.target.value)} className="qs-field-input min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-base text-slate-700 outline-none focus:border-emerald-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-slate-200" />
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             </div>
             <button type="button" onClick={() => setMobilePicker('class')} aria-label="筛选班级" className={`relative grid h-11 w-11 shrink-0 place-items-center rounded-xl border ${selectedClassId === 'all' ? 'border-slate-200 text-slate-500 dark:border-zinc-700' : 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30'}`}><Filter className="h-4 w-4" />{selectedClassId !== 'all' && <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-emerald-600" />}</button>
-            <button type="button" onClick={() => setMobilePicker('sort')} aria-label="学生排序" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-200 text-slate-500 dark:border-zinc-700"><ArrowUpDown className="h-4 w-4" /></button>
+            <GlassButton containerClassName="h-11 w-11 shrink-0" type="button" onClick={() => setMobilePicker('sort')} aria-label="学生排序" variant="secondary" className="grid place-items-center"><ArrowUpDown className="h-4 w-4" /></GlassButton>
           </div>
         </div>
 
@@ -261,51 +274,31 @@ export default function StudentManagement({
             </h2>
             
             {/* Search Input */}
-            <div className="relative flex-1 min-w-0">
-              <input
-                id="student-search-input"
-                type="text"
-                placeholder="搜索学号、姓名..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl text-xs text-slate-700 dark:text-slate-300 focus:outline-none"
-              />
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-            </div>
+            <SearchField id="student-search-input" className="qs-search-grow" placeholder="搜索姓名或学号" value={searchQuery} onChange={event=>setSearchQuery(event.target.value)}/>
 
             {/* Class Filter */}
             <div className="flex items-center gap-1.5 shrink-0">
               <Filter className="w-3.5 h-3.5 text-slate-400" />
-              <select
-                id="student-class-filter"
-                value={selectedClassId}
-                onChange={(e) => setSelectedClassId(e.target.value)}
-                className="px-2.5 py-1.5 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl text-xs text-slate-600 dark:text-slate-300 font-medium focus:outline-none cursor-pointer"
-              >
-                <option value="all">所有班级</option>
-                {classes.filter(c => c.status === 'active').map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+              <ClassPicker classes={classes.filter(c=>c.status==='active')} allowAll value={selectedClassId==='all'?'':selectedClassId} onChange={id=>setSelectedClassId(id||'all')} label="筛选学生班级"/>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
+            <GlassButton
               onClick={handleOpenImport}
-              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-zinc-850 dark:hover:bg-zinc-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer border border-slate-200 dark:border-zinc-700"
+              variant="secondary" className="px-3 py-2 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
               批量导入名册
-            </button>
-            <button
+            </GlassButton>
+            <GlassButton
               id="add-student-btn"
               onClick={handleOpenAdd}
-              className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm"
+              variant="primary" className="px-3.5 py-2 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
             >
               <UserPlus className="w-4 h-4" />
               添加学生
-            </button>
+            </GlassButton>
           </div>
         </div>
 
@@ -316,20 +309,20 @@ export default function StudentManagement({
               已选中 {selectedRows.length} 名学生
             </span>
             <div className="flex items-center gap-2">
-              <button
+              <GlassButton
                 onClick={() => setShowBulkMoveModal(true)}
-                className="px-2.5 py-1.5 bg-white dark:bg-zinc-800 text-slate-700 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 flex items-center gap-1 cursor-pointer"
+                variant="secondary" className="px-2.5 py-1.5 flex items-center gap-1 cursor-pointer"
               >
                 <ArrowLeftRight className="w-3.5 h-3.5" />
                 批量调班
-              </button>
-              <button
+              </GlassButton>
+              <GlassButton
                 onClick={() => setShowBulkTagModal(true)}
-                className="px-2.5 py-1.5 bg-white dark:bg-zinc-800 text-slate-700 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 flex items-center gap-1 cursor-pointer"
+                variant="secondary" className="px-2.5 py-1.5 flex items-center gap-1 cursor-pointer"
               >
                 <Tag className="w-3.5 h-3.5" />
                 批量打标签
-              </button>
+              </GlassButton>
               <button
                 onClick={() => setSelectedRows([])}
                 className="text-slate-400 hover:text-slate-600 ml-2"
@@ -450,22 +443,8 @@ export default function StudentManagement({
       </div>
 
       {selectedStudent && (
-        <>
-          <button type="button" className="fixed inset-0 z-40 bg-black/30" onClick={() => setSelectedStudentId(null)} aria-label="关闭学生详情" />
-          <aside role="dialog" aria-modal="true" aria-label={`${selectedStudent.name}的学生详情`} className="fixed inset-y-0 right-0 z-50 w-full sm:max-w-md bg-white dark:bg-zinc-900 shadow-2xl flex flex-col animate-fade-in">
-            <div className="shrink-0 flex items-start justify-between gap-4 p-5 border-b border-slate-100 dark:border-zinc-800">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 whitespace-nowrap">
-                  <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 truncate">{selectedStudent.name}</h3>
-                  {selectedStudent.committeeRoleIds.map(roleId => <span key={roleId} className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800">{committeeRoles.find(role=>role.id===roleId)?.name}</span>)}
-                </div>
-                <p className="mt-1 text-xs font-mono text-slate-400">{selectedStudent.studentNo}</p>
-              </div>
-              <button type="button" onClick={() => setSelectedStudentId(null)} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800" aria-label="关闭">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-5 space-y-5" id="student-mgmt-drawer">
+        <ResponsiveDialog sideOnMedium title={selectedStudent.name+'的学生详情'} onClose={()=>setSelectedStudentId(null)}>
+            <div className="space-y-5" id="student-mgmt-drawer">
               <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-zinc-800/40 rounded-lg text-xs text-slate-600 dark:text-slate-300">
                 <div><span className="text-slate-400">所属班级</span><p className="mt-1 font-semibold">{selectedStudent.className}</p></div>
                 <div><span className="text-slate-400">性别</span><p className="mt-1 font-semibold">{selectedStudent.gender === 'male' ? '男' : '女'}</p></div>
@@ -501,14 +480,14 @@ export default function StudentManagement({
               </section>
             </div>
             <div className="shrink-0 grid grid-cols-2 gap-2 p-4 border-t border-slate-100 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-              <button type="button" onClick={() => { onViewStudentProfile(selectedStudent.id); setSelectedStudentId(null); }} className="col-span-2 flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-700 text-sm font-bold text-white"><Eye className="h-4 w-4" />查看学生画像</button>
-              <button
+              <GlassButton type="button" onClick={() => { onViewStudentProfile(selectedStudent.id); setSelectedStudentId(null); }} variant="primary" className="col-span-2 flex min-h-11 items-center justify-center gap-2 text-sm font-bold"><Eye className="h-4 w-4" />查看学生画像</GlassButton>
+              <GlassButton
                 type="button"
                 onClick={() => { handleOpenEdit(selectedStudent); setSelectedStudentId(null); }}
-                className="py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5"
+                variant="primary" className="py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5"
               >
                 <Edit className="w-4 h-4" />修改档案
-              </button>
+              </GlassButton>
               <button
                 type="button"
                 onClick={() => {
@@ -522,8 +501,7 @@ export default function StudentManagement({
                 <Trash2 className="w-4 h-4" />移出名册
               </button>
             </div>
-          </aside>
-        </>
+        </ResponsiveDialog>
       )}
       {mobilePicker === 'class' && <ResponsiveDialog title="筛选班级" onClose={() => setMobilePicker(null)}><div className="grid gap-2">
         {[{ id: 'all', name: '所有班级' }, ...classes.filter(item => item.status === 'active')].map(item => <button key={item.id} type="button" onClick={() => { setSelectedClassId(item.id); setMobilePicker(null); }} className={`min-h-11 rounded-xl border px-4 text-left text-sm font-bold ${selectedClassId === item.id ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30' : 'border-slate-200 dark:border-zinc-700'}`}>{item.name}</button>)}
@@ -533,7 +511,7 @@ export default function StudentManagement({
           ['studentNo:asc', '学号升序'], ['studentNo:desc', '学号降序'], ['name:asc', '姓名拼音升序'], ['name:desc', '姓名拼音降序'], ['status:asc', '学情状态升序'], ['status:desc', '学情状态降序']
         ] as const).map(([value, label]) => <button key={value} type="button" onClick={() => { const [key, direction] = value.split(':') as [StudentSortKey, SortDirection]; setSortKey(key); setSortDirection(direction); setMobilePicker(null); }} className={`min-h-11 rounded-xl border px-4 text-left text-sm font-bold ${`${sortKey}:${sortDirection}` === value ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30' : 'border-slate-200 dark:border-zinc-700'}`}>{label}</button>)}
       </div></ResponsiveDialog>}
-      {mobilePicker === 'more' && <ResponsiveDialog title="学生操作" onClose={() => setMobilePicker(null)}><button type="button" onClick={() => { setMobilePicker(null); handleOpenImport(); }} className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-bold dark:border-zinc-700"><FileSpreadsheet className="h-4 w-4 text-emerald-600" />批量导入名册</button></ResponsiveDialog>}
+      {mobilePicker === 'more' && <ResponsiveDialog title="学生操作" onClose={() => setMobilePicker(null)}><GlassButton type="button" onClick={() => { setMobilePicker(null); handleOpenImport(); }} variant="secondary" containerClassName="w-full" className="flex min-h-11 items-center gap-2 px-4 text-sm font-bold"><FileSpreadsheet className="h-4 w-4 text-emerald-600" />批量导入名册</GlassButton></ResponsiveDialog>}
       {showImportModal && (
         <RosterImportDialog classes={classes} initialClassId={importClassId} onClose={()=>setShowImportModal(false)} onPreview={onPreviewBulkImport} onImport={onBulkImport} onComplete={result=>{setShowImportModal(false);setImportSummary({changed:result.created.length+result.updated.length,rejected:result.rejected.length});setTimeout(()=>setImportSummary(null),4000)}}/>
       )}
@@ -554,19 +532,9 @@ export default function StudentManagement({
 
       {/* Add / Edit Student Modal */}
       {showAddEditModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
-          <div role="dialog" aria-modal="true" aria-label={isEditMode ? '修改学生档案' : '录入新学生档案'} className="bg-white dark:bg-zinc-900 rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-150 dark:border-zinc-800 max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden">
-            <div className="shrink-0 flex justify-between items-center p-5 border-b border-slate-100 dark:border-zinc-800">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
-                {isEditMode ? '修改学生档案' : '录入新学生档案'}
-              </h3>
-              <button onClick={() => setShowAddEditModal(false)} className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-zinc-800" aria-label="关闭编辑弹窗">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+        <ResponsiveDialog closeRef={editorCloseRef} busy={savingStudent} confirmDiscard={initialDraft!==null&&initialDraft!==JSON.stringify([formData,otherRelation])} wide title={isEditMode?'修改学生档案':'录入新学生档案'} onClose={()=>setShowAddEditModal(false)}>
             {/* Fields */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-4 text-sm">
+            <fieldset disabled={savingStudent} className="min-w-0 space-y-4 text-sm">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-400 block">学生姓名</label>
@@ -575,7 +543,7 @@ export default function StudentManagement({
                     value={formData.name || ''}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="如：张三"
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-zinc-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-zinc-700 focus:outline-none"
+                    className="qs-field-input w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-zinc-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-zinc-700 focus:outline-none"
                   />
                 </div>
                 <div className="space-y-1">
@@ -587,7 +555,7 @@ export default function StudentManagement({
                       classId: e.target.value,
                       committeeRoleIds: e.target.value === formData.classId ? formData.committeeRoleIds : []
                     })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-zinc-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-zinc-700 focus:outline-none"
+                    className="qs-field-input w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-zinc-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-zinc-700 focus:outline-none"
                   >
                     {classes.filter(c => c.status === 'active').map(c => (
                       <option key={c.id} value={c.id}>{c.name}</option>
@@ -604,7 +572,7 @@ export default function StudentManagement({
                     value={formData.studentNo || ''}
                     onChange={(e) => setFormData({ ...formData, studentNo: e.target.value })}
                     placeholder="20260703xx"
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-zinc-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-zinc-700 focus:outline-none"
+                    className="qs-field-input w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-zinc-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-zinc-700 focus:outline-none"
                   />
                 </div>
                 <div className="space-y-1">
@@ -646,7 +614,7 @@ export default function StudentManagement({
                           ...formData,
                           parent: { ...formData.parent, name: e.target.value } as ParentInfo
                         })}
-                        className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-800 border"
+                        className="qs-field-input w-full px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-800 border"
                       />
                     </div>
                     <div className="space-y-1">
@@ -658,7 +626,7 @@ export default function StudentManagement({
                           ...formData,
                           parent: { ...formData.parent, phone: e.target.value } as ParentInfo
                         })}
-                        className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-800 border"
+                        className="qs-field-input w-full px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-800 border"
                       />
                     </div>
                     <div className="space-y-1">
@@ -672,7 +640,7 @@ export default function StudentManagement({
                             parent: { ...formData.parent, relation: e.target.value } as ParentInfo
                           });
                         }}
-                        className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-800 border"
+                        className="qs-field-input w-full px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-800 border"
                       >
                         {relationOptions.map(option => (
                           <option key={option}>{option}</option>
@@ -684,7 +652,7 @@ export default function StudentManagement({
                           value={otherRelation}
                           onChange={(e) => setOtherRelation(e.target.value)}
                           placeholder="请输入具体关系"
-                          className="w-full mt-2 px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-800 border"
+                          className="qs-field-input w-full mt-2 px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-800 border"
                         />
                       )}
                     </div>
@@ -699,7 +667,7 @@ export default function StudentManagement({
                       })}
                       placeholder="沟通时间及关键诉求"
                       rows={9}
-                      className="w-full h-full min-h-[168px] px-3 py-2 rounded-lg bg-white dark:bg-zinc-800 border resize-none"
+                      className="qs-field-input w-full h-full min-h-[168px] px-3 py-2 rounded-lg bg-white dark:bg-zinc-800 border resize-none"
                     />
                   </div>
                 </div>
@@ -771,7 +739,7 @@ export default function StudentManagement({
                   <select
                     value={formData.status || 'good'}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as StudentStatus })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-zinc-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-zinc-700 focus:outline-none"
+                    className="qs-field-input w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-zinc-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-zinc-700 focus:outline-none"
                   >
                     <option value="good">状态良好</option>
                     <option value="outstanding">表现突出</option>
@@ -780,41 +748,37 @@ export default function StudentManagement({
                   </select>
                 </div>
               </div>
-            </div>
+            </fieldset>
 
+            {studentSaveError&&<p role="alert" className="qs-error">{studentSaveError}</p>}
             {/* Actions */}
             <div className="shrink-0 flex justify-end gap-3 p-4 border-t border-slate-100 dark:border-zinc-800 bg-white dark:bg-zinc-900">
               <button
-                onClick={() => setShowAddEditModal(false)}
+                disabled={savingStudent} onClick={()=>editorCloseRef.current?.()}
                 className="px-4 py-2 text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-slate-200 rounded-xl"
               >
                 取消
               </button>
-              <button
-                onClick={() => void handleSaveStudent()}
-                className="px-4 py-2 text-xs font-semibold bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl"
+              <GlassButton
+                disabled={savingStudent} onClick={() => void handleSaveStudent()}
+                variant="primary" className="px-4 py-2 text-xs font-semibold"
               >
-                保存档案
-              </button>
+                {savingStudent?'正在保存…':'保存档案'}
+              </GlassButton>
             </div>
-          </div>
-        </div>
+        </ResponsiveDialog>
       )}
 
       {/* Bulk Move Modal */}
       {showBulkMoveModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border">
-            <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
-              批量调班 
-            </h3>
+        <ResponsiveDialog title="批量调班" onClose={()=>setShowBulkMoveModal(false)}>
             <p className="text-xs text-slate-500">
               将选中的 {selectedRows.length} 名学生批量调入以下目标班级，自动更新课程体系和学情组别：
             </p>
             <select
               value={bulkTargetClass}
               onChange={(e) => setBulkTargetClass(e.target.value)}
-              className="w-full px-3 py-2 border rounded-xl text-xs"
+              className="qs-field-input w-full px-3 py-2 border rounded-xl text-xs"
             >
               {classes.filter(c => c.status === 'active').map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -824,41 +788,32 @@ export default function StudentManagement({
               <button onClick={() => setShowBulkMoveModal(false)} className="px-3 py-1.5 text-xs bg-slate-100 rounded-lg">
                 取消
               </button>
-              <button onClick={handleApplyBulkMove} className="px-3 py-1.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg">
+              <GlassButton onClick={handleApplyBulkMove} variant="primary" className="px-3 py-1.5 text-xs">
                 确认调动
-              </button>
+              </GlassButton>
             </div>
-          </div>
-        </div>
+        </ResponsiveDialog>
       )}
 
       {/* Bulk Tag Modal */}
       {showBulkTagModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-3xl max-w-sm w-full p-5 space-y-4 shadow-2xl border">
-            <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
-              批量打标签
-            </h3>
-            <p className="text-xs text-slate-500">
-              向选中的 {selectedRows.length} 名学生同步添加以下日常观察行为标签：
-            </p>
+        <ResponsiveDialog title="批量添加标签" onClose={()=>setShowBulkTagModal(false)}>
             <input
               type="text"
               value={bulkNewTag}
               onChange={(e) => setBulkNewTag(e.target.value)}
               placeholder="如：文言文自律、默写积极、作文推荐..."
-              className="w-full px-3 py-2 border rounded-xl text-xs"
+              className="qs-field-input w-full px-3 py-2 border rounded-xl text-xs"
             />
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setShowBulkTagModal(false)} className="px-3 py-1.5 text-xs bg-slate-100 rounded-lg">
                 取消
               </button>
-              <button onClick={handleApplyBulkTags} className="px-3 py-1.5 text-xs bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg">
+              <GlassButton onClick={handleApplyBulkTags} variant="primary" className="px-3 py-1.5 text-xs">
                 确认添加
-              </button>
+              </GlassButton>
             </div>
-          </div>
-        </div>
+        </ResponsiveDialog>
       )}
 
     </div>

@@ -1,4 +1,5 @@
-﻿/**
+﻿import { GlassButton } from '../../components/glass/Glass';
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -150,10 +151,10 @@ export default function StudentProfileV2({
             <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50">{selectedStudent.name} 的学生画像</h2>
             <p className="text-sm text-slate-500 mt-1">{selectedStudent.className} · 学号 {selectedStudent.studentNo}</p>
           </div>
-          <button onClick={() => onEditStudent(selectedStudent.id)} className="px-4 py-2 rounded-2xl bg-emerald-700 text-white text-sm font-bold flex items-center gap-1.5 active:scale-95 transition-all">
+          <GlassButton onClick={() => onEditStudent(selectedStudent.id)} variant="primary" className="px-4 py-2 text-sm font-bold flex items-center gap-1.5 transition-all">
             <Edit3 className="w-4 h-4" />
             编辑学生档案
-          </button>
+          </GlassButton>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
@@ -164,7 +165,7 @@ export default function StudentProfileV2({
               {visibleTasks&&<p className="text-sm">应参与检查 {periodTasks.length}次 · 当前完成／通过 {taskCounts.positive}次（其中后来补做／补测通过 {taskCounts.retest}次） · 明确未完成／未过 {taskCounts.negative}次 · 未记录 {taskCounts.unrecorded}次</p>}
               {behaviorError&&<p role="alert" className="text-sm text-amber-800">{behaviorError}<button className={action+' ml-2'} onClick={()=>setBehaviorRetry(n=>n+1)}>重试</button></p>}
               {!currentBehavior&&!behaviorError&&<p role="status" className="text-sm text-slate-500">正在读取表现记录…</p>}
-              {currentBehavior&&<><div className="flex flex-wrap gap-2">{[...behaviorKinds,...Object.keys(currentBehavior.counts).filter(key=>!behaviorKinds.some(k=>k.key===key)).map(key=>({key,label:currentBehavior.labels[key]??'自定义表现'}))].map(k=><span key={k.key} className="rounded-xl bg-slate-50 p-3 text-sm dark:bg-zinc-900">{k.label} · 已记录 {currentBehavior.counts[k.key]??0}次</span>)}</div><details><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">查看表现来源记录（共{currentBehavior.total}笔，含已撤销）</summary><div className="space-y-2">{currentBehavior.events.map(e=><div key={e.id} className="rounded-xl border p-3 text-sm"><strong>{e.occurredDate} · {e.projectLabel??behaviorKinds.find(k=>k.key===e.kind)?.label??'表现记录'}{e.retracted?' · 已撤销':''}</strong><p className="mt-1 break-words">{e.note||'未填写说明'}</p><p className="mt-1 break-all text-xs text-slate-500">记录于 {new Date(e.recordedAt).toLocaleString('zh-CN')} · 操作者 {e.actorUserId}</p></div>)}{currentBehavior.total>currentBehavior.events.length&&<p className="text-sm text-slate-500">仅显示最近100笔；上方次数按完整日期范围计算。</p>}</div></details></>}
+              {currentBehavior&&<><div className="flex flex-wrap gap-2">{[...behaviorKinds,...Object.keys(currentBehavior.counts).filter(key=>!behaviorKinds.some(k=>k.key===key)).map(key=>({key,label:currentBehavior.labels[key]??'自定义表现'}))].map(k=><span key={k.key} className="rounded-xl bg-slate-50 p-3 text-sm dark:bg-zinc-900">{currentBehavior.labels[k.key]??k.label} · 已记录 {currentBehavior.counts[k.key]??0}次</span>)}</div><details><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">查看表现来源记录（共{currentBehavior.total}笔，含已撤销）</summary><div className="space-y-2">{currentBehavior.events.map(e=><div key={e.id} className="rounded-xl border p-3 text-sm"><strong>{e.occurredDate} · {e.projectLabel??behaviorKinds.find(k=>k.key===e.kind)?.label??'表现记录'}{' · 第'+(e.round??1)+'轮'}{e.lessonSnapshot?' · '+e.lessonSnapshot.title:''}{e.retracted?' · 已撤销':''}</strong><p className="mt-1 break-words">{e.note||'未填写说明'}</p><p className="mt-1 break-all text-xs text-slate-500">记录于 {new Date(e.recordedAt).toLocaleString('zh-CN')} · 操作者 {e.actorUserId}</p></div>)}{currentBehavior.total>currentBehavior.events.length&&<p className="text-sm text-slate-500">仅显示最近100笔；上方次数按完整日期范围计算。</p>}</div></details></>}
               <h4 className="text-sm font-semibold">仍待跟进（所有日期）</h4>
               {visibleTasks?.filter(t=>t.lifecycle==='active'&&t.participant.included&&!t.participant.exempt&&t.participant.result==='negative').map(t=><button key={t.id} className={action+' block w-full text-left'} onClick={()=>onOpenClassroomTask(t.id,selectedStudent.id)}>{t.checkDate} · {t.name} →</button>)}
             </div>
@@ -175,7 +176,7 @@ export default function StudentProfileV2({
               {visibleTasks === null && taskReadError !== taskStudentId && <p className="text-sm text-slate-500">正在读取任务记录…</p>}
               {visibleTasks?.length === 0 && <p className="text-sm text-slate-500">该学生暂无课堂任务参与记录。</p>}
               <div className="space-y-2">{visibleTasks?.map(task => <button type="button" key={task.id} onClick={() => onOpenClassroomTask(task.id, selectedStudent.id)} className="flex min-h-11 w-full min-w-0 items-start justify-between gap-3 rounded-xl border border-slate-200 p-3 text-left hover:border-emerald-400 dark:border-zinc-700">
-                <span className="min-w-0"><span className="block break-words text-sm font-semibold">{task.name}</span><span className="mt-1 block text-xs text-slate-500">{task.checkDate} · {task.mode === 'pass' ? '过关检查' : '完成检查'} · {task.lifecycle === 'active' ? '进行中' : task.lifecycle === 'ended' ? '已结束' : '已归档'}</span><span className="mt-2 block text-sm text-slate-600 dark:text-slate-300">{!task.participant.included ? '不参与' : task.participant.exempt ? '免做' : `首次：${task.participant.firstResult === 'positive' ? (task.mode === 'pass' ? '已通过' : '已完成') : task.participant.firstResult === 'negative' ? (task.mode === 'pass' ? '未通过' : '未完成') : '未记录'} · 当前：${task.participant.result === 'positive' ? (task.mode === 'pass' ? '已通过' : '已完成') : task.participant.result === 'negative' ? (task.mode === 'pass' ? '未通过' : '未完成') : '未记录'}`}</span></span>
+                <span className="min-w-0"><span className="block break-words text-sm font-semibold">{task.name}</span><span className="mt-1 block text-xs text-slate-500">{task.currentProjectLabel&&task.currentProjectLabel+' · '}{task.checkDate} · {task.mode === 'pass' ? '过关检查' : '完成检查'} · {task.lifecycle === 'active' ? '进行中' : task.lifecycle === 'ended' ? '已结束' : '已归档'}</span><span className="mt-2 block text-sm text-slate-600 dark:text-slate-300">{!task.participant.included ? '不参与' : task.participant.exempt ? '免做' : `首次：${task.participant.firstResult === 'positive' ? (task.mode === 'pass' ? '已通过' : '已完成') : task.participant.firstResult === 'negative' ? (task.mode === 'pass' ? '未通过' : '未完成') : '未记录'} · 当前：${task.participant.result === 'positive' ? (task.mode === 'pass' ? '已通过' : '已完成') : task.participant.result === 'negative' ? (task.mode === 'pass' ? '未通过' : '未完成') : '未记录'}`}</span></span>
                 <span className="shrink-0 text-sm font-semibold text-emerald-700 dark:text-emerald-300">查看记录 →</span>
               </button>)}</div>
             </div>
@@ -262,8 +263,8 @@ export default function StudentProfileV2({
           <aside className="space-y-5">
             <div className="glass-panel rounded-[24px] p-5 space-y-3">
               <h3 className="text-sm font-black flex items-center gap-2"><MessageSquare className="w-4 h-4 text-emerald-700" />教师观察</h3>
-              <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={6} placeholder="记录课堂表现、作业习惯或家校沟通要点..." className="w-full p-3 rounded-2xl bg-slate-50/80 dark:bg-zinc-900/60 border border-slate-200/70 dark:border-zinc-800/80 text-sm resize-none focus:outline-none" />
-              <button disabled={noteBusy} onClick={()=>void addNote()} className="w-full py-2.5 rounded-2xl bg-emerald-700 text-white text-xs font-bold active:scale-95 transition-all">{noteBusy?'正在保存…':'保存观察'}</button>{noteError&&<p role="alert" className="text-sm text-red-700">{noteError}</p>}
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={6} placeholder="记录课堂表现、作业习惯或家校沟通要点..." className="qs-field-input w-full p-3 rounded-2xl bg-slate-50/80 dark:bg-zinc-900/60 border border-slate-200/70 dark:border-zinc-800/80 text-sm resize-none focus:outline-none" />
+              <GlassButton disabled={noteBusy} onClick={()=>void addNote()} variant="primary" containerClassName="w-full" className="py-2.5 text-xs font-bold transition-all">{noteBusy?'正在保存…':'保存观察'}</GlassButton>{noteError&&<p role="alert" className="text-sm text-red-700">{noteError}</p>}
             </div>
             <div className="glass-panel rounded-[24px] p-5">
               <h3 className="text-sm font-black mb-3">历史观察</h3>
@@ -295,7 +296,7 @@ export default function StudentProfileV2({
         </div>
         <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索姓名/学号" className="w-full rounded-xl border border-slate-200/70 bg-white/80 py-2 pl-9 pr-3 text-sm outline-none focus:border-emerald-600 dark:border-zinc-800/80 dark:bg-zinc-900/60" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索姓名/学号" className="qs-field-input w-full rounded-xl border border-slate-200/70 bg-white/80 py-2 pl-9 pr-3 text-sm outline-none focus:border-emerald-600 dark:border-zinc-800/80 dark:bg-zinc-900/60" />
         </div>
       </div>
 
