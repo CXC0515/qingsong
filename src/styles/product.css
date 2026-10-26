@@ -90,9 +90,11 @@
 @media(min-width:640px){.qs-button-host.sm\:hidden{display:none}.qs-button-host.sm\:inline-grid{display:inline-grid}}
 @media(min-width:768px){.qs-button-host.md\:hidden{display:none}.qs-button-host.md\:inline-grid{display:inline-grid}}
 @media(min-width:1024px){.qs-button-host.lg\:hidden{display:none}.qs-button-host.lg\:inline-grid{display:inline-grid}}
-.qs-dialog-full{max-height:100dvh;height:100dvh;border-radius:0}
-.qs-dialog-full .qs-dialog-surface>.lg-content>div{max-height:100dvh;height:100dvh}
-@media(min-width:640px){.qs-dialog-full{height:auto;max-height:92dvh;border-radius:16px}.qs-dialog-full .qs-dialog-surface>.lg-content>div{max-height:92dvh;height:auto}}
+.qs-dialog{--qs-dialog-height:92dvh;max-height:var(--qs-dialog-height)}
+.qs-dialog-frame{display:flex;flex-direction:column;min-height:0;max-height:calc(var(--qs-dialog-height) - 14px);padding-bottom:env(safe-area-inset-bottom)}
+.qs-dialog-full{--qs-dialog-height:100dvh;height:100dvh;border-radius:0}
+.qs-dialog-full .qs-dialog-frame{height:calc(var(--qs-dialog-height) - 14px)}
+@media(min-width:640px){.qs-dialog-full{--qs-dialog-height:92dvh;height:auto;border-radius:16px}.qs-dialog-full .qs-dialog-frame{height:auto}.qs-dialog[data-side-on-medium=true]{--qs-dialog-height:100dvh}.qs-dialog[data-side-on-medium=true] .qs-dialog-frame{height:calc(var(--qs-dialog-height) - 14px)}}
 .qs-app .qs-field-input,.qs-dialog .qs-field-input{background-color:#ffffff42;border:1px solid var(--qs-line,rgba(57,83,66,.2));border-radius:12px;min-height:44px;font-size:16px;color:inherit}
 .dark .qs-app .qs-field-input,.dark .qs-dialog .qs-field-input{background-color:#ffffff0a}
 .qs-search-field .qs-field-input,.qs-note-field .qs-field-input{background:transparent!important;border:0!important;border-radius:0!important}

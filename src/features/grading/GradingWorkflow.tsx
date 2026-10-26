@@ -1,3 +1,4 @@
+import ResponsiveDialog from '../../components/ResponsiveDialog';
 import { GlassButton } from '../../components/glass/Glass';
 /**
  * @license
@@ -2194,22 +2195,28 @@ export default function GradingWorkflow({
       {activeStage === 'calibration' && gradingAction !== 'none' && selectedSample ? createPortal(<div className="fixed bottom-24 right-3 z-[110] w-[min(270px,calc(100vw-1.5rem))] shadow-2xl sm:bottom-28 sm:right-6"><ScoreKeypad value={teacherScore} max={selectedSample.fullScore} onChange={setTeacherScore} onConfirm={() => void updateSample(gradingAction === 'manual' ? 'teacher-manual' : 'teacher-adjusted', teacherScore, teacherReason || '教师完成分项判断')} /></div>, document.body) : null}
       {selectedReviewSample ? createPortal(<div className="fixed bottom-24 right-3 z-[110] w-[min(270px,calc(100vw-1.5rem))] shadow-2xl sm:bottom-28 sm:right-6"><ScoreKeypad value={reviewScore} max={selectedReviewSample.fullScore} disabled={reviewSaving !== 'idle'} onChange={setReviewScore} onConfirm={() => void confirmReviewDecision('teacher-manual')} /></div>, document.body) : null}
 
-      {showSubmissionDeleteConfirm ? createPortal(
-        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-slate-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="delete-submissions-title">
-          <div className="w-full rounded-t-[24px] bg-white p-5 shadow-2xl sm:max-w-lg sm:rounded-[24px] dark:bg-zinc-950">
-            <div className="flex items-start justify-between gap-3"><div><h2 id="delete-submissions-title" className="text-lg font-black text-slate-900 dark:text-white">确认删除 {selectedSubmissionAssets.length} 份答卷？</h2><p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">这是第二次确认。删除后会移除应用内上传副本、OCR、截图、质检和对应批改结果；题目、参考答案、评分细则及教师电脑中的原文件不会受影响。</p></div><button type="button" disabled={submissionDeletePhase === 'deleting'} onClick={() => setShowSubmissionDeleteConfirm(false)} aria-label="取消删除" className="flex h-11 w-11 flex-none items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800"><X className="h-4 w-4" /></button></div>
-            <div className="mt-4 max-h-40 overflow-y-auto rounded-xl bg-slate-50 p-3 dark:bg-zinc-900">{selectedSubmissionAssets.map(asset => <p key={asset.id} className="truncate py-1 text-xs text-slate-600 dark:text-slate-300">{asset.fileName}</p>)}</div>
-            <div className="mt-5 grid grid-cols-2 gap-3"><GlassButton type="button" disabled={submissionDeletePhase === 'deleting'} onClick={() => setShowSubmissionDeleteConfirm(false)} variant="secondary" className="min-h-11 text-sm font-bold disabled:opacity-50">取消</GlassButton><button type="button" disabled={submissionDeletePhase === 'deleting'} onClick={() => void deleteSelectedSubmissions()} className="min-h-11 rounded-xl bg-rose-600 px-4 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60">{submissionDeletePhase === 'deleting' ? '正在删除...' : `确认删除 ${selectedSubmissionAssets.length} 份`}</button></div>
-          </div>
-        </div>, document.body
+      {showSubmissionDeleteConfirm ? (
+        <ResponsiveDialog title={`确认删除 ${selectedSubmissionAssets.length} 份答卷？`}
+          busy={submissionDeletePhase === 'deleting'} onClose={() => setShowSubmissionDeleteConfirm(false)}
+          footer={<>
+            <GlassButton type="button" disabled={submissionDeletePhase === 'deleting'} onClick={() => setShowSubmissionDeleteConfirm(false)} variant="secondary">取消</GlassButton>
+            <GlassButton type="button" disabled={submissionDeletePhase === 'deleting'} onClick={() => void deleteSelectedSubmissions()} variant="danger">{submissionDeletePhase === 'deleting' ? '正在删除…' : '确认删除答卷'}</GlassButton>
+          </>}
+        >
+          <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">这是第二次确认。删除后会移除应用内上传副本、OCR、截图、质检和对应批改结果；题目、参考答案、评分细则及教师电脑中的原文件不会受影响。</p>
+          <div className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-zinc-900">{selectedSubmissionAssets.map(asset => <p key={asset.id} className="break-all text-xs text-slate-600 dark:text-slate-300">{asset.fileName}</p>)}</div>
+        </ResponsiveDialog>
       ) : null}
 
       {previewImage ? <ImagePreviewDialog url={previewImage.url} label={previewImage.label} onClose={() => setPreviewImage(null)} /> : null}
 
       {showModeDialog ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="选择本次批改方式">
-          <div className="glass-panel w-full max-w-2xl rounded-[24px] p-6 shadow-2xl"><div className="flex items-start justify-between"><div><h2 className="text-lg font-black">所有题目试批已完成</h2><p className="mt-1 text-sm text-slate-500">现在决定本次任务需要教师介入的频率。</p></div><button type="button" title="关闭" aria-label="关闭" onClick={() => setShowModeDialog(false)} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div><div className="mt-5 grid gap-3 md:grid-cols-3">{modeOptions.map(option => <button key={option.id} type="button" onClick={() => setGradingMode(option.id)} className={`rounded-2xl border p-4 text-left transition-all ${gradingMode === option.id ? 'border-emerald-700 bg-emerald-50 ring-2 ring-emerald-700/10' : 'border-slate-200 hover:border-emerald-300 dark:border-zinc-800'}`}><strong className="text-sm">{option.label}</strong><span className="mt-2 block text-xs leading-5 text-slate-500">{option.description}</span></button>)}</div><div className="mt-6 flex justify-end"><GlassButton type="button" onClick={lockAndStart} variant="primary" className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold"><LockKeyhole className="h-4 w-4" />锁定评分依据并开始批改</GlassButton></div></div>
-        </div>
+        <ResponsiveDialog title="选择本次批改方式" subtitle="所有题目试批已完成，现在决定本次任务需要教师介入的频率。"
+          wide compactFull onClose={() => setShowModeDialog(false)}
+          footer={<GlassButton type="button" onClick={lockAndStart} variant="primary" className="flex items-center gap-2"><LockKeyhole className="h-4 w-4" />锁定评分依据并开始批改</GlassButton>}
+        >
+          <div className="grid gap-3 md:grid-cols-3" role="group" aria-label="批改方式">{modeOptions.map(option => <GlassButton key={option.id} type="button" aria-pressed={gradingMode === option.id} onClick={() => setGradingMode(option.id)} variant="secondary" className={`flex h-full min-h-11 flex-col items-start p-4 text-left ${gradingMode === option.id ? 'ring-2 ring-emerald-700/30' : ''}`}><strong className="text-sm">{option.label}</strong><span className="mt-2 block text-xs font-normal leading-5 text-slate-500">{option.description}</span></GlassButton>)}</div>
+        </ResponsiveDialog>
       ) : null}
     </div>
   );

@@ -1,10 +1,11 @@
-import { GlassButton } from '../../components/glass/Glass';
+import ResponsiveDialog from '../../components/ResponsiveDialog';
+import { GlassButton, GlassSegments } from '../../components/glass/Glass';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import "katex/dist/katex.min.css";
 import {
   ArrowLeft,
@@ -253,6 +254,7 @@ const MetadataDialog = ({
   onSaved: (resourceId: string) => Promise<void>;
   onShowToast: (message: string) => void;
 }) => {
+  const formId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [metadata, setMetadata] = useState<ResourceMetadataInput>(
     resource
@@ -321,38 +323,23 @@ const MetadataDialog = ({
     value: ResourceMetadataInput[K],
   ) => setMetadata((current) => ({ ...current, [key]: value }));
   return (
-    <div
-      className="fixed inset-0 z-50 bg-slate-950/30 backdrop-blur-sm flex items-center justify-center p-4"
-      onMouseDown={onClose}
+    <ResponsiveDialog title={resource ? '编辑资料' : '上传资料'}
+      subtitle={resource ? resource.fileName : `仅支持 PDF，单个文件不超过 ${RESOURCE_UPLOAD_LIMIT_LABEL}`}
+      busy={saving} compactFull onClose={onClose}
+      footer={<>
+        <GlassButton type="button" disabled={saving} onClick={onClose} variant="secondary">取消</GlassButton>
+        <GlassButton type="submit" form={formId} disabled={saving} variant="primary" className="flex items-center gap-2">
+          {saving && <LoaderCircle className="h-4 w-4 animate-spin" />}
+          {resource ? '保存' : source === 'pool' ? '选用材料' : '上传'}
+        </GlassButton>
+      </>}
     >
-      <form
-        onSubmit={submit}
-        onMouseDown={(event) => event.stopPropagation()}
-        className="glass-panel flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-2xl shadow-2xl"
-      >
-        <div className="px-5 py-4 border-b border-slate-200/70 dark:border-zinc-800 flex items-center justify-between">
-          <div>
-            <h3 className="font-black text-slate-900 dark:text-slate-50">
-              {resource ? "编辑资料" : "上传资料"}
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {resource ? resource.fileName : `仅支持 PDF，单个文件不超过 ${RESOURCE_UPLOAD_LIMIT_LABEL}`}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 grid place-items-center rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800"
-            title="关闭"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="grid flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 sm:grid-cols-2 sm:p-5">
-          {!resource && <div className="flex gap-2 sm:col-span-2"><button type="button" onClick={() => { setSource('upload'); setPoolItemId(''); }} className={`min-h-11 flex-1 rounded-xl border px-3 text-sm font-bold ${source === 'upload' ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200'}`}>上传新 PDF</button><button type="button" onClick={() => { setSource('pool'); setFile(null); }} className={`min-h-11 flex-1 rounded-xl border px-3 text-sm font-bold ${source === 'pool' ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200'}`}>从材料池选择</button></div>}
+      <form id={formId} onSubmit={submit}>
+        <fieldset disabled={saving} className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+          {!resource && <div className="min-w-0 sm:col-span-2"><GlassSegments label="资料来源" value={source} options={[{ value: 'upload', label: '上传新 PDF' }, { value: 'pool', label: '从材料池选择' }]} onChange={value => { setSource(value); if (value === 'upload') setPoolItemId(''); else setFile(null); }} /></div>}
           {!resource && source === 'pool' && <div className="space-y-2 sm:col-span-2"><input aria-label="搜索材料池 PDF" value={poolQuery} onChange={event => setPoolQuery(event.target.value)} placeholder="搜索材料池 PDF" className={'qs-field-input '+(fieldClass)} />{poolLoading ? <p className="text-sm text-slate-500">正在查找材料…</p> : poolItems.length ? <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border border-slate-200 p-2 dark:border-zinc-700">{poolItems.map(item => <button key={item.id} type="button" onClick={() => { setPoolItemId(item.id); if (!metadata.title) update('title', item.originalName.replace(/\.pdf$/i, '')); }} className={`min-h-11 w-full rounded-lg px-3 text-left text-sm ${poolItemId === item.id ? 'bg-emerald-100 font-bold text-emerald-900' : 'hover:bg-slate-100 dark:hover:bg-zinc-800'}`}>{item.originalName}{item.resourceId ? ' · 已用于资料编辑' : ''}</button>)}</div> : <p className="text-sm text-slate-500">未找到 PDF。可以在材料池上传后再选择。</p>}{poolNextOffset !== null && <GlassButton type="button" variant="secondary" containerClassName="w-full" className="min-h-11 text-sm" onClick={async () => { try { const result = await listPoolItems({ q: poolQuery, mime: 'application/pdf', offset: poolNextOffset }); setPoolItems(current => [...current, ...result.items]); setPoolNextOffset(result.nextOffset); } catch (error) { setFormError(error instanceof Error ? error.message : '加载更多材料失败'); } }}>加载更多 PDF</GlassButton>}</div>}
           {!resource && source === 'upload' && (
-            <GlassButton containerClassName="h-28"
+            <GlassButton containerClassName="h-28 sm:col-span-2"
               type="button"
               onClick={() => {
                 if (inputRef.current) inputRef.current.value = "";
@@ -465,25 +452,10 @@ const MetadataDialog = ({
             />
             设为主要来源
           </label>
-        </div>
-        <div className="px-5 py-4 border-t border-slate-200/70 dark:border-zinc-800 flex justify-end gap-2">
-          <GlassButton
-            type="button"
-            onClick={onClose}
-            variant="secondary" className="px-4 py-2 text-sm"
-          >
-            取消
-          </GlassButton>
-          <button
-            disabled={saving}
-            className="btn-primary px-4 py-2 text-sm flex items-center gap-2"
-          >
-            {saving && <LoaderCircle className="w-4 h-4 animate-spin" />}
-            {resource ? "保存" : source === 'pool' ? '选用材料' : "上传"}
-          </button>
-        </div>
+
+        </fieldset>
       </form>
-    </div>
+    </ResponsiveDialog>
   );
 };
 
