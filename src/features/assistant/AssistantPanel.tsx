@@ -47,7 +47,7 @@ export default function AssistantPanel() {
     } catch (e) { setError((e as Error).message); }
   };
   return <GlassSurface className="qs-assistant-panel qs-official-assistant flex h-full min-h-0 flex-col overflow-hidden">
-    <style>{".qs-official-assistant>.lg-content{display:flex;flex-direction:column;min-height:0;flex:1;padding:0;gap:0;overflow:hidden}.qs-official-assistant header button{min-height:44px}@media(max-width:767px){.qs-assistant-space{height:78dvh;min-height:400px}}"}</style>
+    <style>{".qs-official-assistant>.lg-content{display:flex;flex-direction:column;min-height:0;flex:1;padding:0;gap:0;overflow:hidden}.qs-official-frame{display:flex;flex:1;min-height:0;margin:12px;border-radius:18px;overflow:hidden;background:#fff}.qs-official-assistant header button{min-height:44px}@media(max-width:767px){.qs-assistant-space{height:78dvh;min-height:400px}}"}</style>
     <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-black/5 px-4 py-3">
       <h2 className="text-base font-semibold">教学助手</h2>
       <div className="flex flex-wrap items-center gap-2">
@@ -65,6 +65,6 @@ export default function AssistantPanel() {
       {!history.length && <p className="text-sm text-gray-500">暂无旧会话。</p>}
       {oldChat?.messages.map(message => <article key={message.id} className="my-4 whitespace-pre-wrap break-words text-sm"><strong>{message.role === 'user' ? '我' : '教学助手'}</strong><p>{message.content}</p></article>)}
     </section>}
-    <iframe ref={frame} title="青松教学助手" src="/api/assistant/official/" className={legacy ? 'hidden' : 'min-h-0 w-full flex-1 border-0'} sandbox="allow-scripts allow-same-origin allow-downloads allow-popups" onError={() => setError('助手未能打开，已有对话保留，请刷新重试。')}/>
+    <div className={legacy ? 'hidden' : 'qs-official-frame'}><iframe ref={frame} title="青松教学助手" src="/api/assistant/official/" className={legacy ? 'hidden' : 'min-h-0 w-full flex-1 border-0'} sandbox="allow-scripts allow-same-origin allow-downloads allow-popups" onError={() => setError('助手未能打开，已有对话保留，请刷新重试。')}/></div>
   </GlassSurface>;
 }

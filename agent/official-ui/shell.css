@@ -3,6 +3,8 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 [data-slot="conversation.header"],[data-slot="conversation.session.header"],[data-slot="sidebar.footer"]{display:none!important}
 .wSkVaW_root[data-phase=hero] .wSkVaW_scrollBody{justify-content:flex-end!important}
 .wSkVaW_composerHero{padding-bottom:0!important}
+[data-composer-seat]{padding-bottom:calc(18px + env(safe-area-inset-bottom))!important}
+[data-conversation-content]{--dsh-composer-side-clearance:16px;--dsh-composer-dock-inset:16px}
 .pXSMma_headline{color:#7b8580!important;font-size:18px!important;font-weight:400!important;line-height:26px!important}
 .pXSMma_titleGroup{flex-direction:column;gap:5px!important}
 .pXSMma_previewBadge{align-self:center!important;color:#929b96!important;background:transparent!important;border:0!important;font-family:inherit!important;font-weight:400!important}
@@ -11,8 +13,17 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 .pXSMma_titleGroup{display:none!important}.qs-welcome{color:#7b8580;font-size:18px;font-weight:400;line-height:26px;text-align:center}.qs-welcome small{display:block;margin-top:5px;color:#929b96;font-size:12px}
 
 [data-slot="conversation.hero.workspace"],[data-slot="conversation.hero.agentPreset"],[data-slot="conversation.hero.options"]{display:none!important}
-.pI_x6G_frame{grid-template-columns:minmax(0,1fr)!important}.pI_x6G_frame>:has(>[data-slot="sidebar"]){display:none!important}.pI_x6G_centerCol{grid-column:1!important}
-html.qs-history .pI_x6G_frame>:has(>[data-slot="sidebar"]){display:block!important;position:absolute;inset:0 auto 0 0;width:min(300px,90%);z-index:50;background:#f4f8f4;box-shadow:6px 0 30px #18342720}
+/* Native sidebar state is the only source of truth; no parallel overlay. */
+.pI_x6G_frame[data-sidebar-collapsed]{grid-template-columns:0 minmax(0,1fr) 0!important}
+.pI_x6G_frame[data-sidebar-collapsed]>.pI_x6G_sidebarCol{visibility:hidden}
+.pI_x6G_frame:not([data-sidebar-collapsed]){grid-template-columns:min(280px,45%) minmax(0,1fr) 0!important}
+.pI_x6G_handle{display:none!important}
+@media(max-width:650px){
+ .pI_x6G_frame:not([data-sidebar-collapsed]){grid-template-columns:minmax(0,1fr) 0 0!important}
+ .pI_x6G_frame:not([data-sidebar-collapsed])>.pI_x6G_centerCol{visibility:hidden}
+ .pI_x6G_sidebarCol .hHd-Xa_root{width:100%!important}
+}
+
 
 /* Workspace selection and file/command launchers are outside teaching scope. */
 .wSkVaW_heroWorkspaceRow,.uV2eYG_add{display:none!important}

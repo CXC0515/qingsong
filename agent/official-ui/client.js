@@ -9,12 +9,12 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     ctx.effect(() => ctx.locale.addLanguage({id: 'zh-CN-x-qingsong', label: '简体中文（青松）', fallback: 'zh'}));
     ctx.effect(() => ctx.locale.register('conversation', 'zh-CN-x-qingsong', {'placeholder.hero': '问问课表、班级名单或课堂记录…', 'placeholder.default': '继续问问教学上的事…'}));
     // The preference is provided by the isolated host; do not write admin settings from the client.
-    const newSession = async () => { const workspaceId = ctx.workspaces.list.getSnapshot().items[0]?.workspaceId; if (!workspaceId) throw Error('WORKSPACE_UNAVAILABLE'); await ctx.uiWorkspace.openWorkspace(workspaceId, undefined, {agentPreset: 'qingsong'}); document.documentElement.classList.remove('qs-history'); };
+    const newSession = async () => { const workspaceId = ctx.workspaces.list.getSnapshot().items[0]?.workspaceId; if (!workspaceId) throw Error('WORKSPACE_UNAVAILABLE'); await ctx.uiWorkspace.openWorkspace(workspaceId, undefined, {agentPreset: 'qingsong'}); };
     let creating = false;
     const receive = async event => {
       if (event.origin !== location.origin || event.source !== parent) return;
       if (event.data?.type === 'qingsong:new' && !creating) { creating = true; try { await newSession(); } catch { parent.postMessage({type: 'qingsong:error'}, location.origin); } finally { creating = false; } }
-      if (event.data?.type === 'qingsong:history') { document.documentElement.classList.toggle('qs-history'); ctx.layout.toggleSidebar(); }
+      if (event.data?.type === 'qingsong:history') { ctx.layout.toggleSidebar(); }
     };
     ctx.effect(() => {
       window.addEventListener('message', receive);

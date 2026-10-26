@@ -314,3 +314,5 @@ flowchart LR
 - 回环／公网live、ready、首页200及匿名任务API401通过；服务active/running，NRestarts=0，备份timer active。首页和JS哈希与服务器一致。
 - 测试入口https://td.unreached.top/?page=classroom-tasks，用原账号；真实教师及真机触控待用户验收。保留旧release及恢复点，不改域名、密钥，不清理真实数据。
 - 发布前路径核查拦住一次错误构建命令；改为服务器脚本后真正构建通过。迁移遇非工作区项时中止并恢复旧服务，收紧至实际数据库后重新核验恢复点并完成迁移。
+
+官方助手本地UI修正（2026-10-27）：用户批准后修复共享弹窗白边、助手容器/输入留白和历史栏双状态；本地检查见 docs/qa/2026-10-27-assistant-official/README.md 的1.1。未部署。
