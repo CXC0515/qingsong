@@ -8,17 +8,29 @@ import {createRequire} from 'node:module';
 const require = createRequire(new URL('../../../agent/package.json', import.meta.url));
 const {WebSocket} = require('ws');
 const root = await mkdtemp(path.join(os.tmpdir(), 'qs-native-http-'));
-const origin = process.env.QS_NATIVE_PREVIEW ? 'http://localhost:4480' : 'http://127.0.0.1:4475';
-const apiRoot = 'http://127.0.0.1:4475';
-process.env.APP_DATA_ROOT = root; process.env.APP_URL = origin; process.env.API_PORT = '4475';
+const origin = process.env.QS_NATIVE_PREVIEW ? 'http://localhost:4480' : 'http://127.0.0.1:' + Number(process.env.QS_TEST_PORT ?? 4475);
+const testPort = Number(process.env.QS_TEST_PORT ?? 4475);
+const apiRoot = 'http://127.0.0.1:' + testPort;
+process.env.APP_DATA_ROOT = root; process.env.APP_URL = origin; process.env.API_PORT = String(testPort);
 process.env.OPENAI_VISION_MODEL = 'fixture'; process.env.OPENAI_API_KEY = 'fixture';
 let delayNext = false;
+let queryScenario: string | undefined;
 const model = createServer(async (req, res) => {
   let text = ''; for await (const chunk of req) text += chunk;
   const input = JSON.parse(text);
   if (delayNext) { delayNext = false; await new Promise(resolve => setTimeout(resolve, 1500)); if (res.destroyed) return; }
   res.writeHead(200, {'content-type': 'text/event-stream'});
   const frame = (delta: unknown, finish_reason: string | null = null) => ({id: 'fixture', object: 'chat.completion.chunk', created: 1, model: 'fixture', choices: [{index: 0, delta, finish_reason}]});
+  if (queryScenario) {
+    if (input.messages?.at(-1)?.role !== 'tool') {
+      res.write('data: ' + JSON.stringify(frame({role: 'assistant', tool_calls: [{index: 0, id: crypto.randomUUID(), type: 'function', function: {name: 'qingsong_query', arguments: JSON.stringify(queryScenario === 'classes' ? {kind: 'classes'} : {kind: 'roster', classId: '甲教师专属班'})}}]})) + '\n\n');
+      res.end('data: ' + JSON.stringify(frame({}, 'tool_calls')) + '\n\ndata: [DONE]\n\n');
+    } else {
+      res.write('data: ' + JSON.stringify(frame({role: 'assistant', content: input.messages.at(-1).content})) + '\n\n');
+      res.end('data: ' + JSON.stringify(frame({}, 'stop')) + '\n\ndata: [DONE]\n\n');
+    }
+    return;
+  }
   if (input.messages?.at(-1)?.role !== 'tool') {
     res.write('data: ' + JSON.stringify(frame({role: 'assistant', tool_calls: [{index: 0, id: crypto.randomUUID(), type: 'function', function: {name: 'qingsong_query', arguments: '{"kind":"schedule"}'}}]})) + '\n\n');
     res.end('data: ' + JSON.stringify(frame({}, 'tool_calls')) + '\n\ndata: [DONE]\n\n');
@@ -42,7 +54,7 @@ const {createApp} = await import('../../app');
 const {officialBudget} = await import('./officialBudget');
 const {officialAssistantUpgrade, closeOfficialAssistant} = await import('./officialAssistant');
 await initializeAuth();
-const server = createApp().listen(4475, '127.0.0.1');
+const server = createApp().listen(testPort, '127.0.0.1');
 server.on('upgrade', (req, socket, head) => void officialAssistantUpgrade(req, socket, head));
 await new Promise<void>(resolve => server.once('listening', resolve));
 after(async () => {
@@ -88,6 +100,21 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   const indexPage = await fetch(apiRoot + '/api/assistant/official/', {headers: {Cookie: a}});
   assert.equal(indexPage.status, 200); assert.equal(indexPage.headers.has('set-cookie'), false);
   assert.match(indexPage.headers.get('content-security-policy')!, /frame-ancestors 'self'/);
+  assert.equal(indexPage.headers.get('cache-control'), 'no-store');
+  assert.match(indexPage.headers.get('server-timing')!, /instance;dur=/);
+  const html = await indexPage.text();
+  const assetPath = html.match(/(?:src|href)=["']([^"']*\/assets\/[^"']+\.js)["']/)?.[1];
+  assert.ok(assetPath, 'official hashed script missing');
+  const assetUrl = new URL(assetPath, apiRoot + '/api/assistant/official/').href;
+  const asset = await fetch(assetUrl, {headers: {Cookie: a}});
+  assert.equal(asset.status, 200); assert.match(asset.headers.get('cache-control')!, /private.*immutable/);
+  assert.match(asset.headers.get('vary')!, /Cookie/i);
+  const etag = asset.headers.get('etag'); assert.ok(etag);
+  await asset.arrayBuffer();
+  const cached = await fetch(assetUrl, {headers: {Cookie: a, 'If-None-Match': etag!}});
+  assert.equal(cached.status, 304);
+  assert.equal((await fetch(assetUrl)).status, 401);
+
   for (const method of ['credentials/list', 'settings/get', 'directoryPicker/list']) {
     const response = await fetch(apiRoot + '/api/assistant/official/api/' + method, {method: 'POST', headers: {...headers, Cookie: a}, body: JSON.stringify({type:'client-request', method, payload: {args: {}}})}); assert.equal(response.status, 403);
   }
@@ -138,6 +165,24 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   }
   const encoded = JSON.stringify(snapshot);
   assert.match(encoded, /甲教师专属班/); assert.doesNotMatch(encoded, /乙教师专属班/);
+  for (const scenario of ['classes', 'invalid-class']) {
+    queryScenario = scenario;
+    try {
+      const sid = (await rpc(a, 'session/create', {request: {}})).value.sessionId;
+      const submitted = await rpc(a, 'session/prompt', {request: {sessionId: sid, requestId: crypto.randomUUID(), mode: 'queue', content: [{type: 'text', text: '查询样本'}]}});
+      assert.equal(submitted.ok, true, JSON.stringify(submitted));
+      let result;
+      for (let i = 0; i < 120; i++) {
+        result = await page(a, sid);
+        if (result.records?.some(record => record.event?.type === 'turn/end')) break;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      const serialized = JSON.stringify(result);
+      assert.match(serialized, scenario === 'classes' ? /甲教师专属班/ : /当前可访问班级中没有此编号/);
+      assert.doesNotMatch(serialized, /请重新登录/);
+      assert.doesNotMatch(serialized, /乙教师专属班/);
+    } finally { queryScenario = undefined; }
+  }
   // Inspect the persisted official event page to locate an actual assistant message, never invent one.
   const messageId = snapshot.records.find(record => record.event?.type === 'assistant/message').event.data.message.id;
   const rated = await rpc(a, 'messageFeedback/put', {request: {sessionId: id, messageId, rating: 'positive', note: '样本验收', ifVersion: null}});

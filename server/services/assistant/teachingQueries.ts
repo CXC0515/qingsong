@@ -13,7 +13,7 @@ const day = z
   );
 const schema = z
   .object({
-    kind: z.enum(['schedule', 'roster', 'classroom']),
+    kind: z.enum(['classes', 'schedule', 'roster', 'classroom']),
     classId: z.string().max(128).optional(),
     from: day.optional(),
     to: day.optional(),
@@ -23,6 +23,7 @@ export function teachingQuery(input: unknown) {
   const args = schema.parse(input);
   const observedAt = new Date().toISOString();
   const classes = listClasses();
+  if (args.kind === 'classes') return {ok: true, data: {classes}, observedAt, completeness: 'complete', sources: [{title: '班级列表', url: '/?page=class-mgmt'}]};
   if (args.kind === 'schedule') {
     const local = new Date(Date.now() + 8 * 3600000),
       today = local.toISOString().slice(0, 10),
@@ -45,11 +46,11 @@ export function teachingQuery(input: unknown) {
       sources: [{ title: '课表与班级', url: '/?page=schedule' }],
     };
   }
-  if (!args.classId || !classes.some((c) => c.id === args.classId))
-    throw Error('CLASS_REQUIRED');
+  if (!args.classId) throw Error('CLASS_REQUIRED');
+  if (!classes.some((c) => c.id === args.classId)) throw Error('CLASS_NOT_FOUND');
   if (args.kind === 'roster') {
     const students = listStudents(args.classId).map(
-      ({ id, name, studentNo, status }) => ({ id, name, studentNo, status }),
+      ({ id, name, studentNo, gender, status }) => ({ id, name, studentNo, gender, status }),
     );
     return {
       ok: true,
