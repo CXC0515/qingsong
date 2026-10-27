@@ -1,9 +1,15 @@
 import { ZodError } from 'zod';
 
 export function teachingFailure(error: unknown) {
-  const code = error instanceof ZodError ? 'INVALID_QUERY' : error instanceof Error ? error.message : 'INTERNAL_ERROR';
+  const code = error instanceof ZodError ? 'INVALID_QUERY' : error instanceof Error && 'code' in error && typeof error.code==='string' ? error.code : error instanceof Error ? error.message : 'INTERNAL_ERROR';
   const messages: Record<string, string> = {
     QUERY_UNSUPPORTED: '当前未开放此类数据查询，不能据此判断没有记录。教学数据未修改。请用capabilities查看已支持的查询范围，或请教师到对应业务页面核对。',
+    STUDENT_REQUIRED:'缺少学生编号，教学数据未修改。请先查询班级名单取得studentId。',
+    STUDENT_NOT_FOUND:'指定班级中找不到这位学生，教学数据未修改。请核对班级和学生编号。',
+    TASK_REQUIRED:'缺少任务编号，教学数据未修改。请先查询课堂任务列表取得taskId。',
+    TASK_NOT_FOUND:'找不到这项课堂任务，教学数据未修改。请核对当前可访问任务列表。',
+    TASK_CLASS_MISMATCH:'任务不属于指定班级，教学数据未修改。请核对班级与任务编号。',
+    TASK_PARTICIPANT_NOT_FOUND:'指定学生不在这项任务的参与名单中，教学数据未修改。请核对任务参与者，不能据此判断学生未完成。',
     INVALID_QUERY: '查询参数格式不正确，教学数据未修改。请按工具参数重新查询；日期使用YYYY-MM-DD。',
     CLASS_REQUIRED: '查询缺少班级编号，教学数据未修改。请先用classes查询班级列表，再用返回的真实classId查询。',
     CLASS_NOT_FOUND: '当前可访问班级中没有此编号，教学数据未修改。请先用classes查询班级列表，不要把班名当作classId。',

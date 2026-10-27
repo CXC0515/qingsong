@@ -21,6 +21,19 @@ const model = createServer(async (req, res) => {
   if (delayNext) { delayNext = false; await new Promise(resolve => setTimeout(resolve, 1500)); if (res.destroyed) return; }
   res.writeHead(200, {'content-type': 'text/event-stream'});
   const frame = (delta: unknown, finish_reason: string | null = null) => ({id: 'fixture', object: 'chat.completion.chunk', created: 1, model: 'fixture', choices: [{index: 0, delta, finish_reason}]});
+  if (queryScenario && ['remember','recall','forget','propose-memory','replay-memory'].includes(queryScenario)) {
+    const last = input.messages.filter((m:any)=>!(m.role==='user'&&typeof m.content==='string'&&m.content.startsWith('Current runtime context.'))).at(-1);
+    if(queryScenario==='recall'||last?.role==='tool'){
+      const snapshot=input.messages.filter((m:any)=>m.role==='user'&&typeof m.content==='string'&&m.content.startsWith('Current runtime context.')).at(-1)?.content??'NO_CONTEXT';
+      res.write('data: '+JSON.stringify(frame({role:'assistant',content:snapshot}))+'\n\n');
+      res.end('data: '+JSON.stringify(frame({},'stop'))+'\n\ndata: [DONE]\n\n');
+    }else{
+      const args={action:queryScenario==='forget'?'forget':'propose',kind:'memory',content:queryScenario==='propose-memory'?'fixture-candidate':'fixture-cross-session-memory'};
+      res.write('data: '+JSON.stringify(frame({role:'assistant',tool_calls:[{index:0,id:crypto.randomUUID(),type:'function',function:{name:'qingsong_memory',arguments:JSON.stringify(args)}}]}))+'\n\n');
+      res.end('data: '+JSON.stringify(frame({},'tool_calls'))+'\n\ndata: [DONE]\n\n');
+    }
+    return;
+  }
   if (queryScenario) {
     const previous = input.messages?.at(-1);
     const result = previous?.role === 'tool' && queryScenario === 'committee' ? JSON.parse(previous.content) : undefined;
@@ -56,6 +69,7 @@ const {createClass,createStudent,listCommitteeRoles} = await import('../../repos
 const {createApp} = await import('../../app');
 const {officialBudget} = await import('./officialBudget');
 const {officialAssistantUpgrade, closeOfficialAssistant} = await import('./officialAssistant');
+const {closePersonalContext}=await import('./personalContext');
 await initializeAuth();
 const server = createApp().listen(testPort, '127.0.0.1');
 server.on('upgrade', (req, socket, head) => void officialAssistantUpgrade(req, socket, head));
@@ -65,7 +79,7 @@ after(async () => {
   await closeOfficialAssistant(); server.closeAllConnections();
   await new Promise<void>(resolve => server.close(() => resolve()));
   model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve()));
-  closeRosterDatabase(); closeResourceDatabase(); closeAuthDatabase(); await rm(root, {recursive: true, force: true});
+  closeRosterDatabase(); closeResourceDatabase(); closeAuthDatabase(); closePersonalContext(); await rm(root, {recursive: true, force: true});
 });
 const headers = {Origin: origin, 'content-type': 'application/json', 'x-demo-csrf': '1'};
 async function register(email: string, className: string) {
@@ -191,6 +205,55 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
       assert.doesNotMatch(serialized, /乙教师专属班/);
     } finally { queryScenario = undefined; }
   }
+  // Real HTTP and DSH contracts for user-owned memory; all supplier responses are local fixtures.
+  const personal=async(cookie:string,method='GET',suffix='',body?:unknown)=>{
+    const r=await fetch(apiRoot+'/api/assistant/personal-context'+suffix,{method,headers:{...headers,Cookie:cookie},...(body?{body:JSON.stringify(body)}:{})});
+    return {status:r.status,data:await r.json()};
+  };
+  assert.equal((await fetch(apiRoot+'/api/assistant/personal-context')).status,401);
+  const created=await personal(a,'POST','',{operationId:crypto.randomUUID(),kind:'rule',content:'fixture-rule-manual'});
+  assert.equal(created.status,200,JSON.stringify(created));
+  assert.equal((await personal(b)).data.entries.length,0);
+  assert.equal((await personal(b,'PATCH','/'+created.data.entry.id,{operationId:crypto.randomUUID(),expectedVersion:1,status:'deleted'})).status,409);
+  assert.equal((await personal(a,'POST','',{operationId:crypto.randomUUID(),kind:'memory',content:'spoof',userId:'other'})).status,400);
+  assert.equal((await fetch(apiRoot+'/api/assistant/personal-context',{method:'POST',headers:{...headers,Cookie:a,Origin:'https://evil.test'},body:'{}'})).status,403);
+  const memoryTurn=async(scenario:string,text:string,cookie=a)=>{
+    queryScenario=scenario;
+    try{
+      const sid=(await rpc(cookie,'session/create',{request:{workspaceId:cookie===a?wa.body.workspace.workspaceId:undefined}})).value.sessionId;
+      assert.equal((await rpc(cookie,'session/prompt',{request:{sessionId:sid,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text}]}})).ok,true);
+      let result;
+      for(let i=0;i<150;i++){result=await page(cookie,sid);if(result.records?.some((r:any)=>r.event?.type==='turn/end'))break;await new Promise(r=>setTimeout(r,100));}
+      assert.ok(result.records?.some((r:any)=>r.event?.type==='turn/end'),'memory turn did not finish');
+      return result;
+    }finally{queryScenario=undefined;}
+  };
+  await memoryTurn('remember','记住：fixture-cross-session-memory');
+  let saved=(await personal(a)).data.entries.find((e:any)=>e.content==='fixture-cross-session-memory');
+  assert.equal(saved?.status,'active','exact authenticated human command must activate');
+  assert.equal(saved.source.type,'chat');
+  const recalled=await memoryTurn('recall','新会话的个人约定是什么');
+  assert.match(JSON.stringify(recalled),/fixture-cross-session-memory/);
+  assert.match(JSON.stringify(recalled),/fixture-rule-manual/);
+  const isolated=await memoryTurn('recall','我的个人约定是什么',b);
+  assert.doesNotMatch(JSON.stringify(isolated),/fixture-cross-session-memory|fixture-rule-manual/);
+  await memoryTurn('propose-memory','帮我想想怎样安排教学');
+  assert.equal((await personal(a)).data.entries.find((e:any)=>e.content==='fixture-candidate')?.status,'candidate');
+  await memoryTurn('forget','忘记：fixture-cross-session-memory');
+  assert.ok(!(await personal(a)).data.entries.some((e:any)=>e.content==='fixture-cross-session-memory'));
+  const afterDelete=await memoryTurn('recall','删除后新建会话');
+  assert.doesNotMatch(JSON.stringify(afterDelete),/fixture-cross-session-memory/);
+  await memoryTurn('replay-memory','继续当前问题，不要新增记忆');
+  assert.equal((await personal(a)).data.entries.find((e:any)=>e.content==='fixture-cross-session-memory')?.status,'candidate','an old exact command cannot authorize a later turn');
+  const candidate=(await personal(a)).data.entries.find((e:any)=>e.content==='fixture-candidate');
+  const approved=await personal(a,'PATCH','/'+candidate.id,{operationId:crypto.randomUUID(),expectedVersion:candidate.version,status:'active'});
+  assert.equal(approved.status,200);
+  assert.equal((await personal(a,'PATCH','/'+candidate.id,{operationId:crypto.randomUUID(),expectedVersion:candidate.version,content:'stale'})).status,409);
+  const confirmedRecall=await memoryTurn('recall','检查刚确认的记忆');
+  assert.match(JSON.stringify(confirmedRecall),/fixture-candidate/);
+  await personal(a,'PATCH','/'+candidate.id,{operationId:crypto.randomUUID(),expectedVersion:approved.data.entry.version,status:'disabled'});
+  const disabledRecall=await memoryTurn('recall','检查停用后的记忆');
+  assert.doesNotMatch(JSON.stringify(disabledRecall),/fixture-candidate/);
   // Inspect the persisted official event page to locate an actual assistant message, never invent one.
   const messageId = snapshot.records.find(record => record.event?.type === 'assistant/message').event.data.message.id;
   const rated = await rpc(a, 'messageFeedback/put', {request: {sessionId: id, messageId, rating: 'positive', note: '样本验收', ifVersion: null}});

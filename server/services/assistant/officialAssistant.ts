@@ -12,6 +12,7 @@ import { getModelConfig } from '../../config/modelConfig';
 import { getWorkspaceContext, createWorkspaceContext, runWithWorkspace, type WorkspaceContext } from '../../context/workspaceContext';
 import { configHome, models } from './assistantService';
 import { teachingQuery } from './teachingQueries';
+import {recallPersonalContext, personalTool, explicitPersonalCommand, PersonalContextError} from './personalContext';
 import { officialBudget } from './officialBudget';
 import {teachingFailure, officialAssetCache} from './officialResponses';
 import {logEvent} from '../../observability/logger';
@@ -34,6 +35,7 @@ type Instance = {
   fingerprint: string;
   leases: Map<string, AbortController>;
   sockets: Set<{close: () => void}>;
+  humanTexts: Map<string, string[]>;
   closing?: Promise<void>;
 };
 async function nativeWorkspaceCall(runtime: {port: number}, cookie: string, method: string, request: unknown): Promise<any> {
@@ -130,6 +132,16 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
           try { await officialBudget.acquire(lease, controller.signal); await authorizeInstance(instance); res.end('{}'); }
           catch (error) { clearTimeout(instance.leaseTimers.get(lease)); instance.leaseTimers.delete(lease); controller.abort(); leases.delete(lease); officialBudget.release(lease); throw error; }
         } else if (body.kind === 'authorize') res.end('{}');
+        else if (body.kind === 'personal-context' || body.kind === 'personal-tool') {
+          if (typeof body.sessionId !== 'string' || body.sessionId.length > 160 || typeof body.sourceText !== 'string' || body.sourceText.length > 8020) throw Error('INVALID_OPERATION');
+          if(body.messageId!==undefined&&(typeof body.messageId!=='string'||body.messageId.length>160))throw Error('INVALID_OPERATION');
+          if(body.turn!==undefined&&(!Number.isSafeInteger(body.turn)||body.turn<0))throw Error('INVALID_OPERATION');
+          const trusted = instance.humanTexts.get(body.sessionId)?.includes(createHash('sha256').update(body.sourceText).digest('hex')) ? body.sourceText : null;
+          const result = runWithWorkspace(context, () => body.kind === 'personal-context'
+            ? recallPersonalContext(body.sourceText)
+            : personalTool(body.input, {type:'chat',sessionId:body.sessionId,workspaceId:context.workspaceId,messageId:body.messageId,turn:body.turn}, trusted));
+          res.end(JSON.stringify(result));
+        }
         else if (body.kind === 'query') {
           const value = runWithWorkspace(context, () => teachingQuery(body.input));
           // Absolute app links stay in the teacher workspace and never resolve beneath the iframe mount.
@@ -138,7 +150,7 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
         } else throw Error('INVALID_OPERATION');
       } catch (error) {
         if (!res.headersSent) res.writeHead(400);
-        const failure = teachingFailure(error);
+        const failure = error instanceof PersonalContextError ? {code:error.code,message:error.message} : teachingFailure(error);
         logEvent('warn', 'assistant_tool_failed', {code: failure.code});
         res.end(JSON.stringify(failure));
       }
@@ -162,7 +174,7 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
       authenticated = performance.now();
       const initial = await nativeWorkspaceCall(runtime, cookie, 'workspace/create', {path: path.join(context.dataDirectory, 'assistant', key, 'official', 'empty-workspace')});
       if (initial.workspace.title === 'empty-workspace') await nativeWorkspaceCall(runtime, cookie, 'workspace/rename', {workspaceId: initial.workspace.workspaceId, title: '我的工作区'});
-      instance = {runtime, bridge, context, cookie, authorizers: new Map([[identity, authorize]]), leaseTimers: new Map(), touched: Date.now(), fingerprint: revision, leases, sockets: new Set()};
+      instance = {runtime, bridge, context, cookie, authorizers: new Map([[identity, authorize]]), leaseTimers: new Map(), touched: Date.now(), fingerprint: revision, leases, sockets: new Set(), humanTexts: new Map()};
       logEvent('info', 'assistant_official_startup', {runtimeMs: Math.round(runtimeReady - startTime), authMs: Math.round(authenticated - runtimeReady), workspaceMs: Math.round(performance.now() - authenticated), totalMs: Math.round(performance.now() - startTime)});
       instances.set(key, instance);
       return instance;
@@ -210,6 +222,17 @@ export async function officialAssistantProxy(req: Request, res: Response) {
     const context = getWorkspaceContext();
     const instance = await ensureInstance(context, () => checkIdentity(req.headers, context), createHash('sha256').update(req.headers.cookie ?? '').digest('hex'));
     const instanceMs = performance.now() - requestStarted;
+    if (target.pathname === '/api/session/prompt') {
+      const request = req.body?.payload?.args?.request;
+      if (typeof request?.sessionId === 'string') {
+        const text = request.content.map((part: {text:string}) => part.text).join('\n');
+        if (explicitPersonalCommand(text)) {
+          const texts = instance.humanTexts.get(request.sessionId) ?? [];
+          instance.humanTexts.set(request.sessionId, [...texts,createHash('sha256').update(text).digest('hex')].slice(-32));
+          if (instance.humanTexts.size > 100) instance.humanTexts.delete(instance.humanTexts.keys().next().value!);
+        }
+      }
+    }
     const upstreamStarted = performance.now();
     const body = req.method === 'POST' ? JSON.stringify(req.body) : undefined;
     const headers: Record<string, string> = {host: new URL(runtimeConfig.appUrl).host, cookie: instance.cookie};

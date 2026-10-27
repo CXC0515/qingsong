@@ -9,6 +9,9 @@ const {createWorkspaceContext,runWithWorkspace}=await import('../../context/work
 const {createClass,createStudent,listCommitteeRoles,createCommitteeRole,replaceClassCommitteeAssignments}=await import('../../repositories/rosterRepository');
 const {closeRosterDatabase}=await import('../../database/rosterDatabase');
 const {teachingQuery}=await import('./teachingQueries');
+const {saveClassroomLayout}=await import('../../repositories/classroomRepository');
+const {saveReminder}=await import('../../repositories/scheduleRepository');
+const taskService=await import('../classroom/classroomTaskService');
 const a=createWorkspaceContext('teacher-a','workspace-a','teacher'),b=createWorkspaceContext('teacher-b','workspace-b','teacher');
 after(()=>{closeRosterDatabase();rmSync(root,{recursive:true,force:true});});
 test('two named classes resolve to real IDs and return number-one student gender without private contacts',()=>{
@@ -59,10 +62,41 @@ test('capabilities declare coverage, unsupported queries cannot masquerade as em
  runWithWorkspace(a,()=>{
   const result=teachingQuery({kind:'capabilities'});
   assert.equal(result.completeness,'complete');
-  assert.deepEqual(result.data.queries!.map(q=>q.kind),['classes','roster','schedule','classroom']);
+  assert.deepEqual(result.data.queries!.map(q=>q.kind),['classes','roster','schedule','classroom','seating','reminders','task','student']);
   assert.match(result.data.interpretation!,/不代表没有记录/);
   assert.ok(result.data.unavailable!.includes('学生联系人与家庭信息'));
-  for(const kind of ['seating','materials','grading','delete']) assert.throws(()=>teachingQuery({kind}),/QUERY_UNSUPPORTED/);
+  for(const kind of ['materials','grading','delete']) assert.throws(()=>teachingQuery({kind}),/QUERY_UNSUPPORTED/);
   assert.throws(()=>teachingQuery({kind:'capabilities',workspaceId:b.workspaceId}));
+ });
+});
+test('seating, reminders, task participants/history and student evidence retain scope and pagination',()=>{
+ runWithWorkspace(a,()=>{
+  const c=createClass({name:'查询闭环班',grade:'七年级',term:'2026秋',headTeacher:'样本',status:'active'});
+  const student=createStudent({classId:c.id,name:'证据学生',studentNo:'1',gender:'female',parent:{name:'私密联系人',phone:'13999999999',relation:'其他',remark:''},observationHistory:[{date:'2026-10-27',type:'positive',content:'主动讨论',author:'样本教师'}]});
+  createStudent({classId:c.id,name:'未记录学生',studentNo:'2',gender:'male'});
+  assert.equal(teachingQuery({kind:'seating',classId:c.id}).data.saved,false);
+  saveClassroomLayout(c.id,{rowCount:2,columnCount:2,seats:[{seatIndex:120,studentId:student.id}]});
+  const seats=teachingQuery({kind:'seating',classId:c.id}).data;
+  assert.equal(seats.saved,true);assert.equal(seats.layout!.seats[0].position,'讲台左1座');assert.equal(seats.layout!.seats[0].name,student.name);
+  saveReminder({id:crypto.randomUUID(),name:'跟进样本',classId:c.id,className:c.name,time:'时间待定',repeatRule:'一次性',status:'active',timeKind:'none'});
+  assert.equal(teachingQuery({kind:'reminders',classId:c.id}).data.total,1);
+  const dated=teachingQuery({kind:'reminders',classId:c.id,from:'2026-10-01',to:'2026-10-31'});
+  assert.equal(dated.data.total,0);assert.equal(dated.data.excludedUndated,1);
+  const input={classId:c.id,name:'作业收交',mode:'completion' as const,checkDate:'2026-10-27'};
+  const task=taskService.createClassroomTask({...input,operationId:crypto.randomUUID(),previewToken:taskService.previewTaskCreation(input).previewToken});
+  taskService.applyClassroomOperation(task.task.id,{operationId:crypto.randomUUID(),kind:'initial',participantId:task.participants[0].id,expectedVersion:0,result:'negative'});
+  const detail=teachingQuery({kind:'task',classId:c.id,taskId:task.task.id,limit:1});
+  assert.equal(detail.completeness,'partial');assert.equal(detail.data.participantTotal,2);assert.equal(detail.data.participants!.length,1);
+  assert.ok(detail.data.eventTotal!>0);
+  const second=teachingQuery({kind:'task',classId:c.id,taskId:task.task.id,limit:1,offset:1});
+  assert.notEqual(second.data.participants![0].id,detail.data.participants![0].id);
+  const evidence=teachingQuery({kind:'student',classId:c.id,studentId:student.id,from:'2026-10-01',to:'2026-10-31'});
+  assert.equal(evidence.data.observations![0].content,'主动讨论');assert.equal(evidence.data.taskTotal,1);
+  assert.doesNotMatch(JSON.stringify(evidence),/13999999999|私密联系人/);
+  assert.throws(()=>runWithWorkspace(b,()=>teachingQuery({kind:'task',classId:c.id,taskId:task.task.id})),/CLASS_NOT_FOUND/);
+  assert.throws(()=>teachingQuery({kind:'student',classId:c.id,studentId:'bad',from:'2026-10-01',to:'2026-10-31'}),/STUDENT_NOT_FOUND/);
+  assert.throws(()=>teachingQuery({kind:'task',classId:c.id}),/TASK_REQUIRED/);
+  assert.throws(()=>teachingQuery({kind:'student',classId:c.id,studentId:student.id}),/DATE_RANGE_REQUIRED/);
+  assert.throws(()=>teachingQuery({kind:'reminders',limit:0}));
  });
 });

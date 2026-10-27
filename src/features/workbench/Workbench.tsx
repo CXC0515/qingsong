@@ -60,7 +60,7 @@ export default function Workbench({active,classes,schedule,reminders,selectedCla
     <button ref={assistantButton} className="qs-mobile-ai-launch" type="button" onClick={()=>setAssistantOpen(true)} aria-haspopup="dialog"><Sparkles size={20}/>AI助手</button>
     <dialog ref={assistantDialog} className="qs-assistant-space qs-assistant-dialog" aria-label="AI助手" onCancel={e=>{e.preventDefault();closeAssistant();}}>
       <header className="qs-mobile-ai-header"><strong>AI助手</strong><button type="button" onClick={closeAssistant} aria-label="返回工作台"><X size={22}/></button></header>
-      <AssistantPanel/>
+      <AssistantPanel active={active}/>
     </dialog>
   </div>;
 }

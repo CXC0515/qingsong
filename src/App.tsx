@@ -31,6 +31,7 @@ import {
 
 // Import Custom Sub-Components
 import Workbench from './features/workbench/Workbench';
+import {assistantSourceRoute} from './domain/assistantSourceRoute';
 import ClassroomTasksWorkspace from './features/classroom-tasks/ClassroomTasksWorkspace';
 import VirtualClassroom from './features/classroom/VirtualClassroom';
 import ClassManagement from './features/classes/ClassManagement';
@@ -95,8 +96,8 @@ export default function App() {
   const [adminRoute, setAdminRoute] = useState(() => window.location.pathname.startsWith('/admin'));
   const teacherReturnPage = useRef<PageId>('workbench');
   // Navigation & View State
-  const [activePage, setActivePageState] = useState<PageId>(() => readTaskRoute() ? 'classroom-tasks' : 'workbench');
-  const [workbenchVisited, setWorkbenchVisited] = useState(() => !readTaskRoute());
+  const [activePage, setActivePageState] = useState<PageId>(() => assistantSourceRoute(window.location.href).page);
+  const [workbenchVisited, setWorkbenchVisited] = useState(() => assistantSourceRoute(window.location.href).page==='workbench');
   useEffect(() => { if (activePage === 'workbench') setWorkbenchVisited(true); }, [activePage]);
   const [lessonRoute,setLessonRoute]=useState<LessonRoute|null>(()=>readLessonRoute(authState.user.id));
   const [classroomHeaderTarget,setClassroomHeaderTarget]=useState<HTMLDivElement|null>(null);
@@ -111,7 +112,7 @@ export default function App() {
   const [selectedClassId, setSelectedClassId] = useState<string>(()=>readLessonRoute(authState.user.id)?.classId??'');
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [studentManagementTargetId, setStudentManagementTargetId] = useState<string | null>(null);
-  const [diagnosisRequestedTab, setDiagnosisRequestedTab] = useState<DiagnosisTab | null>(null);
+  const [diagnosisRequestedTab, setDiagnosisRequestedTab] = useState<DiagnosisTab | null>(()=>assistantSourceRoute(window.location.href).studentId?'student':null);
   const [lowConfidenceThreshold, setLowConfidenceThreshold] = useState<number>(0.75);
   const [ocrHumanReviewThreshold, setOcrHumanReviewThreshold] = useState<number>(0.70);
   const [ocrAutoPassThreshold, setOcrAutoPassThreshold] = useState<number>(0.90);
@@ -321,9 +322,10 @@ export default function App() {
       setStudents(snapshot.students);
       setCommitteeRoles(snapshot.committeeRoles);
       const route=readLessonRoute(authState.user.id);
-      const preferredClass = snapshot.classes.find(item => item.status === 'active'&&item.id===route?.classId)??snapshot.classes.find(item=>item.status==='active');
+      const source=assistantSourceRoute(window.location.href);
+      const preferredClass = snapshot.classes.find(item => item.status === 'active'&&item.id===(route?.classId??source.classId))??snapshot.classes.find(item=>item.status==='active');
       if (preferredClass) setSelectedClassId(preferredClass.id);
-      if (snapshot.students.length) setSelectedStudentId(snapshot.students[0].id);
+      if (snapshot.students.length) setSelectedStudentId(snapshot.students.find(s=>s.id===source.studentId&&s.classId===preferredClass?.id)?.id??snapshot.students[0].id);
     } catch (error) {
       setRosterError(error instanceof Error ? error.message : 'ROSTER_LOAD_FAILED');
     } finally {

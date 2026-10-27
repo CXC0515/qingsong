@@ -1,5 +1,6 @@
 import { officialAssistantUpgrade, closeOfficialAssistant, officialPrefix } from './services/assistant/officialAssistant';
 import { stopAssistant } from './services/assistant/assistantService';
+import {closePersonalContext} from './services/assistant/personalContext';
 import { modelAdminUpgrade, closeModelAdmin } from './services/assistant/modelAdmin';
 /**
  * @license
@@ -66,6 +67,7 @@ const shutdown = (reason: string, exitCode: number) => {
     closeRosterDatabase();
     closeResourceDatabase();
     closeAuthDatabase();
+    closePersonalContext();
     logEvent('info', 'server_shutdown_completed', { reason });
     process.exit(exitCode);
   });

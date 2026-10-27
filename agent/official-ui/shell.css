@@ -41,6 +41,7 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 .pI_x6G_frame[data-sidebar-collapsed] .wSkVaW_viewArea{padding-top:64px}
 .qs-brand-mark{display:inline-block;width:28px;height:28px;flex:none;background-repeat:no-repeat;background-position:center;background-size:contain}
 .qs-session-button:focus-visible{outline:2px solid #426b56;outline-offset:3px}
+.qs-personal-button{position:absolute;right:12px;top:12px;z-index:24;min-height:44px;padding:8px 12px;border:1px solid #426b5625;border-radius:12px;background:#f2f7f1f5;color:#426b56;cursor:pointer;font:inherit;font-size:13px}.qs-personal-button:focus-visible{outline:2px solid #426b56;outline-offset:2px}
 
 .qs-workspace-dialog{box-sizing:border-box;width:calc(100% - 32px);max-width:420px;margin:auto;padding:22px;border:1px solid #ffffffb0;border-radius:24px;background:#f2f6f1f5;color:#233b35;box-shadow:0 3px 8px -5px #18342730}
 .qs-workspace-dialog::backdrop{background:#233b3540;backdrop-filter:blur(3px)}
