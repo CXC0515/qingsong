@@ -1,11 +1,12 @@
 import test from 'node:test';
+import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {mkdtemp, rm, readFile, writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {request} from 'node:http';
 import {bootstrapModels} from './runtime.mjs';
-import {startOfficialRuntime} from './official-runtime.mjs';
+import {prepareOfficialRuntime, startOfficialRuntime} from './official-runtime.mjs';
 import {allowOfficialCall} from './official-policy.mjs';
 
 test('teacher calls reject configuration, arbitrary directories and attachments', () => {
@@ -26,6 +27,11 @@ test('official process boots, serves extension, creates teaching sessions and st
   await bootstrapModels(configHome, {baseUrl: 'http://127.0.0.1:9/v1', model: 'fixture'});
   let runtime;
   try {
+    const profile = await prepareOfficialRuntime({home, configHome});
+    const prompt = profile.find(row => row.id === 'system-prompt').config;
+    assert.equal(createHash('sha256').update(prompt.personaPrefix).digest('hex'), '9a33fa2f391fd75597f86819f24b8c5413d1dac0233f7320ba53e42be1c6932a', 'preserve the exact user-approved prompt');
+    assert.equal(prompt.includeHarnessIdentity, false);
+    assert.equal(prompt.includeRuntimeContext, false);
     runtime = await startOfficialRuntime({home, configHome, publicUrl: 'http://localhost:4480/api/assistant/official/', endpoint: 'http://127.0.0.1:9/', token: 'fixture', key: 'fixture'});
     const call = (url, body, cookie = '') => new Promise((resolve, reject) => {
       const req = request({hostname: '127.0.0.1', port: runtime.port, path: url, method: body ? 'POST' : 'GET', headers: {host: 'localhost:4480', cookie, origin: 'http://localhost:4480', 'content-type': 'application/json'}}, res => {
