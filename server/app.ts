@@ -1,5 +1,6 @@
 import { officialAssistantProxy } from './services/assistant/officialAssistant';
 import classroomBehaviorRouter from './routes/classroomBehavior';
+import personalContextRouter from './routes/personalContext';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -113,6 +114,7 @@ export const createApp = (config: RuntimeConfig = runtimeConfig) => {
   app.use('/api/assistant/official', officialAssistantProxy);
   app.use('/api', requireSameOriginMutation);
   app.use('/api', assistantRouter);
+  app.use('/api', personalContextRouter);
   app.use('/api', accountRouter);
 
   app.use('/api', rosterRouter);

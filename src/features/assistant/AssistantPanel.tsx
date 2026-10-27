@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { GlassSurface } from '../../components/glass/Glass';
+import PersonalContextPanel from './PersonalContextPanel';
 
-export default function AssistantPanel() {
+export default function AssistantPanel({active=true}:{active?:boolean}) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
+  const [personalOpen,setPersonalOpen]=useState(false);
+  const visible=useRef(active);visible.current=active;
+  useEffect(()=>{if(!active)setPersonalOpen(false);},[active]);
   useEffect(() => {
     let active = true;
     const connectedAt = performance.now();
     const receive = (event: MessageEvent) => {
+      if(visible.current&&event.origin===location.origin&&event.source===frame.current?.contentWindow&&event.data?.type==='qingsong:open-context')setPersonalOpen(true);
       if (event.origin === location.origin && event.source === frame.current?.contentWindow && event.data?.type === 'qingsong:ready') {
         console.info('[青松助手] 页面连接完成', {durationMs: Math.round(performance.now() - connectedAt)});
         clearTimeout(timeout); setReady(true); setError('');
@@ -26,5 +31,6 @@ export default function AssistantPanel() {
     {!ready && !error && <p className="px-4 py-2 text-sm text-gray-500" role="status">正在连接教学助手…</p>}
     {error && <p className="px-4 py-2 text-sm text-red-700" role="alert">{error}</p>}
     <div className="qs-official-frame"><iframe ref={frame} title="青松教学助手" src="/api/assistant/official/" className="min-h-0 w-full flex-1 border-0" sandbox="allow-scripts allow-same-origin allow-downloads allow-popups" onError={() => setError('助手未能打开，已有对话保留，请刷新重试。')}/></div>
+    {personalOpen&&<PersonalContextPanel onClose={()=>setPersonalOpen(false)}/>}
   </GlassSurface>;
 }
