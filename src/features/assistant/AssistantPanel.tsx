@@ -7,8 +7,10 @@ export default function AssistantPanel() {
   const [error, setError] = useState('');
   useEffect(() => {
     let active = true;
+    const connectedAt = performance.now();
     const receive = (event: MessageEvent) => {
       if (event.origin === location.origin && event.source === frame.current?.contentWindow && event.data?.type === 'qingsong:ready') {
+        console.info('[青松助手] 页面连接完成', {durationMs: Math.round(performance.now() - connectedAt)});
         clearTimeout(timeout); setReady(true); setError('');
       }
       if (event.origin === location.origin && event.source === frame.current?.contentWindow && event.data?.type === 'qingsong:error') {

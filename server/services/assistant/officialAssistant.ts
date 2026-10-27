@@ -13,6 +13,8 @@ import { getWorkspaceContext, createWorkspaceContext, runWithWorkspace, type Wor
 import { configHome, models } from './assistantService';
 import { teachingQuery } from './teachingQueries';
 import { officialBudget } from './officialBudget';
+import {teachingFailure, officialAssetCache} from './officialResponses';
+import {logEvent} from '../../observability/logger';
 import { startOfficialRuntime } from '../../../agent/official-runtime.mjs';
 import { allowOfficialCall } from '../../../agent/official-policy.mjs';
 import { relayOfficialSocket } from '../../../agent/official-relay.mjs';
@@ -136,14 +138,19 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
         } else throw Error('INVALID_OPERATION');
       } catch (error) {
         if (!res.headersSent) res.writeHead(400);
-        res.end(JSON.stringify({message: (error as Error).message === 'QUEUE_FULL' ? '助手正在处理其他请求，已保留对话，教学数据未修改，请稍后重试。' : '本次请求未完成，已有对话保留，教学数据未修改，请重新登录后重试。'}));
+        const failure = teachingFailure(error);
+        logEvent('warn', 'assistant_tool_failed', {code: failure.code});
+        res.end(JSON.stringify(failure));
       }
     });
     await new Promise<void>((resolve, reject) => { bridge.once('error', reject); bridge.listen(0, '127.0.0.1', resolve); });
     const port = (bridge.address() as import('node:net').AddressInfo).port;
+    const startTime = performance.now();
+    let runtimeReady = startTime, authenticated = startTime;
     let runtime: Awaited<ReturnType<typeof startOfficialRuntime>> | undefined;
     try {
       runtime = await startOfficialRuntime({home: path.join(context.dataDirectory, 'assistant', key, 'official'), configHome, publicUrl: origin() + officialPrefix + '/', key: getModelConfig().apiKey, endpoint: 'http://127.0.0.1:' + port + '/', token});
+      runtimeReady = performance.now();
       const cookie = await new Promise<string>((resolve, reject) => {
         const exchange = httpRequest({hostname: '127.0.0.1', port: runtime!.port, path: '/' + new URL(runtime!.url).search, headers: {host: new URL(runtimeConfig.appUrl).host}}, response => {
           response.resume();
@@ -152,9 +159,11 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
         });
         exchange.setTimeout(15000, () => exchange.destroy(Error('NATIVE_AUTH_TIMEOUT'))); exchange.once('error', reject); exchange.end();
       });
+      authenticated = performance.now();
       const initial = await nativeWorkspaceCall(runtime, cookie, 'workspace/create', {path: path.join(context.dataDirectory, 'assistant', key, 'official', 'empty-workspace')});
       if (initial.workspace.title === 'empty-workspace') await nativeWorkspaceCall(runtime, cookie, 'workspace/rename', {workspaceId: initial.workspace.workspaceId, title: '我的工作区'});
       instance = {runtime, bridge, context, cookie, authorizers: new Map([[identity, authorize]]), leaseTimers: new Map(), touched: Date.now(), fingerprint: revision, leases, sockets: new Set()};
+      logEvent('info', 'assistant_official_startup', {runtimeMs: Math.round(runtimeReady - startTime), authMs: Math.round(authenticated - runtimeReady), workspaceMs: Math.round(performance.now() - authenticated), totalMs: Math.round(performance.now() - startTime)});
       instances.set(key, instance);
       return instance;
     } catch (error) { await runtime?.close(); bridge.closeAllConnections(); bridge.close(); throw error; }
@@ -171,6 +180,7 @@ function allowedPath(pathname: string, req: Request) {
   return pathname === '/' || pathname.startsWith('/assets/') || pathname.startsWith('/plugins/') || pathname === '/favicon.ico';
 }
 export async function officialAssistantProxy(req: Request, res: Response) {
+  const requestStarted = performance.now();
   res.setHeader('Cache-Control', 'no-store');
   if ((req.method !== 'GET' && req.method !== 'HEAD' && req.headers.origin !== origin()) || req.headers['sec-fetch-site'] === 'cross-site') { res.status(403).json({message: '请求来源不符，教学数据未修改，请从青松工作台重新打开助手。'}); return; }
   const raw = req.originalUrl.slice(officialPrefix.length) || '/';
@@ -199,18 +209,47 @@ export async function officialAssistantProxy(req: Request, res: Response) {
   try {
     const context = getWorkspaceContext();
     const instance = await ensureInstance(context, () => checkIdentity(req.headers, context), createHash('sha256').update(req.headers.cookie ?? '').digest('hex'));
+    const instanceMs = performance.now() - requestStarted;
+    const upstreamStarted = performance.now();
     const body = req.method === 'POST' ? JSON.stringify(req.body) : undefined;
     const headers: Record<string, string> = {host: new URL(runtimeConfig.appUrl).host, cookie: instance.cookie};
     for (const name of ['content-type', 'accept', 'origin', 'if-none-match']) if (typeof req.headers[name] === 'string') headers[name] = req.headers[name];
     if (body) headers['content-length'] = String(Buffer.byteLength(body));
     const upstream = httpRequest({hostname: '127.0.0.1', port: instance.runtime.port, path: target.pathname + target.search, method: req.method, headers}, incoming => {
       res.status(incoming.statusCode ?? 502);
+      res.setHeader('Server-Timing', 'instance;dur=' + instanceMs.toFixed(1) + ', upstream;dur=' + (performance.now() - upstreamStarted).toFixed(1));
+      if (['GET', 'HEAD'].includes(req.method) && [200, 304].includes(incoming.statusCode ?? 0)) {
+        res.setHeader('Cache-Control', officialAssetCache(target.pathname, String(incoming.headers['content-type'] ?? '')));
+      }
       res.removeHeader('Content-Security-Policy'); res.removeHeader('X-Frame-Options');
       for (const [name, value] of Object.entries(incoming.headers)) if (value !== undefined && !['set-cookie', 'connection', 'transfer-encoding', 'content-length', 'content-security-policy', 'x-frame-options', 'cache-control'].includes(name)) res.setHeader(name, value);
+      res.vary('Cookie');
       const nativeCsp = String(incoming.headers['content-security-policy'] ?? '').split(';').filter(rule => !/^\s*frame-ancestors\b/i.test(rule)).filter(rule => rule.trim()).join('; ');
       res.setHeader('Content-Security-Policy', [nativeCsp, "frame-ancestors 'self'", ...(nativeCsp ? [] : ["object-src 'none'", "base-uri 'self'"])].filter(Boolean).join('; '));
       if (incoming.headers.location) { res.status(502).end('助手连接未完成，已有对话保留，请重新打开助手。'); incoming.resume(); return; }
-      incoming.pipe(res);
+      const cache = String(res.getHeader('Cache-Control'));
+      if (req.method === 'GET' && incoming.statusCode === 200 && cache.startsWith('private,')) {
+        let chunks: Buffer[] = [], size = 0, streaming = false;
+        incoming.on('data', (chunk: Buffer) => {
+          size += chunk.length;
+          if (!streaming && size > 8 * 1024 * 1024) {
+            streaming = true; res.setHeader('Cache-Control', 'no-store');
+            for (const buffered of chunks) res.write(buffered);
+            chunks = [];
+          }
+          if (streaming) res.write(chunk); else chunks.push(chunk);
+        });
+        incoming.on('end', () => {
+          if (streaming) { res.end(); return; }
+          const bytes = Buffer.concat(chunks);
+          const etag = '"' + createHash('sha256').update(bytes).digest('hex') + '"';
+          res.setHeader('ETag', etag);
+          const supplied = req.headers['if-none-match']?.split(',').map(value => value.trim().replace(/^W\//, '')) ?? [];
+          if (supplied.includes(etag) || supplied.includes('*')) res.status(304).end();
+          else res.end(bytes);
+        });
+        incoming.on('error', () => res.destroy());
+      } else incoming.pipe(res);
     });
     upstream.setTimeout(60000, () => upstream.destroy(Error('NATIVE_TIMEOUT')));
     upstream.on('error', () => { if (!res.headersSent) res.status(502).json({message: '助手连接中断，已有对话保留，教学数据未修改，请刷新重试。'}); else res.end(); });
