@@ -191,8 +191,9 @@ export default function StudentProfileV2({
                   <p className="font-black mt-1">{selectedStudent.committeeRoleIds.map(id=>committeeRoles.find(role=>role.id===id)?.name).filter(Boolean).join('、')||'无'}</p>
                 </div>
                 <div className="rounded-2xl bg-slate-50/80 dark:bg-zinc-900/50 p-3">
-                  <p className="text-slate-400">家长联系人</p>
-                  <p className="font-black mt-1">{selectedStudent.parent.name}</p>
+                  <p className="text-slate-400">第一联系人</p>
+                  <p className="font-black mt-1">{selectedStudent.parent.name || '未填写'} · {selectedStudent.parent.relation} · {selectedStudent.parent.phone}</p><p className="mt-1">{selectedStudent.parent.remark}</p>
+                  <p className="mt-3 text-slate-400">第二联系人</p><p className="mt-1 font-semibold">{selectedStudent.secondaryParent?.name || '未填写'} · {selectedStudent.secondaryParent?.relation} · {selectedStudent.secondaryParent?.phone}</p><p>{selectedStudent.secondaryParent?.remark}</p>
                 </div>
                 <div className="rounded-2xl bg-slate-50/80 dark:bg-zinc-900/50 p-3">
                   <p className="text-slate-400">家庭关注</p>

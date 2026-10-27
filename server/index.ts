@@ -1,3 +1,4 @@
+import { officialAssistantUpgrade, closeOfficialAssistant, officialPrefix } from './services/assistant/officialAssistant';
 import { stopAssistant } from './services/assistant/assistantService';
 import { modelAdminUpgrade, closeModelAdmin } from './services/assistant/modelAdmin';
 /**
@@ -45,7 +46,7 @@ const server = app.listen(runtimeConfig.port, runtimeConfig.host, () => {
   });
 });
 
-server.on('upgrade',(request,socket,head)=>{void modelAdminUpgrade(request,socket,head);});
+server.on('upgrade',(request,socket,head)=>{void (request.url?.startsWith(officialPrefix + '/') ? officialAssistantUpgrade(request,socket,head) : modelAdminUpgrade(request,socket,head));});
 
 let shuttingDown = false;
 const shutdown = (reason: string, exitCode: number) => {
@@ -58,9 +59,9 @@ const shutdown = (reason: string, exitCode: number) => {
     process.exit(exitCode || 1);
   }, runtimeConfig.shutdownTimeoutMs);
   forceTimer.unref();
-  void Promise.allSettled([stopAssistant(),closeModelAdmin()]);
+  void Promise.allSettled([stopAssistant(),closeModelAdmin(),closeOfficialAssistant()]);
   server.close(async () => {
-    await Promise.allSettled([stopAssistant(),closeModelAdmin()]);
+    await Promise.allSettled([stopAssistant(),closeModelAdmin(),closeOfficialAssistant()]);
     clearTimeout(forceTimer);
     closeRosterDatabase();
     closeResourceDatabase();

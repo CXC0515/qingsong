@@ -4,7 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { stringify } from 'yaml';
 import { agentDirectory, disabledTools } from './runtime.mjs';
-export async function startModelAdmin({ home, publicUrl, key }) {
+export async function startWebRuntime({ home, publicUrl, key, patchRows, environment = {} }) {
   const working = path.join(home, 'empty-workspace');
   await mkdir(working, { recursive: true, mode: 0o700 });
   const reservation = createServer();
@@ -14,7 +14,7 @@ export async function startModelAdmin({ home, publicUrl, key }) {
   const patch = path.join(home, 'admin-guard.patch.yml');
   await writeFile(
     patch,
-    stringify([
+    stringify(patchRows ?? [
       ...[
         ...disabledTools,
         'workspace-files',
@@ -74,6 +74,7 @@ export async function startModelAdmin({ home, publicUrl, key }) {
         TZ: 'Asia/Shanghai',
         DSH_TELEMETRY_DISABLED: '1',
         QS_MODEL_KEY: key || '',
+        ...environment,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     },
@@ -147,3 +148,5 @@ export async function startModelAdmin({ home, publicUrl, key }) {
   }
   return { port, url, isAlive: () => !exited, close };
 }
+
+export const startModelAdmin = (options) => startWebRuntime(options);

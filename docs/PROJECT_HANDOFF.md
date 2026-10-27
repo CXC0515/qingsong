@@ -7,6 +7,12 @@
 
 ## 1. 当前阶段与产品边界
 
+### 2026-10-27 官方教学助手UI（本地，待用户验收）
+
+本轮已完成：助手会话侧栏默认180px并可拖宽；手机右下入口全屏打开并保留草稿；母系统定稿Logo；讲台左右各两座及导出；学生两位联系人。专项13/13、类型/构建及隔离壳层检查通过，真机键盘待验；schema17仅本机样本，未生产迁移、push或部署。范围与交接见[本轮记录](WORKBENCH_CONTACTS_SEATS_UPDATE.md)。
+
+用户批准复用完整官方DSH Web并接青松身份/工具。在原专项worktree、codex/assistant-official-integration分支实现，基线origin/main@a53258b。HTTP/WS绑定青松登录及UID+workspace，原生历史/反馈隔离，只有只读教学工具；旧SDK会话只读，统一1执行+3排队。官方插件/locale/样式适配替代原型DOM桥。未push、PR、合并、部署或真实模型调用，生产状态仍以下文发布记录为准。个人聊天工作区已本地接通：用户→多个工作区→各自会话，默认“我的工作区”，不扩大业务权限；双用户/重试/重启与壳层桌面和窄屏检查通过，真机键盘待验。方案与预览见[官方接入](ASSISTANT_OFFICIAL_INTEGRATION.md)，本地检查见[QA](qa/2026-10-27-assistant-official/README.md)。
+
 ### 2026-10-27 全部GPT模型统一（已发布，真实调用待用户验收）
 
 - 用户明确授权将所有AI功能的gpt-5.6-luna统一为gpt-6-luna并迅速实施。独立分支codex/unify-gpt6-luna从origin/main@8c9df7d开始，复用本会话独立worktree。
@@ -310,3 +316,5 @@ flowchart LR
 - 回环／公网live、ready、首页200及匿名任务API401通过；服务active/running，NRestarts=0，备份timer active。首页和JS哈希与服务器一致。
 - 测试入口https://td.unreached.top/?page=classroom-tasks，用原账号；真实教师及真机触控待用户验收。保留旧release及恢复点，不改域名、密钥，不清理真实数据。
 - 发布前路径核查拦住一次错误构建命令；改为服务器脚本后真正构建通过。迁移遇非工作区项时中止并恢复旧服务，收紧至实际数据库后重新核验恢复点并完成迁移。
+
+官方助手本地UI修正（2026-10-27）：用户批准后修复共享弹窗白边、助手容器/输入留白和历史栏双状态；本地检查见 docs/qa/2026-10-27-assistant-official/README.md 的1.1。未部署。

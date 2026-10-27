@@ -1,0 +1,16 @@
+/* Prototype-only host adaptation. DSH's chat renderer and composer are untouched. */
+html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw-alias-bg-layer-1:transparent;--dsh-boot-bg:transparent;--dsw-alias-bg-layer-3:#f8fbf8;--dsw-alias-turn-trigger-bg:#eaf0eb}
+.qs-native-frame{grid-template-columns:minmax(0,1fr)!important;background:transparent!important}
+.qs-native-sidebar{display:none!important}
+html.qs-history-visible .qs-native-sidebar{display:block!important;position:absolute!important;inset:0 auto 0 0;width:min(300px,90%)!important;z-index:50;background:#f4f8f4;box-shadow:6px 0 30px #18342720}
+.qs-native-main{grid-column:1!important;min-width:0!important}
+.qs-native-irrelevant{display:none!important}
+.qs-native-composer{background:rgba(255,255,255,.72)!important}
+/* Keep the official empty-state editor at the same bottom edge as an active chat. */
+.qs-native-main .wSkVaW_root[data-phase=hero] .wSkVaW_scrollBody{justify-content:flex-end!important}
+.qs-native-main .wSkVaW_composerHero{padding-bottom:0!important}
+.qs-native-main .pXSMma_headline{color:#7b8580!important;font-size:18px!important;font-weight:400!important;line-height:26px!important}
+.qs-native-main .pXSMma_titleGroup{flex-direction:column;gap:5px!important}
+.qs-native-main .pXSMma_previewBadge{align-self:center!important;color:#929b96!important;background:transparent!important;border:0!important;font-family:inherit!important;font-weight:400!important}
+@media(max-width:500px){body{font-size:15px}}
+@media(max-width:600px){[data-composer-input]{font-size:16px!important}button[aria-label="发送消息"],button[aria-label*="停止"],button[aria-label^="选择模型"],button[aria-label="请选择模型"]{min-width:44px!important;min-height:44px!important}}

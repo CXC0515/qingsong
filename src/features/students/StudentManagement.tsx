@@ -453,7 +453,7 @@ export default function StudentManagement({
               </div>
 
               <section className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-400">家长联系信息</h4>
+                <h4 className="text-xs font-bold text-slate-400">第一联系人</h4>
                 {selectedStudent.parent.name || selectedStudent.parent.phone || selectedStudent.parent.remark ? (
                   <div className="p-3 border border-slate-200 dark:border-zinc-800 rounded-lg space-y-2 text-xs">
                     <div className="flex flex-wrap justify-between gap-2 font-medium text-slate-700 dark:text-slate-300">
@@ -463,6 +463,8 @@ export default function StudentManagement({
                     {selectedStudent.parent.remark && <p className="p-2 bg-amber-500/5 rounded text-[11px] text-slate-500">{selectedStudent.parent.remark}</p>}
                   </div>
                 ) : <p className="p-3 bg-slate-50 dark:bg-zinc-800/40 rounded-lg text-xs text-slate-400">尚未录入家长联系信息</p>}
+                <p className="text-xs font-semibold">第二联系人</p>
+                <p className="rounded-lg border p-3 text-sm">{selectedStudent.secondaryParent?.name || '未填写姓名'} {selectedStudent.secondaryParent?.relation} · {selectedStudent.secondaryParent?.phone || '未填写电话'}{selectedStudent.secondaryParent?.remark && <span className="mt-2 block">{selectedStudent.secondaryParent.remark}</span>}</p>
               </section>
 
               <section className="space-y-2">
@@ -602,7 +604,7 @@ export default function StudentManagement({
 
               {/* Parent fields */}
               <div className="p-3 bg-slate-50 dark:bg-zinc-800/40 rounded-2xl border border-slate-200 dark:border-zinc-700 space-y-3">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">家长联系信息</span>
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">第一联系人</span>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-3">
                     <div className="space-y-1">
@@ -671,6 +673,12 @@ export default function StudentManagement({
                     />
                   </div>
                 </div>
+                <fieldset className="space-y-3 border-t border-slate-200 pt-4">
+                  <legend className="text-sm font-semibold">第二联系人（选填）</legend>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {([['name','姓名'],['relation','关系'],['phone','联系电话'],['remark','备注']] as const).map(([key,label])=><label key={key} className="space-y-1 text-sm">{label}<input aria-label={'第二联系人'+label} value={formData.secondaryParent?.[key] ?? ''} maxLength={key==='remark'?4000:100} onChange={e=>setFormData({...formData,secondaryParent:{name:'',phone:'',relation:'',remark:'',...formData.secondaryParent,[key]:e.target.value}})} className="qs-field-input min-h-11 w-full rounded-lg border px-3 text-base"/></label>)}
+                  </div>
+                </fieldset>
                 <div className="space-y-2">
                   <label className="text-[11px] font-bold text-slate-500">家庭关注类型</label>
                   <div className="flex flex-wrap gap-2">

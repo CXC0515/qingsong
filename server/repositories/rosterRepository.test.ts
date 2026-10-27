@@ -108,3 +108,15 @@ test('database remains readable after the repository connection closes', () => {
   assert.equal(student.name, '测试学生甲');
   reopened.close();
 });
+
+test('two parent contacts persist and legacy writes retain the second contact',()=>{
+ const parent={name:'第一家长',phone:'10001',relation:'母亲',remark:'先联系'};
+ const secondaryParent={name:'第二家长',phone:'10002',relation:'父亲',remark:'备用'};
+ const created=repository.createStudent({classId:primaryClass.id,studentNo:'contact-test',name:'联系人测试',parent,secondaryParent});
+ assert.deepEqual(created.parent,parent);assert.deepEqual(created.secondaryParent,secondaryParent);
+ const {secondaryParent:_,...legacy}=created;
+ repository.updateStudent(created.studentId,{...legacy,name:'修改姓名'});
+ assert.deepEqual(repository.listStudents(primaryClass.id).find(s=>s.studentId===created.studentId)?.secondaryParent,secondaryParent);
+ const empty={name:'',phone:'',relation:'',remark:''};
+ assert.deepEqual(repository.updateStudent(created.studentId,{...created,secondaryParent:empty})?.secondaryParent,empty);
+});

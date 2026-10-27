@@ -48,7 +48,7 @@
 .qs-student-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}.qs-student-card{position:relative;min-width:0;min-height:80px;overflow:hidden;border-radius:16px;border:1px solid var(--qs-line);background:var(--qs-surface)}
 .qs-student-main{position:relative;display:flex;align-items:flex-start;flex-direction:column;justify-content:flex-start;gap:2px;width:100%;min-height:88px;padding:8px 9px 25px;text-align:left}.qs-student-name{font-size:15px;font-weight:600;line-height:1.4;overflow-wrap:anywhere}.qs-student-no{font-size:12px;color:#8a978b}.qs-student-state{position:absolute;bottom:7px;left:9px;max-width:calc(100% - 48px);font-size:11px;line-height:16px;color:var(--qs-muted);white-space:nowrap}.qs-student-exception{position:absolute;bottom:0;right:0;min-width:44px;min-height:44px;font-size:12px;padding:0 5px}
 .qs-student-card[data-result=positive]{background:#d7e7d6ad;border-color:#97b59668}.qs-student-card[data-result=negative]{background:#f0e6d7b8;border-color:#ccb99c65}
-.qs-dialog{--qs-shadow:0 3px 8px -5px #18342730,0 1px 3px -2px #18342720;position:fixed;color:#233b35;background:transparent}.qs-dialog::backdrop{background:#233b3526}.qs-dialog-surface{--lg-tint:rgba(255,255,255,.26)}.qs-dialog-surface>.lg-content{background:rgba(245,250,242,.9);border-radius:inherit;margin:7px}.qs-dialog .qs-button-host{max-width:100%}
+.qs-dialog{--qs-shadow:0 3px 8px -5px #18342730,0 1px 3px -2px #18342720;position:fixed;color:#233b35;background:transparent}.qs-dialog::backdrop{background:#233b3526}.qs-dialog-surface{--lg-tint:rgba(255,255,255,.26);border-radius:inherit!important;overflow:hidden}.qs-dialog-surface>.lg-content{background:rgba(245,250,242,.9);border-radius:inherit;margin:0}.qs-dialog .qs-button-host{max-width:100%}
 
 /* Workbench: a compact shortcut card, daily modules below it, and a wide lower-right assistant. */
 .qs-workbench-grid{display:flex;flex-direction:column;gap:16px;min-width:0}
@@ -90,11 +90,11 @@
 @media(min-width:640px){.qs-button-host.sm\:hidden{display:none}.qs-button-host.sm\:inline-grid{display:inline-grid}}
 @media(min-width:768px){.qs-button-host.md\:hidden{display:none}.qs-button-host.md\:inline-grid{display:inline-grid}}
 @media(min-width:1024px){.qs-button-host.lg\:hidden{display:none}.qs-button-host.lg\:inline-grid{display:inline-grid}}
-.qs-dialog{--qs-dialog-height:92dvh;max-height:var(--qs-dialog-height)}
-.qs-dialog-frame{display:flex;flex-direction:column;min-height:0;max-height:calc(var(--qs-dialog-height) - 14px);padding-bottom:env(safe-area-inset-bottom)}
+.qs-dialog{--qs-dialog-height:92dvh;max-height:var(--qs-dialog-height);border-radius:28px}
+.qs-dialog-frame{display:flex;flex-direction:column;min-height:0;max-height:var(--qs-dialog-height);padding-bottom:env(safe-area-inset-bottom)}
 .qs-dialog-full{--qs-dialog-height:100dvh;height:100dvh;border-radius:0}
-.qs-dialog-full .qs-dialog-frame{height:calc(var(--qs-dialog-height) - 14px)}
-@media(min-width:640px){.qs-dialog-full{--qs-dialog-height:92dvh;height:auto;border-radius:16px}.qs-dialog-full .qs-dialog-frame{height:auto}.qs-dialog[data-side-on-medium=true]{--qs-dialog-height:100dvh}.qs-dialog[data-side-on-medium=true] .qs-dialog-frame{height:calc(var(--qs-dialog-height) - 14px)}}
+.qs-dialog-full .qs-dialog-frame{height:var(--qs-dialog-height)}
+@media(min-width:640px){.qs-dialog-full{--qs-dialog-height:92dvh;height:auto;border-radius:16px}.qs-dialog-full .qs-dialog-frame{height:auto}.qs-dialog[data-side-on-medium=true]{--qs-dialog-height:100dvh}.qs-dialog[data-side-on-medium=true] .qs-dialog-frame{height:var(--qs-dialog-height)}}
 .qs-app .qs-field-input,.qs-dialog .qs-field-input{background-color:#ffffff42;border:1px solid var(--qs-line,rgba(57,83,66,.2));border-radius:12px;min-height:44px;font-size:16px;color:inherit}
 .dark .qs-app .qs-field-input,.dark .qs-dialog .qs-field-input{background-color:#ffffff0a}
 .qs-search-field .qs-field-input,.qs-note-field .qs-field-input{background:transparent!important;border:0!important;border-radius:0!important}
@@ -143,3 +143,18 @@
 @media(min-width:768px) and (max-height:600px){.qs-assistant-panel>.lg-content{padding:12px;gap:6px}.qs-chat-messages{min-height:32px}.qs-chat-composer{gap:6px}.qs-chat-composer textarea{min-height:52px;max-height:80px}.qs-chat-error{max-height:36px}}
 @media(min-width:768px) and (max-height:450px){.qs-assistant-panel>.lg-content{overflow-y:auto}}
 @media(max-width:767px){.qs-chat-toolbar select,.qs-chat-model{font-size:16px}}
+
+/* Same assistant session; compact entry on phones. */
+.qs-app .qs-main-brand{background:transparent}
+.qs-assistant-dialog{position:relative;inset:auto;margin:0;padding:0;border:0;background:transparent;color:inherit;width:auto;max-width:none;max-height:none;overflow:hidden}
+.qs-assistant-dialog[open]{display:flex;flex-direction:column}.qs-assistant-dialog:not([open]){display:none}
+.qs-mobile-ai-launch,.qs-mobile-ai-header{display:none}
+@media(max-width:767px){
+ #workbench-page{padding-bottom:76px}
+ .qs-mobile-ai-launch{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:30;display:flex;align-items:center;gap:8px;min-height:48px;padding:10px 18px;border:1px solid #ffffffa0;border-radius:24px;background:#426b56;color:white;box-shadow:0 3px 8px -5px #18342730}
+ .qs-assistant-dialog[open]{position:fixed;inset:0;width:100%;height:100dvh;min-height:0;max-height:100dvh;background:#e5eae6}
+ .qs-assistant-dialog::backdrop{background:#e5eae6}
+ .qs-mobile-ai-header{display:flex;align-items:center;justify-content:space-between;padding:env(safe-area-inset-top) 12px 0 20px;flex-shrink:0;min-height:56px}
+ .qs-mobile-ai-header button{display:grid;place-items:center;width:44px;height:44px}
+ .qs-assistant-dialog>.qs-assistant-panel{flex:1;height:auto;min-height:0;border-radius:0}
+}

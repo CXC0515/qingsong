@@ -78,35 +78,10 @@ test('assistant HTTP routes enforce login, workspace ownership, strict input, CS
   const meta = await status.json();
   assert.equal(meta.canManage, false);
   assert.equal(JSON.stringify(meta).includes('apiKey'), false);
-  const made = await fetch(origin + '/api/assistant/sessions', {
-    method: 'POST',
-    headers: { ...headers, Cookie: a },
-    body: JSON.stringify({ provider: 'qingsong', model: 'fixture' }),
-  });
-  assert.equal(made.status, 201);
-  const chat = await made.json();
-  for (const endpoint of ['', '/events'])
-    assert.equal(
-      (
-        await fetch(origin + '/api/assistant/sessions/' + chat.id + endpoint, {
-          headers: { Cookie: b },
-        })
-      ).status,
-      404,
-    );
-  for (const endpoint of ['/cancel', '/messages']) {
-    const response = await fetch(
-      origin + '/api/assistant/sessions/' + chat.id + endpoint,
-      {
-        method: 'POST',
-        headers: { ...headers, Cookie: b },
-        body: JSON.stringify({
-          requestId: crypto.randomUUID(),
-          text: '未授权',
-        }),
-      },
-    );
-    assert.equal(response.status, 404);
+  for (const endpoint of ['', '/old/messages', '/old/cancel']) {
+    const response = await fetch(origin + '/api/assistant/sessions' + endpoint, {method: 'POST', headers: {...headers, Cookie: a}, body: '{}'});
+    assert.equal(response.status, 410);
+    assert.match(await response.text(), /只读/);
   }
   assert.equal(
     (
@@ -139,7 +114,7 @@ test('assistant HTTP routes enforce login, workspace ownership, strict input, CS
         }),
       })
     ).status,
-    400,
+    410,
   );
   assert.equal(
     (

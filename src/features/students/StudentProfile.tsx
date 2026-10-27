@@ -286,6 +286,7 @@ export default function StudentProfile({
           </div>
         </div>
 
+        <div className="rounded-2xl border p-4 text-sm"><p className="font-semibold">第二联系人</p><p>{selectedStudent.secondaryParent?.name || '未填写'} · {selectedStudent.secondaryParent?.relation} · {selectedStudent.secondaryParent?.phone}</p><p>{selectedStudent.secondaryParent?.remark}</p></div>
         {/* Family situation details */}
         <div className="space-y-3 text-xs">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">家庭关注点 & 关怀建议</span>

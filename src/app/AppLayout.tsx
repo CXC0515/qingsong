@@ -1,6 +1,7 @@
+import qingsongLogo from '../assets/qingsong-logo.png';
 import ClassPicker from '../components/ClassPicker';
 import ResponsiveDialog from '../components/ResponsiveDialog';
-import { Bell, Boxes, CalendarDays, ChevronDown, GraduationCap, HelpCircle, LogOut, Menu, MoreHorizontal, Network, ShieldCheck, Sparkles, X } from 'lucide-react';
+import { Bell, Boxes, CalendarDays, ChevronDown, HelpCircle, LogOut, Menu, MoreHorizontal, Network, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { SchoolClass, TeacherProfile } from '../domain/types';
 import type { NavGroup, PageId } from './navigation';
@@ -90,7 +91,7 @@ export default function AppLayout({
     <div className="qs-app qs-shell h-dvh overflow-hidden font-sans antialiased">
       {mobileNavOpen&&<button type="button" className="qs-nav-backdrop" aria-label="关闭导航" onClick={()=>setMobileNavOpen(false)}/>}
       <aside aria-label="主导航" className={'app-sidebar qs-sidebar '+(mobileNavOpen?'qs-sidebar-open':'')}>
-        <div className="qs-brand"><span className="qs-brand-mark"><GraduationCap className="h-6 w-6"/></span><span><strong>青松教师</strong><small>留一点从容给教学</small></span><button type="button" className="qs-nav-close" aria-label="关闭导航" onClick={()=>setMobileNavOpen(false)}><X className="h-5 w-5"/></button></div>
+        <div className="qs-brand"><span className="qs-brand-mark qs-main-brand"><img src={qingsongLogo} alt="" className="h-10 w-10 object-contain"/></span><span><strong>青松教师</strong><small>留一点从容给教学</small></span><button type="button" className="qs-nav-close" aria-label="关闭导航" onClick={()=>setMobileNavOpen(false)}><X className="h-5 w-5"/></button></div>
         <nav className="qs-navigation" aria-label="功能导航">
           {navGroups.map(group=>{
             const GroupIcon=group.icon,isSingle=group.items.length===1,isExpanded=isSingle||expandedGroups[group.id];

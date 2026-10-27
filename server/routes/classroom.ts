@@ -16,7 +16,7 @@ const layoutSchema = z.object({
   seats: z.array(z.object({
     seatIndex: z.number().int().min(0),
     studentId: z.string().trim().min(1)
-  })).max(120)
+  })).max(124)
 });
 
 router.get('/classes/:classId/classroom-layout', (request, response) => {
