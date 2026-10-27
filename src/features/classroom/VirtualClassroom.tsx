@@ -460,6 +460,40 @@ export default function VirtualClassroom({
     if (!activeLayout) return null;
     const rowHeight = expanded ? 44 : 64;
     const columnWidth = expanded ? 76 : 82;
+    const boardMinWidth = Math.max(activeLayout.columnCount * columnWidth + 46, activeLayout.columnCount * 74 + (activeLayout.columnCount - 1) * 8 + 46);
+    const renderSeat = (seatIndex: number, label: string) => {
+                const studentId = studentIdBySeatIndex.get(seatIndex);
+                const student = studentId ? studentById.get(studentId) : undefined;
+                const isPlacement = student?.id === placementStudentId;
+                return (
+                  <button
+                    type="button"
+                    key={seatIndex}
+                    onClick={() => handleSeatClick(seatIndex)}
+                    className={`relative flex min-h-0 overflow-hidden rounded-md border p-1.5 text-center transition-colors ${
+                      student
+                        ? isPlacement
+                          ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-200'
+                          : 'border-slate-200 bg-white hover:border-emerald-400 dark:border-zinc-700 dark:bg-zinc-900'
+                        : editMode
+                          ? 'border-dashed border-slate-300 bg-white/60 hover:border-emerald-400 hover:bg-emerald-50/50'
+                          : 'cursor-default border-dashed border-slate-200 bg-transparent'
+                    }`}
+                    aria-label={student ? `${label}，${student.name}，${student.studentNo}` : `${label}，空位`}
+                  >
+                    {student ? (
+                      <span className="m-auto flex min-w-0 flex-col items-center justify-center leading-tight">
+                        <span className={`absolute right-1.5 top-1.5 h-2 w-2 rounded-full ${statusMeta[student.status].dot}`} />
+                        <span className="max-w-full truncate text-xs font-bold text-slate-800 dark:text-slate-100">{student.name}</span>
+                        <span className="mt-0.5 text-[10px] text-slate-400">{student.studentNo}</span>
+                        {student.committeeRoleIds.length > 0 && <Award className="absolute bottom-1 right-1.5 h-3.5 w-3.5 text-amber-500" aria-label="班委" />}
+                      </span>
+                    ) : (
+                      <span className="m-auto text-[11px] text-slate-400">空位</span>
+                    )}
+                  </button>
+                );
+    };
     return (
       <div className={`relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-slate-200 bg-slate-50 dark:border-zinc-800 dark:bg-zinc-950/40 ${expanded ? 'p-2 sm:p-3' : 'p-3 sm:p-4'}`}>
         {!expanded && (
@@ -468,14 +502,15 @@ export default function VirtualClassroom({
           </GlassButton>
         )}
         <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+          <div style={{containerType:'inline-size', minWidth:`${boardMinWidth}px`}}>
           <div
             className="grid"
             style={{
               gridTemplateColumns: '38px minmax(0, 1fr)',
-              gridTemplateRows: 'minmax(0, 1fr) 24px',
+              gridTemplateRows: `${activeLayout.rowCount * rowHeight + (activeLayout.rowCount - 1) * 6}px 24px`,
               columnGap: '8px',
               rowGap: '5px',
-              minWidth: `${activeLayout.columnCount * columnWidth + 46}px`,
+              minWidth: `${boardMinWidth}px`,
               minHeight: `${activeLayout.rowCount * rowHeight + 29}px`
             }}
           >
@@ -502,37 +537,7 @@ export default function VirtualClassroom({
                 const column = visualIndex % activeLayout.columnCount;
                 const logicalRow = activeLayout.rowCount - 1 - visualRow;
                 const seatIndex = logicalRow * activeLayout.columnCount + column;
-                const studentId = studentIdBySeatIndex.get(seatIndex);
-                const student = studentId ? studentById.get(studentId) : undefined;
-                const isPlacement = student?.id === placementStudentId;
-                return (
-                  <button
-                    type="button"
-                    key={seatIndex}
-                    onClick={() => handleSeatClick(seatIndex)}
-                    className={`relative flex min-h-0 overflow-hidden rounded-md border p-1.5 text-center transition-colors ${
-                      student
-                        ? isPlacement
-                          ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-200'
-                          : 'border-slate-200 bg-white hover:border-emerald-400 dark:border-zinc-700 dark:bg-zinc-900'
-                        : editMode
-                          ? 'border-dashed border-slate-300 bg-white/60 hover:border-emerald-400 hover:bg-emerald-50/50'
-                          : 'cursor-default border-dashed border-slate-200 bg-transparent'
-                    }`}
-                    aria-label={student ? `第${logicalRow + 1}行第${column + 1}列，${student.name}，${student.studentNo}` : `第${logicalRow + 1}行第${column + 1}列，空位`}
-                  >
-                    {student ? (
-                      <span className="m-auto flex min-w-0 flex-col items-center justify-center leading-tight">
-                        <span className={`absolute right-1.5 top-1.5 h-2 w-2 rounded-full ${statusMeta[student.status].dot}`} />
-                        <span className="max-w-full truncate text-xs font-bold text-slate-800 dark:text-slate-100">{student.name}</span>
-                        <span className="mt-0.5 text-[10px] text-slate-400">{student.studentNo}</span>
-                        {student.committeeRoleIds.length > 0 && <Award className="absolute bottom-1 right-1.5 h-3.5 w-3.5 text-amber-500" aria-label="班委" />}
-                      </span>
-                    ) : (
-                      <span className="m-auto text-[11px] text-slate-400">空位</span>
-                    )}
-                  </button>
-                );
+                return renderSeat(seatIndex, `第${logicalRow + 1}行第${column + 1}列`);
               })}
             </div>
             <span aria-hidden="true" />
@@ -546,13 +551,11 @@ export default function VirtualClassroom({
               ))}
             </div>
           </div>
-          <div className="my-3 grid min-w-[430px] grid-cols-[1fr_1fr_1.4fr_1fr_1fr] gap-2" aria-label="讲台旁座位">
-            {[120,121,-1,122,123].map(index=>{
-              if(index===-1)return <div key={index} className="flex min-h-11 items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-sm font-semibold text-amber-900">讲台</div>;
-              const student=studentById.get(studentIdBySeatIndex.get(index) ?? '');
-              const label=(index<122?'讲台左':'讲台右')+(index%2+1)+'座';
-              return <button key={index} type="button" onClick={()=>handleSeatClick(index)} aria-label={label+'，'+(student?.name ?? '空位')} className={'min-h-11 rounded-md border p-2 text-sm '+(student?.id===placementStudentId?'border-amber-500 bg-amber-50':'border-slate-300 bg-white dark:bg-zinc-900')}><span className="block text-xs text-slate-500">{label}</span><span className="font-semibold">{student?.name ?? '空位'}</span></button>;
-            })}
+          <div className="my-3 ml-[46px] grid gap-2" style={{gridTemplateColumns:`repeat(2, calc((100cqw - 46px - ${(activeLayout.columnCount - 1) * 8}px) / ${activeLayout.columnCount})) minmax(100px, 1fr) repeat(2, calc((100cqw - 46px - ${(activeLayout.columnCount - 1) * 8}px) / ${activeLayout.columnCount}))`,gridTemplateRows:`${rowHeight}px`}} aria-label="讲台旁座位">
+            {[120,121,-1,122,123].map(index=>index===-1
+              ? <div key={index} className="flex items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-sm font-semibold text-amber-900">讲台</div>
+              : renderSeat(index,(index<122?'讲台左':'讲台右')+(index%2+1)+'座'))}
+          </div>
           </div>
         </div>
         {!expanded && <div className="mx-auto flex h-11 w-full max-w-3xl shrink-0 items-center justify-center rounded-sm bg-slate-800 text-xs font-semibold text-white">黑板</div>}
