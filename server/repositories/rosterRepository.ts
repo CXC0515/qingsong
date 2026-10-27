@@ -58,6 +58,7 @@ export interface StudentWriteInput {
   status?: Student['status'];
   behaviorTags?: string[];
   parent?: Student['parent'];
+  secondaryParent?: Student['secondaryParent'];
   familyStatus?: Student['familyStatus'];
   familyStatusTag?: string;
   observationHistory?: Student['observationHistory'];
@@ -162,6 +163,7 @@ const listJoinedStudents = (classId?: string, includeInactive = false) => {
 const createDetails = (input: StudentWriteInput): StudentDetails => ({
   behaviorTags: input.behaviorTags ?? [],
   parent: input.parent ?? { name: '', phone: '', relation: '', remark: '' },
+  secondaryParent: input.secondaryParent,
   familyStatus: input.familyStatus ?? 'normal',
   familyStatusTag: input.familyStatusTag,
   observationHistory: input.observationHistory ?? [],
@@ -420,6 +422,8 @@ export const updateStudent = (studentId: string, input: StudentWriteInput) => {
   assertUniqueStudentNo(input.classId, studentNo, currentMembership.class_id === input.classId ? currentMembership.id : undefined);
   assertCommitteeRoles(input.committeeRoleIds ?? []);
   const now = new Date().toISOString();
+  const previous = database.prepare('SELECT profile_json FROM students WHERE id = ?').get(studentId) as {profile_json:string};
+  const details = createDetails({...input, secondaryParent: input.secondaryParent ?? parseDetails(previous.profile_json).secondaryParent});
 
   database.transaction(() => {
     database.prepare(`
@@ -428,7 +432,7 @@ export const updateStudent = (studentId: string, input: StudentWriteInput) => {
       input.name.trim(),
       input.gender ?? 'male',
       input.status ?? 'good',
-      JSON.stringify(createDetails(input)),
+      JSON.stringify(details),
       now,
       studentId
     );

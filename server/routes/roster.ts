@@ -45,7 +45,10 @@ const classPatchSchema = z.object({
   status: z.enum(['active', 'archived']).optional()
 });
 
+const parentInfoSchema = z.object({name:z.string().max(100),phone:z.string().max(100),relation:z.string().max(100),remark:z.string().max(4000)});
 const studentWriteSchema = z.object({
+  parent: parentInfoSchema.optional(),
+  secondaryParent: parentInfoSchema.optional(),
   studentId: z.string().trim().min(1).optional(),
   name: z.string().trim().min(1),
   studentNo: z.string().trim().min(1).max(40),

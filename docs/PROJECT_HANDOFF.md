@@ -9,6 +9,8 @@
 
 ### 2026-10-27 官方教学助手UI（本地，待用户验收）
 
+本轮已完成：助手会话侧栏默认180px并可拖宽；手机右下入口全屏打开并保留草稿；母系统定稿Logo；讲台左右各两座及导出；学生两位联系人。专项13/13、类型/构建及隔离壳层检查通过，真机键盘待验；schema17仅本机样本，未生产迁移、push或部署。范围与交接见[本轮记录](WORKBENCH_CONTACTS_SEATS_UPDATE.md)。
+
 用户批准复用完整官方DSH Web并接青松身份/工具。在原专项worktree、codex/assistant-official-integration分支实现，基线origin/main@a53258b。HTTP/WS绑定青松登录及UID+workspace，原生历史/反馈隔离，只有只读教学工具；旧SDK会话只读，统一1执行+3排队。官方插件/locale/样式适配替代原型DOM桥。未push、PR、合并、部署或真实模型调用，生产状态仍以下文发布记录为准。个人聊天工作区已本地接通：用户→多个工作区→各自会话，默认“我的工作区”，不扩大业务权限；双用户/重试/重启与壳层桌面和窄屏检查通过，真机键盘待验。方案与预览见[官方接入](ASSISTANT_OFFICIAL_INTEGRATION.md)，本地检查见[QA](qa/2026-10-27-assistant-official/README.md)。
 
 ### 2026-10-27 全部GPT模型统一（已发布，真实调用待用户验收）

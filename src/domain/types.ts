@@ -55,6 +55,7 @@ export interface Student {
   status: StudentStatus;
   behaviorTags: string[];
   parent: ParentInfo;
+  secondaryParent?: ParentInfo;
   familyStatus: 'normal' | 'attention' | 'special';
   familyStatusTag?: string; // e.g. "留守儿童", "单亲家庭"
   observationHistory: TeacherObservation[];

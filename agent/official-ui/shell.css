@@ -16,9 +16,9 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 /* Native sidebar state is the only source of truth; no parallel overlay. */
 .pI_x6G_frame[data-sidebar-collapsed]{grid-template-columns:0 minmax(0,1fr) 0!important}
 .pI_x6G_sidebarCol .hHd-Xa_root{width:100%!important}
-.pI_x6G_frame:not([data-sidebar-collapsed]){grid-template-columns:min(280px,45%) minmax(0,1fr) 0!important}
+.pI_x6G_frame:not([data-sidebar-collapsed]){grid-template-columns:var(--qs-sidebar-width,180px) minmax(0,1fr) 0!important}
 .pI_x6G_handle{display:none!important}
-@media(max-width:650px){
+@media(max-width:480px){
  .pI_x6G_frame:not([data-sidebar-collapsed]){grid-template-columns:minmax(0,1fr) 0 0!important}
  .pI_x6G_frame:not([data-sidebar-collapsed])>.pI_x6G_centerCol{visibility:hidden}
  .pI_x6G_sidebarCol .hHd-Xa_root{width:100%!important}
@@ -46,3 +46,8 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 .qs-workspace-dialog::backdrop{background:#233b3540;backdrop-filter:blur(3px)}
 .qs-workspace-dialog h2{margin:0 0 20px;font-size:18px}.qs-workspace-dialog label{display:grid;gap:8px;font-size:14px}.qs-workspace-dialog input{box-sizing:border-box;width:100%;min-height:44px;border:1px solid #426b5630;border-radius:12px;background:#ffffff80;padding:10px;font-size:16px;color:inherit}
 .qs-workspace-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}.qs-workspace-actions button{min-height:44px;padding:8px 18px;border:1px solid #426b5620;border-radius:14px;background:#ffffff80;color:inherit}.qs-workspace-actions .qs-workspace-create{background:#426b56;color:white}.qs-workspace-dialog button:disabled{opacity:.5}.qs-workspace-dialog p[role=alert]{font-size:14px;color:#9b3131}
+
+.qs-sidebar-resize{position:absolute;left:calc(var(--qs-sidebar-width,180px) - 5px);top:0;bottom:0;width:10px;cursor:col-resize;touch-action:none;z-index:25}
+.qs-sidebar-resize:hover,.qs-sidebar-resize:focus-visible{background:#426b5630;outline:none}
+[data-sidebar-collapsed] .qs-sidebar-resize{display:none}
+@media(max-width:480px){.qs-sidebar-resize{display:none}}

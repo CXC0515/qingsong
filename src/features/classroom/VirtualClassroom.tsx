@@ -195,6 +195,7 @@ export default function VirtualClassroom({
     if (!draft || saving) return;
     setUndoLayout(cloneLayout(draft));
     updateDraftSeats(draft.seats.map(seat => {
+      if (seat.seatIndex >= 120) return seat;
       const row = Math.floor(seat.seatIndex / draft.columnCount);
       const column = seat.seatIndex % draft.columnCount;
       const nextRow = axis === 'row' ? (row + direction + draft.rowCount) % draft.rowCount : row;
@@ -211,6 +212,7 @@ export default function VirtualClassroom({
     if (swapFrom === swapTo || swapFrom >= count || swapTo >= count) return;
     setUndoLayout(cloneLayout(draft));
     updateDraftSeats(draft.seats.map(seat => {
+      if (seat.seatIndex >= 120) return seat;
       let row = Math.floor(seat.seatIndex / draft.columnCount);
       let column = seat.seatIndex % draft.columnCount;
       const exchange = (value: number) => value === swapFrom ? swapTo : value === swapTo ? swapFrom : value;
@@ -263,7 +265,7 @@ export default function VirtualClassroom({
   const resizeLayout = (nextRows: number, nextColumns: number) => {
     if (saving || !draft || nextRows < 1 || nextRows > 10 || nextColumns < 1 || nextColumns > 12) return;
     setUndoLayout(null);
-    const converted = draft.seats.map(seat => {
+    const converted = draft.seats.filter(seat=>seat.seatIndex<120).map(seat => {
       const row = Math.floor(seat.seatIndex / draft.columnCount);
       const column = seat.seatIndex % draft.columnCount;
       return { ...seat, row, column };
@@ -276,7 +278,7 @@ export default function VirtualClassroom({
       ...draft,
       rowCount: nextRows,
       columnCount: nextColumns,
-      seats: converted.map(({ row, column, studentId }) => ({ seatIndex: row * nextColumns + column, studentId }))
+      seats: [...converted.map(({ row, column, studentId }) => ({ seatIndex: row * nextColumns + column, studentId })), ...draft.seats.filter(seat=>seat.seatIndex>=120)]
     });
     setMessage(null);
   };
@@ -286,11 +288,11 @@ export default function VirtualClassroom({
     if (!window.confirm('按学号排列会覆盖当前座位草稿。确认重新排列吗？')) return;
     setUndoLayout(null);
     updateDraftSeats(classStudents
-      .slice(0, draft.rowCount * draft.columnCount)
-      .map((student, seatIndex) => ({ seatIndex, studentId: student.id })));
+      .slice(0, draft.rowCount * draft.columnCount + 4)
+      .map((student, index) => ({ seatIndex:index<draft.rowCount*draft.columnCount?index:120+index-draft.rowCount*draft.columnCount, studentId: student.id })));
     setPlacementStudentId(null);
     setShowArrangeMore(false);
-    if (classStudents.length > draft.rowCount * draft.columnCount) {
+    if (classStudents.length > draft.rowCount * draft.columnCount + 4) {
       setMessage({ type: 'error', text: '座位数量不足，部分学生仍在待安排列表中。' });
     } else {
       setMessage(null);
@@ -467,7 +469,7 @@ export default function VirtualClassroom({
         )}
         <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
           <div
-            className="grid h-full"
+            className="grid"
             style={{
               gridTemplateColumns: '38px minmax(0, 1fr)',
               gridTemplateRows: 'minmax(0, 1fr) 24px',
@@ -544,8 +546,15 @@ export default function VirtualClassroom({
               ))}
             </div>
           </div>
+          <div className="my-3 grid min-w-[430px] grid-cols-[1fr_1fr_1.4fr_1fr_1fr] gap-2" aria-label="讲台旁座位">
+            {[120,121,-1,122,123].map(index=>{
+              if(index===-1)return <div key={index} className="flex min-h-11 items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-sm font-semibold text-amber-900">讲台</div>;
+              const student=studentById.get(studentIdBySeatIndex.get(index) ?? '');
+              const label=(index<122?'讲台左':'讲台右')+(index%2+1)+'座';
+              return <button key={index} type="button" onClick={()=>handleSeatClick(index)} aria-label={label+'，'+(student?.name ?? '空位')} className={'min-h-11 rounded-md border p-2 text-sm '+(student?.id===placementStudentId?'border-amber-500 bg-amber-50':'border-slate-300 bg-white dark:bg-zinc-900')}><span className="block text-xs text-slate-500">{label}</span><span className="font-semibold">{student?.name ?? '空位'}</span></button>;
+            })}
+          </div>
         </div>
-        {!expanded && <div className="mx-auto my-3 flex min-h-11 w-36 shrink-0 items-center justify-center rounded-sm border border-amber-200 bg-amber-50 text-xs font-semibold text-amber-900">讲台</div>}
         {!expanded && <div className="mx-auto flex h-11 w-full max-w-3xl shrink-0 items-center justify-center rounded-sm bg-slate-800 text-xs font-semibold text-white">黑板</div>}
       </div>
     );

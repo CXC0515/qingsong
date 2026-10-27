@@ -143,3 +143,18 @@
 @media(min-width:768px) and (max-height:600px){.qs-assistant-panel>.lg-content{padding:12px;gap:6px}.qs-chat-messages{min-height:32px}.qs-chat-composer{gap:6px}.qs-chat-composer textarea{min-height:52px;max-height:80px}.qs-chat-error{max-height:36px}}
 @media(min-width:768px) and (max-height:450px){.qs-assistant-panel>.lg-content{overflow-y:auto}}
 @media(max-width:767px){.qs-chat-toolbar select,.qs-chat-model{font-size:16px}}
+
+/* Same assistant session; compact entry on phones. */
+.qs-app .qs-main-brand{background:transparent}
+.qs-assistant-dialog{position:relative;inset:auto;margin:0;padding:0;border:0;background:transparent;color:inherit;width:auto;max-width:none;max-height:none;overflow:hidden}
+.qs-assistant-dialog[open]{display:flex;flex-direction:column}.qs-assistant-dialog:not([open]){display:none}
+.qs-mobile-ai-launch,.qs-mobile-ai-header{display:none}
+@media(max-width:767px){
+ #workbench-page{padding-bottom:76px}
+ .qs-mobile-ai-launch{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:30;display:flex;align-items:center;gap:8px;min-height:48px;padding:10px 18px;border:1px solid #ffffffa0;border-radius:24px;background:#426b56;color:white;box-shadow:0 3px 8px -5px #18342730}
+ .qs-assistant-dialog[open]{position:fixed;inset:0;width:100%;height:100dvh;min-height:0;max-height:100dvh;background:#e5eae6}
+ .qs-assistant-dialog::backdrop{background:#e5eae6}
+ .qs-mobile-ai-header{display:flex;align-items:center;justify-content:space-between;padding:env(safe-area-inset-top) 12px 0 20px;flex-shrink:0;min-height:56px}
+ .qs-mobile-ai-header button{display:grid;place-items:center;width:44px;height:44px}
+ .qs-assistant-dialog>.qs-assistant-panel{flex:1;height:auto;min-height:0;border-radius:0}
+}

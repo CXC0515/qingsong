@@ -2,6 +2,19 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
   inject: ['slots', 'locale', 'layout', 'uiWorkspace', 'workspaces', 'sessions'],
   apply(ctx) {
     const React = require('react');
+    // Native rc.3 drag clamps to 264px; keep its open/close state and use a scoped slot for 180px.
+    function SidebarResize() {
+      const ref=React.useRef(null);
+      const [width,setWidth]=React.useState(180);
+      React.useEffect(()=>{const frame=ref.current.closest('.pI_x6G_frame');frame.style.setProperty('--qs-sidebar-width',width+'px');return()=>frame.style.removeProperty('--qs-sidebar-width');},[width]);
+      const clamp=value=>Math.max(150,Math.min(320,ref.current.closest('.pI_x6G_frame').clientWidth-180,value));
+      return React.createElement('div',{ref,className:'qs-sidebar-resize',role:'separator',tabIndex:0,'aria-label':'调整会话侧栏宽度','aria-orientation':'vertical','aria-valuemin':150,'aria-valuemax':320,'aria-valuenow':width,
+        onKeyDown:e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();setWidth(clamp(width+(e.key==='ArrowLeft'?-10:10)));}},
+        onPointerDown:e=>{e.currentTarget.setPointerCapture(e.pointerId);e.currentTarget.dataset.startX=e.clientX;e.currentTarget.dataset.startWidth=width;},
+        onPointerMove:e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))setWidth(clamp(Number(e.currentTarget.dataset.startWidth)+e.clientX-Number(e.currentTarget.dataset.startX)));},
+        onPointerUp:e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);}});
+    }
+    ctx.slots.inject('shell.overlay',()=>ctx.slots.register({name:'shell.overlay',id:'qingsong-sidebar-resize',priority:-90},()=>React.createElement(SidebarResize)));
     function WorkspaceName({open, onCancel}) {
       const [title, setTitle] = React.useState('');
       const [busy, setBusy] = React.useState(false);

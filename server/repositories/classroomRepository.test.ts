@@ -76,6 +76,14 @@ test('saves a real classroom layout and enforces class membership', () => {
   }), /DUPLICATE_CLASSROOM_SEAT/);
 });
 
+test('podium seats persist without changing grid assignments',()=>{
+  const students=['左一','左二','右一','右二'].map((name,index)=>roster.createStudent({classId:primaryClass.id,studentNo:'podium-'+index,name}));
+  const saved=classroom.saveClassroomLayout(primaryClass.id,{rowCount:2,columnCount:2,seats:students.map((student,index)=>({seatIndex:120+index,studentId:student.studentId}))});
+  assert.deepEqual(saved?.seats.map(seat=>seat.seatIndex),[120,121,122,123]);
+  assert.equal(classroom.getClassroomLayout(primaryClass.id)?.seats.length,4);
+  assert.throws(()=>classroom.saveClassroomLayout(primaryClass.id,{rowCount:2,columnCount:2,seats:[{seatIndex:124,studentId:students[0].studentId}]}),/OUT_OF_RANGE/);
+});
+
 test('removes the seat when a student leaves the class', () => {
   const student = roster.findStudentByNo(primaryClass.id, '5001');
   assert.ok(student);

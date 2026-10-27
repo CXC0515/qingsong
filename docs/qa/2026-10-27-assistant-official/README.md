@@ -61,3 +61,14 @@
 ## 1.5 用户定稿Logo / 2026-10-27
 
 用户原图保存在docs/assets/brand/qingsong-logo-design.png；提取左上无文字透明图形替换agent/official-ui/qingsong-logo.png，背景缩放改为contain，不再裁切放大。仅助手侧栏及会话按钮，未改母系统Logo。桌面及390×667实际壳层显示检查通过，官方runtime测试2/2通过；[桌面效果](logo-desktop.png)。未部署。
+
+## 1.6 侧栏拖动、手机入口、联系人与旁座 / 2026-10-27
+
+本轮用户批准范围见[记录](../../WORKBENCH_CONTACTS_SEATS_UPDATE.md)。助手侧栏默认180px，实际鼠标拖动至220px；母系统Logo同步定稿。手机390×667和390×500右下入口全屏打开，返回重开草稿仍在。两位联系人保存并刷新回读；讲台左1座保存并重新进入仍在，四旁座在窄短屏可滚动查看。仅隔离样本与本机假模型。
+
+类型检查、Vite构建、插件JS语法及diff检查通过；迁移/座位/联系人/导出13/13通过。schema17未应用生产；无真实模型调用、push或部署。真机软键盘与用户真实验收仍待完成。
+
+- [桌面侧栏拖至220px及定稿Logo](sidebar-resized-desktop.png)
+- [390×500全屏助手](mobile-ai-short.png)
+- [两位联系人回读](two-contacts.png)
+- [讲台四旁座与已安排学生](podium-desktop.png)

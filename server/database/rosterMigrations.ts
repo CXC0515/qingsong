@@ -402,6 +402,16 @@ const migrations: Migration[] = [
   }
 ];
 
+// Four fixed podium seats do not change existing grid indexes or assignments.
+migrations.push({version:17,sql:`
+  DROP TRIGGER IF EXISTS classroom_seat_must_fit_layout;
+  CREATE TRIGGER classroom_seat_must_fit_layout
+  BEFORE INSERT ON classroom_seats
+  WHEN NEW.seat_index >= (SELECT row_count * column_count FROM classroom_layouts WHERE class_id = NEW.class_id)
+    AND NEW.seat_index NOT BETWEEN 120 AND 123
+  BEGIN SELECT RAISE(ABORT, 'CLASSROOM_SEAT_OUT_OF_RANGE'); END;
+`});
+
 export const runRosterMigrations = (database: Database.Database) => {
   const currentVersion = database.pragma('user_version', { simple: true }) as number;
   const pending = migrations.filter(migration => migration.version > currentVersion);

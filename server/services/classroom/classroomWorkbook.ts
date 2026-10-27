@@ -78,6 +78,21 @@ export const buildClassroomWorkbook = async (
   }
   worksheet.getColumn(1).width = 10;
   for (let column = 2; column <= layout.columnCount + 1; column += 1) worksheet.getColumn(column).width = 18;
+  const podiumRow=layout.rowCount+4;
+  worksheet.getCell(podiumRow,1).value='讲台旁';
+  ['左1座','左2座','讲台','右1座','右2座'].forEach((label,index)=>{
+    const column=index+2;
+    worksheet.getCell(podiumRow,column).value=label;
+    const seatIndex=[120,121,-1,122,123][index];
+    const student=studentById.get(assignmentBySeat.get(seatIndex) ?? '');
+    worksheet.getCell(podiumRow+1,column).value=student ? includeStudentNo ? `${student.name}（${student.studentNo}）` : student.name : null;
+    worksheet.getColumn(column).width=18;
+    for(const row of [podiumRow,podiumRow+1]){
+      const cell=worksheet.getCell(row,column);cell.border=border;cell.alignment={horizontal:'center',vertical:'middle',wrapText:true};
+      cell.font={name:'微软雅黑',size:11,bold:row===podiumRow};if(row===podiumRow)cell.fill=headerFill;
+    }
+  });
+  worksheet.getRow(podiumRow+1).height=34;
 
   return Buffer.from(await workbook.xlsx.writeBuffer());
 };

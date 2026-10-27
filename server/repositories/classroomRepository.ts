@@ -55,7 +55,7 @@ const assertValidAssignments = (classId: string, input: ClassroomLayoutWriteInpu
   const seatIndexes = new Set<number>();
   const studentIds = new Set<string>();
   for (const seat of input.seats) {
-    if (seat.seatIndex < 0 || seat.seatIndex >= capacity) throw new Error('CLASSROOM_SEAT_OUT_OF_RANGE');
+    if (!Number.isInteger(seat.seatIndex) || seat.seatIndex < 0 || (seat.seatIndex >= capacity && (seat.seatIndex < 120 || seat.seatIndex > 123))) throw new Error('CLASSROOM_SEAT_OUT_OF_RANGE');
     if (seatIndexes.has(seat.seatIndex)) throw new Error('DUPLICATE_CLASSROOM_SEAT');
     if (studentIds.has(seat.studentId)) throw new Error('DUPLICATE_CLASSROOM_STUDENT');
     seatIndexes.add(seat.seatIndex);

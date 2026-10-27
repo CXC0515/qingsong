@@ -63,3 +63,11 @@ test('can export names without student numbers', async () => {
   await workbook.xlsx.load(buffer);
   assert.equal(workbook.getWorksheet('座位表')?.getCell('B3').value, '只显示姓名');
 });
+
+test('exports all four podium seats',async()=>{
+ const students=[0,1,2,3].map(i=>student('podium-'+i,'讲台学生'+i,'p'+i));
+ const buffer=await buildClassroomWorkbook('一班',{classId:'c',rowCount:1,columnCount:1,seats:students.map((s,i)=>({seatIndex:120+i,studentId:s.id}))},students,false);
+ const book=new ExcelJS.Workbook();await book.xlsx.load(buffer);const sheet=book.getWorksheet('座位表')!;
+ assert.deepEqual([2,3,5,6].map(col=>sheet.getCell(6,col).value),students.map(s=>s.name));
+ assert.equal(sheet.getCell(5,4).value,'讲台');
+});
