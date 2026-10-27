@@ -1,17 +1,21 @@
 # 青松教师 项目当前交接
 
 > 本文是当前统一交接入口。历史专项文档只用于追溯当时的决策，不再代表当前 Git、数据路径或部署状态。
-> 更新时间：2026-10-27；当前应用生产提交：590a3bec50905f19d237a84ea4553595e8a54bb9（PR #85，用户指定完整提示词及交流语气；包含此前PR #83功能）。
+> 更新时间：2026-10-27；当前应用生产提交：e2a52f3b7cb9f6dfda75d0288ad1aa13aef5dc16（PR #87，助手班级发现/性别、错误分类、私有缓存与连接计时）。
 
 > 改名进度：中文品牌「青松教师」，英文项目名 `qingsong`；GitHub 仓库为 `CXC0515/qingsong`，母文件夹已迁至 `/Users/cxc/Projects/qingsong`。品牌代码经 PR #55 合并，已随PR #57部署服务器；实际切换与验证见 [改名记录](./QINGSONG_RENAME.md)。
 
 ## 1. 当前阶段与产品边界
 
-### 2026-10-27 助手查询、缓存与计时（发布中）
+### 2026-10-27 助手查询、缓存与计时（已发布）
 
 - 用户批准修复并推送/PR/部署，网页验收由用户负责。独立codex/assistant-query-cache-fix基于最新origin/main@9ee4d75；母文件夹未跟踪资料和原预览均保留。
 - 增加classes查询真实班级编号、名单返回性别；classId/日期/认证/权限/排队/内部错误分开，参数错误不再提示重新登录。系统提示词未改。静态JS/CSS私有缓存、内容ETag/304；HTML/API/SSE不缓存，鉴权保留。增加分段启动/连接计时。
 - 方案、范围、验证边界见[专项记录](ASSISTANT_QUERY_CACHE_FIX.md)。无数据迁移、写入工具或真实模型调用；网页和实际速度由用户体验。
+- PR #87合并e2a52f3b7cb9f6dfda75d0288ad1aa13aef5dc16；母文件夹main同步打包，SHA256 e5ed811687444efb5491535ccc5a73debaed344df22619d7c21770deb5fed130。本机/服务器类型检查、构建、4项查询/分类/缓存/预算单测、2项原生运行测试及1项完整双用户HTTP集成通过，真实供应商调用0。HTTP覆盖真实ETag/304、匿名401和撤权。
+- 停写前业务/旧助手任务0，1个官方会话的在途及排队均0；在线恢复点/var/lib/teacher-dashboard/backups/manual/product-2026-10-27-pre-query-e2a52f3含1302文件/7SQLite，独立校验通过。无迁移，7库schema、表计数/内容哈希切换前后相同，完整性ok、外键错误0；旧release与恢复点保留。
+- current已切对应完整SHA目录，服务active/running、NRestarts0、备份timer active；回环live/ready正常，匿名official/status401。公网index-juLrzOv3.js SHA256 3727d59bd1afb60ce35fd20eea9d49990ead69f67f287e2254db580fa2370155，CSS与前版相同，均匹配release。保持Node24.22.1，锁文件相同，复用旧版依赖副本。网页/真机/真实模型和实际加速仍由用户验收，本机4480样本预览未改动。
+
 
 ### 2026-10-27 教学助手提示词原文更新（已发布）
 
