@@ -3,6 +3,7 @@ import { ZodError } from 'zod';
 export function teachingFailure(error: unknown) {
   const code = error instanceof ZodError ? 'INVALID_QUERY' : error instanceof Error ? error.message : 'INTERNAL_ERROR';
   const messages: Record<string, string> = {
+    QUERY_UNSUPPORTED: '当前未开放此类数据查询，不能据此判断没有记录。教学数据未修改。请用capabilities查看已支持的查询范围，或请教师到对应业务页面核对。',
     INVALID_QUERY: '查询参数格式不正确，教学数据未修改。请按工具参数重新查询；日期使用YYYY-MM-DD。',
     CLASS_REQUIRED: '查询缺少班级编号，教学数据未修改。请先用classes查询班级列表，再用返回的真实classId查询。',
     CLASS_NOT_FOUND: '当前可访问班级中没有此编号，教学数据未修改。请先用classes查询班级列表，不要把班名当作classId。',
