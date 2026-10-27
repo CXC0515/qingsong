@@ -57,3 +57,7 @@
 - [工作区列表](workspaces-desktop.png)。已恢复默认桌面视口、甲教师样本登录，未调用真实模型或部署。
 
 检查期间重启原生进程触发HMR时，浏览器记录过inactive context订阅错误；另有一次MutationObserver错误，来源未定位。完整刷新后页面恢复，新增/取消可用；不声称所有热重载场景已验证。
+
+## 1.5 用户定稿Logo / 2026-10-27
+
+用户原图保存在docs/assets/brand/qingsong-logo-design.png；提取左上无文字透明图形替换agent/official-ui/qingsong-logo.png，背景缩放改为contain，不再裁切放大。仅助手侧栏及会话按钮，未改母系统Logo。桌面及390×667实际壳层显示检查通过，官方runtime测试2/2通过；[桌面效果](logo-desktop.png)。未部署。
