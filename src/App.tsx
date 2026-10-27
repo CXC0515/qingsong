@@ -96,6 +96,8 @@ export default function App() {
   const teacherReturnPage = useRef<PageId>('workbench');
   // Navigation & View State
   const [activePage, setActivePageState] = useState<PageId>(() => readTaskRoute() ? 'classroom-tasks' : 'workbench');
+  const [workbenchVisited, setWorkbenchVisited] = useState(() => !readTaskRoute());
+  useEffect(() => { if (activePage === 'workbench') setWorkbenchVisited(true); }, [activePage]);
   const [lessonRoute,setLessonRoute]=useState<LessonRoute|null>(()=>readLessonRoute(authState.user.id));
   const [classroomHeaderTarget,setClassroomHeaderTarget]=useState<HTMLDivElement|null>(null);
   const [classroomTaskId, setClassroomTaskId] = useState<string | undefined>(() => readTaskRoute()?.taskId);
@@ -756,9 +758,10 @@ export default function App() {
               onNavigate={handleNavigate}
             />
           )}
-          {(activePage === 'workbench' || (activePage === 'classroom-tasks' && taskNavigation?.sourcePage === 'workbench')) && (
+          {(workbenchVisited || activePage === 'workbench') && (
             <div className={activePage === 'workbench' ? 'contents' : 'hidden'} aria-hidden={activePage !== 'workbench'}>
             <Workbench
+              active={activePage === 'workbench'}
               classes={classes}
               schedule={schedule}
               reminders={reminders}

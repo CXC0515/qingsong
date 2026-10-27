@@ -40,7 +40,7 @@ export function apply(ctx) {
   ctx.effect(() => ctx.tools.guard(exec => exec.name === 'qingsong_query' ? undefined : '教师助手只允许查询当前教师的教学数据。'));
   ctx.effect(() => ctx.tools.register(defineTool({
     name: 'qingsong_query',
-    description: '查询当前教师班级列表(classes)、课表(schedule)、班级名单及性别(roster)、课堂任务和表现(classroom)。先查询班级列表取得classId，不得把班名当作classId。名单需要classId，课堂需要classId及from/to日期(YYYY-MM-DD)。只能使用返回的事实、来源和完整性标记。',
+    description: '统一查询当前教师教学数据：能力范围(capabilities)、班级列表(classes)、课表(schedule)、班级名单/性别/在籍状态/班委岗位与实际任职(roster)、课堂任务和表现摘要(classroom)。先用classes取得真实classId，不得把班名当作classId。roster需要classId；classroom需要classId及from/to日期(YYYY-MM-DD)。班长等任职以学生committeeRoles为准，岗位目录不代表有人任职。问题超出这些范围时先用capabilities确认；未开放、字段缺失、查询失败或partial不能回答成没有记录。只能使用返回的事实、来源和完整性标记。',
     parameters: {kind: {type: 'string', required: true}, classId: {type: 'string'}, from: {type: 'string'}, to: {type: 'string'}},
     output: {schema: {type: 'string'}, render: (_args, value) => [{type: 'text', text: value}]},
     async execute(args, exec) {

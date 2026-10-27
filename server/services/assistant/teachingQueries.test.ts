@@ -6,7 +6,7 @@ import path from 'node:path';
 const root=mkdtempSync(path.join(os.tmpdir(),'qs-query-contract-'));
 process.env.APP_DATA_ROOT=root;
 const {createWorkspaceContext,runWithWorkspace}=await import('../../context/workspaceContext');
-const {createClass,createStudent}=await import('../../repositories/rosterRepository');
+const {createClass,createStudent,listCommitteeRoles,createCommitteeRole,replaceClassCommitteeAssignments}=await import('../../repositories/rosterRepository');
 const {closeRosterDatabase}=await import('../../database/rosterDatabase');
 const {teachingQuery}=await import('./teachingQueries');
 const a=createWorkspaceContext('teacher-a','workspace-a','teacher'),b=createWorkspaceContext('teacher-b','workspace-b','teacher');
@@ -31,4 +31,38 @@ test('two named classes resolve to real IDs and return number-one student gender
   assert.throws(()=>teachingQuery({kind:'classes',workspaceId:b.workspaceId}));
  });
  assert.equal(runWithWorkspace(b,()=>teachingQuery({kind:'classes'})).data.classes!.length,0);
+});
+test('roster distinguishes actual committee appointments, unassigned roles, empty classes and other workspaces',()=>{
+ runWithWorkspace(a,()=>{
+  const c=createClass({name:'班委核对班',grade:'七年级',term:'2026秋',headTeacher:'样本',status:'active'});
+  const leader=listCommitteeRoles().find(role=>role.name==='班长')!;
+  assert.ok(leader);
+  const custom=createCommitteeRole('阅读联络员');
+  const student=createStudent({classId:c.id,name:'任职样本',studentNo:'10',gender:'female',committeeRoleIds:[leader.id,custom.id],parent:{name:'不应输出',phone:'13900000000',relation:'其他',remark:'私密'}});
+  const second=createStudent({classId:c.id,name:'未任职样本',studentNo:'11',gender:'male'});
+  let result=teachingQuery({kind:'roster',classId:c.id});
+  assert.equal(result.completeness,'complete');
+  assert.deepEqual(result.data.students!.find(s=>s.id===student.id)!.committeeRoles.map(r=>r.name).sort(),['班长','阅读联络员'].sort());
+  assert.equal(result.data.students!.find(s=>s.id===student.id)!.enrollmentStatus,'active');
+  assert.deepEqual(result.data.students!.find(s=>s.id===second.id)!.committeeRoles,[]);
+  assert.doesNotMatch(JSON.stringify(result),/13900000000|不应输出|私密/);
+  assert.throws(()=>runWithWorkspace(b,()=>teachingQuery({kind:'roster',classId:c.id})),/CLASS_NOT_FOUND/);
+  replaceClassCommitteeAssignments(c.id,[]);
+  result=teachingQuery({kind:'roster',classId:c.id});
+  assert.ok(result.data.committeeRoles!.some(r=>r.name==='班长'));
+  assert.ok(result.data.students!.every(s=>s.committeeRoles.length===0));
+  const empty=createClass({name:'空名单班',grade:'七年级',term:'2026秋',headTeacher:'样本',status:'active'});
+  assert.deepEqual(teachingQuery({kind:'roster',classId:empty.id}).data.students,[]);
+ });
+});
+test('capabilities declare coverage, unsupported queries cannot masquerade as empty results',()=>{
+ runWithWorkspace(a,()=>{
+  const result=teachingQuery({kind:'capabilities'});
+  assert.equal(result.completeness,'complete');
+  assert.deepEqual(result.data.queries!.map(q=>q.kind),['classes','roster','schedule','classroom']);
+  assert.match(result.data.interpretation!,/不代表没有记录/);
+  assert.ok(result.data.unavailable!.includes('学生联系人与家庭信息'));
+  for(const kind of ['seating','materials','grading','delete']) assert.throws(()=>teachingQuery({kind}),/QUERY_UNSUPPORTED/);
+  assert.throws(()=>teachingQuery({kind:'capabilities',workspaceId:b.workspaceId}));
+ });
 });

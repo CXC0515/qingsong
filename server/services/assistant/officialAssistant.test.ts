@@ -8,7 +8,7 @@ import {createRequire} from 'node:module';
 const require = createRequire(new URL('../../../agent/package.json', import.meta.url));
 const {WebSocket} = require('ws');
 const root = await mkdtemp(path.join(os.tmpdir(), 'qs-native-http-'));
-const origin = process.env.QS_NATIVE_PREVIEW ? 'http://localhost:4480' : 'http://127.0.0.1:' + Number(process.env.QS_TEST_PORT ?? 4475);
+const origin = process.env.QS_NATIVE_PREVIEW ? (process.env.QS_PREVIEW_ORIGIN ?? 'http://localhost:4480') : 'http://127.0.0.1:' + Number(process.env.QS_TEST_PORT ?? 4475);
 const testPort = Number(process.env.QS_TEST_PORT ?? 4475);
 const apiRoot = 'http://127.0.0.1:' + testPort;
 process.env.APP_DATA_ROOT = root; process.env.APP_URL = origin; process.env.API_PORT = String(testPort);
@@ -22,8 +22,11 @@ const model = createServer(async (req, res) => {
   res.writeHead(200, {'content-type': 'text/event-stream'});
   const frame = (delta: unknown, finish_reason: string | null = null) => ({id: 'fixture', object: 'chat.completion.chunk', created: 1, model: 'fixture', choices: [{index: 0, delta, finish_reason}]});
   if (queryScenario) {
-    if (input.messages?.at(-1)?.role !== 'tool') {
-      res.write('data: ' + JSON.stringify(frame({role: 'assistant', tool_calls: [{index: 0, id: crypto.randomUUID(), type: 'function', function: {name: 'qingsong_query', arguments: JSON.stringify(queryScenario === 'classes' ? {kind: 'classes'} : {kind: 'roster', classId: '甲教师专属班'})}}]})) + '\n\n');
+    const previous = input.messages?.at(-1);
+    const result = previous?.role === 'tool' && queryScenario === 'committee' ? JSON.parse(previous.content) : undefined;
+    if (previous?.role !== 'tool' || (queryScenario === 'committee' && result.data?.classes)) {
+      const args = queryScenario === 'capabilities' ? {kind: 'capabilities'} : queryScenario === 'unsupported' ? {kind: 'grading'} : queryScenario === 'committee' && result ? {kind: 'roster', classId: result.data.classes[0].id} : ['committee','classes'].includes(queryScenario) ? {kind: 'classes'} : {kind: 'roster', classId: '甲教师专属班'};
+      res.write('data: ' + JSON.stringify(frame({role: 'assistant', tool_calls: [{index: 0, id: crypto.randomUUID(), type: 'function', function: {name: 'qingsong_query', arguments: JSON.stringify(args)}}]})) + '\n\n');
       res.end('data: ' + JSON.stringify(frame({}, 'tool_calls')) + '\n\ndata: [DONE]\n\n');
     } else {
       res.write('data: ' + JSON.stringify(frame({role: 'assistant', content: input.messages.at(-1).content})) + '\n\n');
@@ -49,7 +52,7 @@ const {getAuthDatabase, closeAuthDatabase} = await import('../../database/authDa
 const {closeRosterDatabase} = await import('../../database/rosterDatabase');
 const {closeResourceDatabase} = await import('../../database/resourceDatabase');
 const {createWorkspaceContext, runWithWorkspace} = await import('../../context/workspaceContext');
-const {createClass} = await import('../../repositories/rosterRepository');
+const {createClass,createStudent,listCommitteeRoles} = await import('../../repositories/rosterRepository');
 const {createApp} = await import('../../app');
 const {officialBudget} = await import('./officialBudget');
 const {officialAssistantUpgrade, closeOfficialAssistant} = await import('./officialAssistant');
@@ -73,7 +76,10 @@ async function register(email: string, className: string) {
   const login = await fetch(apiRoot + '/api/auth/sign-in/email', {method: 'POST', headers, body: JSON.stringify({email, password})});
   assert.equal(login.status, 200);
   const row = getAuthDatabase().prepare('SELECT user_id,workspace_id,role FROM app_workspace_members WHERE user_id=(SELECT id FROM user WHERE email=?)').get(email) as any;
-  runWithWorkspace(createWorkspaceContext(row.user_id, row.workspace_id, row.role), () => createClass({name: className, grade: '七年级', term: '2026秋', headTeacher: className, status: 'active'}));
+  runWithWorkspace(createWorkspaceContext(row.user_id, row.workspace_id, row.role), () => {
+    const c = createClass({name: className, grade: '七年级', term: '2026秋', headTeacher: className, status: 'active'});
+    createStudent({classId: c.id, name: className + '班长', studentNo: '1', gender: 'female', committeeRoleIds: [listCommitteeRoles().find(role => role.name === '班长')!.id]});
+  });
   return login.headers.getSetCookie()[0].split(';')[0];
 }
 async function rpc(cookie: string, method: string, args: unknown) {
@@ -165,7 +171,7 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   }
   const encoded = JSON.stringify(snapshot);
   assert.match(encoded, /甲教师专属班/); assert.doesNotMatch(encoded, /乙教师专属班/);
-  for (const scenario of ['classes', 'invalid-class']) {
+  for (const scenario of ['classes', 'invalid-class', 'committee', 'capabilities', 'unsupported']) {
     queryScenario = scenario;
     try {
       const sid = (await rpc(a, 'session/create', {request: {}})).value.sessionId;
@@ -178,7 +184,9 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       const serialized = JSON.stringify(result);
-      assert.match(serialized, scenario === 'classes' ? /甲教师专属班/ : /当前可访问班级中没有此编号/);
+      const expected: Record<string, RegExp> = {classes: /甲教师专属班/, 'invalid-class': /当前可访问班级中没有此编号/, committee: /甲教师专属班班长/, capabilities: /未开放的查询/, unsupported: /不能据此判断没有记录/};
+      assert.match(serialized, expected[scenario]);
+      if (scenario === 'committee') assert.match(serialized, /committeeRoles/);
       assert.doesNotMatch(serialized, /请重新登录/);
       assert.doesNotMatch(serialized, /乙教师专属班/);
     } finally { queryScenario = undefined; }

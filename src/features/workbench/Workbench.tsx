@@ -6,6 +6,7 @@ import { BookOpen, Calendar, Clock, FileText, Workflow, ClipboardCheck } from 'l
 import type { SchoolClass, ScheduleItem, TimerReminder } from '../../domain/types';
 
 interface WorkbenchProps {
+  active:boolean;
   classes:SchoolClass[];
   schedule:ScheduleItem[];
   reminders:TimerReminder[];
@@ -15,16 +16,17 @@ interface WorkbenchProps {
   onRecordLesson:(item:ScheduleItem,date:string)=>void;
 }
 
-export default function Workbench({classes,schedule,reminders,selectedClassId,onNavigate,onEnterClass,onRecordLesson}:WorkbenchProps){
+export default function Workbench({active,classes,schedule,reminders,selectedClassId,onNavigate,onEnterClass,onRecordLesson}:WorkbenchProps){
   const [assistantOpen,setAssistantOpen]=useState(false);
   const assistantDialog=useRef<HTMLDialogElement>(null);
   const assistantButton=useRef<HTMLButtonElement>(null);
   useEffect(()=>{
+    if(!active){assistantDialog.current?.close();setAssistantOpen(false);return;}
     const media=window.matchMedia('(max-width:767px)');
     const sync=()=>{const d=assistantDialog.current;if(!d)return;d.close();if(!media.matches)d.show();else if(assistantOpen)d.showModal();};
     sync();media.addEventListener('change',sync);
-    return()=>media.removeEventListener('change',sync);
-  },[assistantOpen]);
+    return()=>{media.removeEventListener('change',sync);assistantDialog.current?.close();};
+  },[active,assistantOpen]);
   const closeAssistant=()=>{setAssistantOpen(false);assistantButton.current?.focus();};
   const today = new Date();
   const weekday = today.getDay() === 0 ? 7 : today.getDay();
