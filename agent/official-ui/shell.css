@@ -14,7 +14,7 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 
 [data-slot="conversation.hero.workspace"],[data-slot="conversation.hero.agentPreset"],[data-slot="conversation.hero.options"]{display:none!important}
 /* Native sidebar state is the only source of truth; no parallel overlay. */
-.pI_x6G_frame[data-sidebar-collapsed]{grid-template-columns:56px minmax(0,1fr) 0!important}
+.pI_x6G_frame[data-sidebar-collapsed]{grid-template-columns:0 minmax(0,1fr) 0!important}
 .pI_x6G_sidebarCol .hHd-Xa_root{width:100%!important}
 .pI_x6G_frame:not([data-sidebar-collapsed]){grid-template-columns:min(280px,45%) minmax(0,1fr) 0!important}
 .pI_x6G_handle{display:none!important}
@@ -32,3 +32,12 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 
 /* Keep native navigation reachable without a second host toolbar. */
 .hHd-Xa_toggle,.hHd-Xa_newSession,.hHd-Xa_iconButton{min-width:44px;min-height:44px}
+
+/* The official state controls visibility; the closed rail takes no space. */
+.pI_x6G_frame[data-sidebar-collapsed]>.pI_x6G_sidebarCol{visibility:hidden}
+.qs-session-button{display:none;position:absolute;top:12px;left:12px;align-items:center;gap:8px;min-height:44px;padding:0 14px;border:1px solid #426b5620;border-radius:16px;background:#f2f6f1ed;color:#426b56;box-shadow:0 3px 8px -5px #18342730;font-size:14px;cursor:pointer}
+.pI_x6G_frame[data-sidebar-collapsed] .qs-session-button{display:flex}
+.pI_x6G_frame[data-sidebar-collapsed] .wSkVaW_scrollBody{scroll-padding-top:68px}
+.pI_x6G_frame[data-sidebar-collapsed] .wSkVaW_viewArea{padding-top:64px}
+.qs-brand-mark{display:inline-block;width:28px;height:28px;flex:none;background-repeat:no-repeat;background-position:center;background-size:150%}
+.qs-session-button:focus-visible{outline:2px solid #426b56;outline-offset:3px}
