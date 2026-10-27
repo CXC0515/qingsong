@@ -1,11 +1,22 @@
 # 青松教师 项目当前交接
 
 > 本文是当前统一交接入口。历史专项文档只用于追溯当时的决策，不再代表当前 Git、数据路径或部署状态。
-> 更新时间：2026-10-27；当前应用生产提交：9938b15f8a1f161673a44680887f86352a50c55c（PR #80/#81，统一gpt-6-luna及新会话选择）。
+> 更新时间：2026-10-27；当前应用生产提交：3607e0e0c18de1e58f79d36f42e1c0b875c1c099（PR #83，官方教学助手、响应式入口、双联系人及讲台旁座）。
 
 > 改名进度：中文品牌「青松教师」，英文项目名 `qingsong`；GitHub 仓库为 `CXC0515/qingsong`，母文件夹已迁至 `/Users/cxc/Projects/qingsong`。品牌代码经 PR #55 合并，已随PR #57部署服务器；实际切换与验证见 [改名记录](./QINGSONG_RENAME.md)。
 
 ## 1. 当前阶段与产品边界
+
+### 2026-10-27 官方教学助手与工作台更新（已发布）
+
+- 用户验收本地界面后明确授权推送、PR、合并、部署。PR #83已合并为3607e0e0c18de1e58f79d36f42e1c0b875c1c099，母文件夹main同步后打包，SHA256 bcb216bfeea9d971bb8082268985cb58e5139a80fe99286514adddd57631cdc9。
+- 官方UI、身份与只读工具隔离、个人聊天工作区、定稿Logo、可拖助手侧栏、手机全屏入口、双联系人、讲台四旁座及同尺寸修正一并发布。详情见ASSISTANT_OFFICIAL_INTEGRATION.md和WORKBENCH_CONTACTS_SEATS_UPDATE.md；下文“本地未发布”段落保留为历史阶段。
+- 服务器Node24.22.1独立安装根/agent依赖、类型检查、构建及18项应用+2项原生测试通过；另在生产systemd用户与权限限制下原生测试2/2通过。真实供应商调用0；本机首轮测试遇预览4475占用，改隔离副本4476完成，不影响原预览。
+- 停写前任务0；在线恢复点 /var/lib/teacher-dashboard/backups/manual/product-2026-10-27-pre-official-3607e0e 含1292文件/7SQLite，独立验证通过。3个roster schema16→17仅替换座位范围触发器；7库所有旧表计数和内容哈希逐表相等，integrity=ok、外键错误0。未恢复旧库，数据根未变。
+- current已切至 /opt/teacher-dashboard/releases/3607e0e0c18de1e58f79d36f42e1c0b875c1c099；服务active/running、NRestarts=0，实际进程Node24.22.1，备份timer active。旧9938b15发布和手工恢复点保留。
+- 回环及公网首页/live/ready正常；匿名official/status为401、原生WebSocket为403，nginx -t通过且原代理配置不变。公网JS index-B3T4Ag6f.js SHA256 0884c103f83a8c604d2c7f7fbd18c532aa92673671e92ca53891a4393c341e09，CSS index-OxU_dGuI.css SHA256 862e0eeb993fec47501c25703aa3991f7e4f0069f724ce25a1883c3f2519a0cd，均与服务器release一致。
+- 用户入口 https://td.unreached.top/，原账号登录刷新工作台。真实教师/真实模型/真机软键盘待用户验收，不以fixture和健康检查替代。母文件夹两个规划文档、var-local-dev-2026-09-12及专项.playwright-cli/保留；本机预览仍运行，暂不移除worktree。
+
 
 ### 2026-10-27 官方教学助手UI（本地，待用户验收）
 
