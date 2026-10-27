@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createServer, request as httpRequest, type IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import path from 'node:path';
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import type { Request, Response } from 'express';
 import { fromNodeHeaders } from 'better-auth/node';
 import { auth } from '../../auth/auth';
@@ -34,6 +34,15 @@ type Instance = {
   sockets: Set<{close: () => void}>;
   closing?: Promise<void>;
 };
+async function nativeWorkspaceCall(runtime: {port: number}, cookie: string, method: string, request: unknown): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify({type: 'client-request', rpcId: randomUUID(), method, payload: {args: {request}}});
+    const call = httpRequest({hostname: '127.0.0.1', port: runtime.port, path: '/api/' + method, method: 'POST', headers: {host: new URL(runtimeConfig.appUrl).host, cookie, 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(payload))}}, response => {
+      let body = ''; response.on('data', chunk => body += chunk); response.on('end', () => { try { const result = JSON.parse(body).result; if (!result?.ok) throw Error('WORKSPACE_FAILED'); resolve(result.value); } catch { reject(Error('WORKSPACE_FAILED')); } });
+    });
+    call.setTimeout(15000, () => call.destroy(Error('WORKSPACE_TIMEOUT'))); call.on('error', reject); call.end(payload);
+  });
+}
 async function checkIdentity(headers: IncomingMessage['headers'], context: WorkspaceContext) {
   const session = await auth.api.getSession({headers: fromNodeHeaders(headers)});
   if (session?.user.id !== context.userId) throw Error('AUTH_EXPIRED');
@@ -143,14 +152,8 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
         });
         exchange.setTimeout(15000, () => exchange.destroy(Error('NATIVE_AUTH_TIMEOUT'))); exchange.once('error', reject); exchange.end();
       });
-      await new Promise<void>((resolve, reject) => {
-        const payload = JSON.stringify({type: 'client-request', rpcId: randomUUID(), method: 'workspace/create', payload: {args: {request: {path: path.join(context.dataDirectory, 'assistant', key, 'official', 'empty-workspace')}}}});
-        const call = httpRequest({hostname: '127.0.0.1', port: runtime!.port, path: '/api/workspace/create', method: 'POST', headers: {host: new URL(runtimeConfig.appUrl).host, cookie, 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(payload))}}, response => {
-          let body = ''; response.on('data', chunk => body += chunk); response.on('end', () => {
-            try { if (!JSON.parse(body).result?.ok) throw Error('WORKSPACE_INIT_FAILED'); resolve(); } catch { reject(Error('WORKSPACE_INIT_FAILED')); }
-          });
-        }); call.setTimeout(15000, () => call.destroy(Error('WORKSPACE_TIMEOUT'))); call.on('error', reject); call.end(payload);
-      });
+      const initial = await nativeWorkspaceCall(runtime, cookie, 'workspace/create', {path: path.join(context.dataDirectory, 'assistant', key, 'official', 'empty-workspace')});
+      if (initial.workspace.title === 'empty-workspace') await nativeWorkspaceCall(runtime, cookie, 'workspace/rename', {workspaceId: initial.workspace.workspaceId, title: '我的工作区'});
       instance = {runtime, bridge, context, cookie, authorizers: new Map([[identity, authorize]]), leaseTimers: new Map(), touched: Date.now(), fingerprint: revision, leases, sockets: new Set()};
       instances.set(key, instance);
       return instance;
@@ -176,6 +179,21 @@ export async function officialAssistantProxy(req: Request, res: Response) {
   catch { res.status(400).end(); return; }
   if (target.pathname === '/api/settings/describe' && req.method === 'POST' && req.body?.type === 'client-request' && req.body?.method === 'settings/describe') {
     res.json({type: 'server-response', rpcId: req.body.rpcId, result: {ok: true, value: {writable: false, hasDocument: false, namespaces: [{ns: 'locale', autoGenerate: false, schema: {type: 'object', properties: {preference: {type: 'string'}}}, value: {preference: 'zh-CN-x-qingsong'}, applies: 'live', secrets: [], revision: 0}]}}}); return;
+  }
+  if (target.pathname === '/api/qingsong/workspace' && req.method === 'POST') {
+    const body = req.body;
+    if (!body || Object.keys(body).some(key => !['title', 'requestId'].includes(key)) || typeof body.title !== 'string' || !body.title.trim() || body.title.trim().length > 40 || /[\\/\x00-\x1f]/.test(body.title) || ['.', '..'].includes(body.title.trim()) || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.requestId ?? '')) {
+      res.status(400).json({message: '名称请填1至40个字，不能包含斜线。未新增工作区，请修改后重试。'}); return;
+    }
+    try {
+      const context = getWorkspaceContext();
+      const instance = await ensureInstance(context, () => checkIdentity(req.headers, context), createHash('sha256').update(req.headers.cookie ?? '').digest('hex'));
+      const directory = path.join(context.dataDirectory, 'assistant', scope(context), 'official', 'workspaces', body.requestId, body.title.trim());
+      await mkdir(directory, {recursive: true});
+      const result = await nativeWorkspaceCall(instance.runtime, instance.cookie, 'workspace/create', {path: directory});
+      res.json({workspace: result.workspace});
+    } catch { res.status(409).json({message: '工作区未能确认新增，可能名称重复或连接中断。已有会话保留，请刷新查看后重试。'}); }
+    return;
   }
   if (!allowedPath(target.pathname, req) || target.searchParams.has('token') || target.searchParams.has('auth')) { res.status(403).json({message: '此功能尚未开放，教学数据未修改，请返回教学对话。'}); return; }
   try {

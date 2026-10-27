@@ -1,7 +1,32 @@
 window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => ({
-  inject: ['slots', 'locale', 'layout', 'workspaces', 'sessions'],
+  inject: ['slots', 'locale', 'layout', 'uiWorkspace', 'workspaces', 'sessions'],
   apply(ctx) {
     const React = require('react');
+    function WorkspaceName({open, onCancel}) {
+      const [title, setTitle] = React.useState('');
+      const [busy, setBusy] = React.useState(false);
+      const [error, setError] = React.useState('');
+      const requestId = React.useRef(crypto.randomUUID());
+      const dialog = React.useRef(null);
+      React.useEffect(() => { if (open) { setTitle(''); setError(''); requestId.current = crypto.randomUUID(); dialog.current.showModal(); return () => dialog.current?.close(); } }, [open]);
+      const submit = async () => {
+        if (busy || !title.trim()) return; setBusy(true); setError('');
+        try {
+          const response = await fetch('./api/qingsong/workspace', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({title, requestId: requestId.current})});
+          const result = await response.json(); if (!response.ok) throw Error(result.message);
+          await ctx.uiWorkspace.openWorkspace(result.workspace.workspaceId, undefined, {agentPreset: 'qingsong'});
+          onCancel();
+        } catch (e) { setError(e.message || '连接中断，请重试；已有会话保留。'); } finally { setBusy(false); }
+      };
+      return React.createElement('dialog', {ref: dialog, className: 'qs-workspace-dialog', onCancel: event => {event.preventDefault(); if (!busy) onCancel();}},
+        React.createElement('div', null,
+          React.createElement('h2', null, '新增工作区'),
+          React.createElement('label', null, '名称', React.createElement('input', {autoFocus: true, value: title, maxLength: 40, placeholder: '例如：备课、一班教学', onChange: event => {setTitle(event.target.value); requestId.current = crypto.randomUUID();}, onKeyDown: event => {if (event.key === 'Enter' && !event.nativeEvent.isComposing) {event.preventDefault(); void submit();}}, disabled: busy})),
+          error && React.createElement('p', {role: 'alert'}, error),
+          React.createElement('div', {className: 'qs-workspace-actions'}, React.createElement('button', {type: 'button', disabled: busy, onClick: onCancel}, '取消'), React.createElement('button', {type: 'button', className: 'qs-workspace-create', onClick: submit, disabled: busy || !title.trim()}, busy ? '正在创建…' : '创建'))));
+    }
+    ctx.slots.inject('sidebar.workspaces.directoryFlow', () => ctx.slots.register({name: 'sidebar.workspaces.directoryFlow', id: 'qingsong-workspace-name', priority: -100}, props => React.createElement(WorkspaceName, props)));
+
     ctx.slots.inject('sidebar.brand.mark', () => ctx.slots.register({name: 'sidebar.brand.mark', id: 'qingsong-logo', priority: -100}, () => React.createElement('span', {className: 'qs-brand-mark', role: 'img', 'aria-label': '青松'})));
     ctx.slots.inject('sidebar.brand.name', () => ctx.slots.register({name: 'sidebar.brand.name', id: 'qingsong-name', priority: -100}, () => React.createElement('span', null, '青松')));
     ctx.slots.inject('shell.overlay', () => ctx.slots.register({name: 'shell.overlay', id: 'qingsong-session-button', priority: -100}, () => React.createElement('button', {className: 'qs-session-button', type: 'button', onClick: () => ctx.layout.toggleSidebar(), 'aria-label': '打开会话侧栏'}, React.createElement('span', {className: 'qs-brand-mark', 'aria-hidden': true}), '会话')));

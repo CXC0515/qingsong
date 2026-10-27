@@ -94,6 +94,24 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   const preferences = await rpc(a, 'settings/describe', {});
   assert.equal(preferences.value.writable, false);
   assert.deepEqual(preferences.value.namespaces.map(ns => ns.ns), ['locale']);
+  const addWorkspace = async (cookie: string, title: string, requestId = crypto.randomUUID(), extra = {}) => {
+    const response = await fetch(apiRoot + '/api/assistant/official/api/qingsong/workspace', {method: 'POST', headers: {...headers, Cookie: cookie}, body: JSON.stringify({title, requestId, ...extra})});
+    return {status: response.status, body: await response.json()};
+  };
+  const requestId = crypto.randomUUID();
+  const wa = await addWorkspace(a, '备课', requestId);
+  assert.equal(wa.status, 200, JSON.stringify(wa));
+  const repeated = await addWorkspace(a, '备课', requestId);
+  assert.equal(repeated.body.workspace.workspaceId, wa.body.workspace.workspaceId);
+  const wb = await addWorkspace(b, '备课', requestId);
+  assert.equal(wb.status, 200, JSON.stringify(wb));
+  assert.notEqual(wb.body.workspace.workspaceId, wa.body.workspace.workspaceId);
+  assert.notEqual(wb.body.workspace.path, wa.body.workspace.path);
+  assert.equal((await addWorkspace(a, '../escape')).status, 400);
+  assert.equal((await addWorkspace(a, '路径注入', crypto.randomUUID(), {path: '/tmp'})).status, 400);
+  assert.equal((await rpc(b, 'session/create', {request: {workspaceId: wa.body.workspace.workspaceId}})).ok, false);
+  const grouped = await rpc(a, 'session/create', {request: {workspaceId: wa.body.workspace.workspaceId}});
+  assert.equal(grouped.ok, true, JSON.stringify(grouped));
   const made = await rpc(a, 'session/create', {request: {}}); assert.equal(made.ok, true, JSON.stringify(made));
   const id = made.value.sessionId;
   await new Promise<void>((resolve, reject) => {
@@ -133,6 +151,8 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   });
   assert.notEqual(blocked, 1000);
   if (!process.env.QS_NATIVE_PREVIEW) await closeOfficialAssistant();
+  assert.equal((await addWorkspace(a, '备课', requestId)).body.workspace.workspaceId, wa.body.workspace.workspaceId);
+  assert.equal((await rpc(a, 'session/create', {request: {workspaceId: wa.body.workspace.workspaceId}})).ok, true);
   const restored = await page(a, id);
   assert.match(JSON.stringify(restored), /甲教师专属班/);
   const persisted = await rpc(a, 'messageFeedback/list', {request: {sessionId: id}});

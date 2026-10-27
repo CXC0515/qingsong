@@ -41,3 +41,8 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 .pI_x6G_frame[data-sidebar-collapsed] .wSkVaW_viewArea{padding-top:64px}
 .qs-brand-mark{display:inline-block;width:28px;height:28px;flex:none;background-repeat:no-repeat;background-position:center;background-size:150%}
 .qs-session-button:focus-visible{outline:2px solid #426b56;outline-offset:3px}
+
+.qs-workspace-dialog{box-sizing:border-box;width:calc(100% - 32px);max-width:420px;margin:auto;padding:22px;border:1px solid #ffffffb0;border-radius:24px;background:#f2f6f1f5;color:#233b35;box-shadow:0 3px 8px -5px #18342730}
+.qs-workspace-dialog::backdrop{background:#233b3540;backdrop-filter:blur(3px)}
+.qs-workspace-dialog h2{margin:0 0 20px;font-size:18px}.qs-workspace-dialog label{display:grid;gap:8px;font-size:14px}.qs-workspace-dialog input{box-sizing:border-box;width:100%;min-height:44px;border:1px solid #426b5630;border-radius:12px;background:#ffffff80;padding:10px;font-size:16px;color:inherit}
+.qs-workspace-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}.qs-workspace-actions button{min-height:44px;padding:8px 18px;border:1px solid #426b5620;border-radius:14px;background:#ffffff80;color:inherit}.qs-workspace-actions .qs-workspace-create{background:#426b56;color:white}.qs-workspace-dialog button:disabled{opacity:.5}.qs-workspace-dialog p[role=alert]{font-size:14px;color:#9b3131}
