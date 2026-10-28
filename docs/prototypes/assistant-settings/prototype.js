@@ -1656,6 +1656,8 @@ var records = [
   { id: 7, kind: "memory", content: "\u4ECA\u540E\u7684\u8BFE\u5802\u8BA8\u8BBA\uFF0C\u4F18\u5148\u5C1D\u8BD5\u5148\u72EC\u7ACB\u601D\u8003\u3001\u518D\u5C0F\u7EC4\u4EA4\u6D41\u3002", status: "candidate", updated: "\u4ECA\u5929", source: "\u8BFE\u5802\u8BA8\u8BBA\u600E\u4E48\u7EC4\u7EC7 \xB7 \u4ECA\u5929", expiry: "" },
   { id: 8, kind: "memory", content: "\u5E0C\u671B\u6559\u6848\u4E2D\u7684\u8BFE\u5802\u6D3B\u52A8\u9644\u4E0A\u9884\u8BA1\u7528\u65F6\u3002", status: "candidate", updated: "\u6628\u5929", source: "\u4E03\u5E74\u7EA7\u7684\u5907\u8BFE\u601D\u8DEF \xB7 \u6628\u5929", expiry: "" }
 ];
+var settingsArea = "conversation";
+var generationDraft = { custom: false, temperature: 0.7 };
 var section = "rules";
 var memoryFilter = "work";
 var query = "";
@@ -1668,7 +1670,7 @@ var metrics = { human: 70, auto: 90, score: 75 };
 var content = $("#settings-content");
 var button = (id, label, primary = false) => `<button id="${id}" class="material ${primary ? "primary" : ""}" type="button"><span class="lg-content">${label}</span></button>`;
 function heading(title, description, action = "") {
-  return `<header class="page-heading"><div><span class="eyebrow">AI \u52A9\u624B</span><h2>${title}</h2><p>${description}</p></div>${action}</header>`;
+  return `<header class="page-heading"><div><span class="eyebrow">${settingsArea === "general" ? "\u6559\u5B66\u4E1A\u52A1\u8BBE\u7F6E" : "AI \u52A9\u624B"}</span><h2>${title}</h2><p>${description}</p></div>${action}</header>`;
 }
 function toast(text) {
   clearTimeout(toastTimer);
@@ -1677,7 +1679,10 @@ function toast(text) {
   toastTimer = setTimeout(() => $("#toast").hidden = true, 3200);
 }
 function renderLinks() {
-  const data = [["rules", "rules", "\u5DE5\u4F5C\u65B9\u5F0F"], ["memory", "memory", "\u8BB0\u5FC6\u4E0E\u4E8B\u9879"], ["capabilities", "sliders", "\u80FD\u529B\u4E0E\u8FD0\u884C"], ["metrics", "sliders", "OCR \u4E0E\u8BC4\u5206"]];
+  const data = settingsArea === "general" ? [["metrics", "sliders", "OCR \u4E0E\u8BC4\u5206"]] : [["rules", "rules", "\u5DE5\u4F5C\u65B9\u5F0F"], ["memory", "memory", "\u8BB0\u5FC6\u4E0E\u4E8B\u9879"], ["capabilities", "sliders", "\u6A21\u578B\u4E0E\u8FD0\u884C"]];
+  $(".settings-nav h1").textContent = settingsArea === "general" ? "\u4E3B\u8BBE\u7F6E" : "\u4F1A\u8BDD\u8BBE\u7F6E";
+  $(".settings-nav>.nav-caption").textContent = settingsArea === "general" ? "\u9752\u677E\u6559\u5E08" : "AI \u52A9\u624B";
+  $(".nav-note").innerHTML = settingsArea === "general" ? "\u6559\u5B66\u4E1A\u52A1\u8BBE\u7F6E<br>\u6B64\u5904\u4EC5\u6F14\u793A OCR \u4E0E\u8BC4\u5206" : "\u4E2A\u4EBA\u89C4\u5219\u4E0E\u80CC\u666F\u8DE8\u4F1A\u8BDD\u751F\u6548<br>\u751F\u6210\u53C2\u6570\u53EF\u4EC5\u7528\u4E8E\u5F53\u524D\u4F1A\u8BDD";
   $("#settings-links").innerHTML = data.map(([id, i, label]) => `<button class="settings-link" data-section="${id}" ${section === id ? 'aria-current="page"' : ""}>${icon(i)}${label}</button>`).join("");
   $("#settings-links").querySelectorAll("button").forEach((b) => b.onclick = () => {
     section = b.dataset.section;
@@ -1723,6 +1728,7 @@ function renderSettings() {
   }
   hydrate(content);
   wireRows();
+  if (section === "capabilities") wireGeneration();
 }
 function control(key, title, value, min, max, step = 1) {
   return `<div class="metric-control ${key === "score" ? "solo" : ""}"><label for="metric-${key}">${title}<output id="output-${key}" for="metric-${key}">${value}<small>%</small></output></label><input id="metric-${key}" type="range" value="${value}" min="${min}" max="${max}" step="${step}"></div>`;
@@ -1843,9 +1849,16 @@ $("#confirm-yes").onclick = () => {
 };
 function scene(name) {
   const chat = name === "chat";
+  if (!chat) {
+    generationDraft = { ...activeDemo().generation ?? { custom: false, temperature: 0.7 } };
+    settingsArea = name === "general" ? "general" : "conversation";
+    if (settingsArea === "general") section = "metrics";
+    else if (section === "metrics") section = "rules";
+    renderSettings();
+  }
   $("#settings-scene").hidden = chat;
   $("#chat-scene").hidden = !chat;
-  $("#breadcrumb").textContent = chat ? "\u5DE5\u4F5C\u53F0 / AI \u52A9\u624B" : "\u6211\u7684\u8BBE\u7F6E / AI \u52A9\u624B";
+  $("#breadcrumb").textContent = chat ? "\u5DE5\u4F5C\u53F0 / AI \u52A9\u624B" : settingsArea === "general" ? "\u4E3B\u8BBE\u7F6E / OCR \u4E0E\u8BC4\u5206" : "AI \u52A9\u624B / \u4F1A\u8BDD\u8BBE\u7F6E";
   $("#return-chat").hidden = chat;
   document.querySelectorAll("[data-scene]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.scene === name)));
 }
@@ -1870,6 +1883,26 @@ $("#phone-toggle").onclick = () => {
 };
 $("#send-demo").onclick = sendDemo;
 $(".new-chat .lg-content").innerHTML = icon("plus") + "\u65B0\u5BF9\u8BDD";
+function generationControls() {
+  return `<section class="generation-controls"><div class="generation-title"><h3>\u6E29\u5EA6 <span>Temperature</span></h3><span class="status-pill">\u5F53\u524D\u4F1A\u8BDD \xB7 \u6F14\u793A</span></div><p>\u8F83\u4F4E\u65F6\u91C7\u6837\u66F4\u96C6\u4E2D\uFF1B\u8F83\u9AD8\u65F6\u56DE\u7B54\u53D8\u5316\u66F4\u5927\u3002\u6E29\u5EA6\u4E0D\u4EE3\u8868\u51C6\u786E\u7387\u3002</p><label class="inherit-control"><input id="inherit-temperature" type="checkbox" ${generationDraft.custom ? "" : "checked"}>\u8DDF\u968F\u6A21\u578B\u9ED8\u8BA4\u503C</label><div id="temperature-custom" ${generationDraft.custom ? "" : "hidden"}><label for="temperature-value">\u81EA\u5B9A\u4E49\u6E29\u5EA6 <output id="temperature-output">${generationDraft.temperature.toFixed(1)}</output></label><input id="temperature-value" type="range" min="0" max="2" step="0.1" value="${generationDraft.temperature}"><div class="range-captions"><span>\u91C7\u6837\u96C6\u4E2D</span><span>\u53D8\u5316\u66F4\u591A</span></div></div><p class="footnote">\u9ED8\u8BA4\u503C\u672A\u5728\u8FD9\u91CC\u5047\u5B9A\u30020\u20132 \u4EC5\u4E3A\u539F\u578B\u6F14\u793A\u8303\u56F4\uFF1B\u6B63\u5F0F\u63A7\u4EF6\u6309\u5177\u4F53\u6A21\u578B\u80FD\u529B\u8C03\u6574\uFF0C\u4E0D\u652F\u6301\u65F6\u8BF4\u660E\u539F\u56E0\u3002</p><div class="operation-actions">${button("save-generation", "\u4FDD\u5B58\u4F1A\u8BDD\u8BBE\u7F6E", true)}</div><p id="generation-feedback" role="status" class="footnote"></p></section>`;
+}
+function wireGeneration() {
+  $("#inherit-temperature").onchange = (e) => {
+    generationDraft.custom = !e.target.checked;
+    $("#temperature-custom").hidden = !generationDraft.custom;
+    $("#generation-feedback").textContent = "\u5C1A\u672A\u4FDD\u5B58\u7684\u6F14\u793A\u8BBE\u7F6E";
+  };
+  $("#temperature-value").oninput = (e) => {
+    generationDraft.temperature = Number(e.target.value);
+    $("#temperature-output").textContent = generationDraft.temperature.toFixed(1);
+    $("#generation-feedback").textContent = "\u5C1A\u672A\u4FDD\u5B58\u7684\u6F14\u793A\u8BBE\u7F6E";
+  };
+  $("#save-generation").onclick = () => {
+    activeDemo().generation = { ...generationDraft };
+    $("#generation-feedback").textContent = generationDraft.custom ? "\u6F14\u793A\uFF1A\u5F53\u524D\u4F1A\u8BDD\u4ECE\u4E0B\u4E00\u6761\u65B0\u8BF7\u6C42\u4F7F\u7528\u6E29\u5EA6 " + generationDraft.temperature.toFixed(1) + "\uFF1B\u5DF2\u6709\u6D88\u606F\u4E0D\u53D8\u3002" : "\u6F14\u793A\uFF1A\u5F53\u524D\u4F1A\u8BDD\u8DDF\u968F\u6A21\u578B\u9ED8\u8BA4\u6E29\u5EA6\u3002";
+    toast("\u4EC5\u4FDD\u5B58\u6F14\u793A\u8BBE\u7F6E\uFF0C\u672A\u6539\u53D8\u771F\u5B9E\u6A21\u578B\u8C03\u7528\u3002");
+  };
+}
 var workItems = [
   { id: "follow", title: "\u8DDF\u8FDB\u5C0F\u6797\u7684\u4F5C\u4E1A\u8865\u4EA4", state: "\u5F85\u6838\u5BF9", detail: "\u4E0A\u6B21\u7EA6\u5B9A\uFF1A\u5468\u4E94\u6838\u5BF9\u8865\u4EA4\u60C5\u51B5\uFF0C\u518D\u51B3\u5B9A\u662F\u5426\u5B89\u6392\u8BFE\u540E\u6C9F\u901A\u3002", next: "\u91CD\u65B0\u8BFB\u53D6\u8BFE\u5802\u4EFB\u52A1\uFF0C\u786E\u8BA4\u5F53\u524D\u7ED3\u679C\u3002", source: "10 \u6708 26 \u65E5 \xB7 \u4F5C\u4E1A\u8DDF\u8FDB", ref: "\u4E03\u5E74\u7EA7\u4E00\u73ED \xB7 \u5468\u4E09\u9605\u8BFB\u68C0\u67E5" },
   { id: "discussion", title: "\u8C03\u6574\u4E0B\u5468\u8BFE\u5802\u8BA8\u8BBA", state: "\u5F85\u8865\u5145", detail: "\u5DF2\u9009\u201C\u5148\u72EC\u7ACB\u601D\u8003\uFF0C\u518D\u5C0F\u7EC4\u4EA4\u6D41\u201D\uFF0C\u5C1A\u672A\u786E\u5B9A\u8BFE\u6587\u4E0E\u5206\u7EC4\u65B9\u5F0F\u3002", next: "\u786E\u8BA4\u8BFE\u6587\u53CA\u8BFE\u5802\u65F6\u957F\u3002", source: "\u6628\u5929 \xB7 \u8BFE\u5802\u8BA8\u8BBA\u600E\u4E48\u7EC4\u7EC7", ref: "\u6559\u5B66\u65B9\u6848\u8349\u7A3F \xB7 \u5C1A\u672A\u5199\u5165\u65E5\u7A0B" }
@@ -1912,7 +1945,7 @@ function renderWork() {
   };
 }
 function renderCapabilities() {
-  content.innerHTML = heading("\u80FD\u529B\u4E0E\u8FD0\u884C", "\u4E86\u89E3\u52A9\u624B\u80FD\u505A\u4EC0\u4E48\uFF0C\u4EE5\u53CA\u8BBE\u7F6E\u4F55\u65F6\u751F\u6548\u3002") + `<section class="capability-block"><h3>\u53EF\u8BBF\u95EE\u7684\u6559\u5B66\u4FE1\u606F</h3><p>\u73ED\u7EA7\u4E0E\u540D\u5355\u3001\u8BFE\u8868\u3001\u8BFE\u5802\u4EFB\u52A1\u3001\u5EA7\u4F4D\u3001\u63D0\u9192\u53CA\u90E8\u5206\u5B66\u751F\u8BB0\u5F55\u3002</p><details class="disclosure"><summary>\u67E5\u770B\u6743\u9650\u4E0E\u5C1A\u672A\u5F00\u653E\u7684\u80FD\u529B</summary><p>\u5B66\u751F\u4E3B\u4F53\u53CA\u8EAB\u4EFD\u7531\u6559\u5E08\u624B\u52A8\u7EF4\u62A4\u3002\u8D44\u6599\u68C0\u7D22\u3001\u6279\u6539\u7ED3\u679C\u4E0E\u4E1A\u52A1\u5199\u5165\u5C1A\u672A\u63A5\u5165\u6B63\u5F0F\u52A9\u624B\u3002</p><p>\u8BFE\u5802\u7ED3\u679C\u5199\u5165\u3001\u52A8\u6001\u5B57\u6BB5\u66F4\u65B0\u3001\u8DE8\u4F1A\u8BDD\u4E8B\u9879\u5C5E\u4E8E\u672C\u6B21\u8BBE\u8BA1\u76EE\u6807\u3002\u539F\u578B\u91CC\u7684\u6210\u529F\u72B6\u6001\u4E0D\u4EE3\u8868\u5DF2\u4E0A\u7EBF\u3002</p></details></section><section class="capability-block"><h3>\u6A21\u578B\u4E0E\u751F\u6210\u53C2\u6570</h3><p>\u6A21\u578B\u53C2\u6570\u51B3\u5B9A\u751F\u6210\u65B9\u5F0F\uFF0COCR \u4E0E\u8BC4\u5206\u9608\u503C\u51B3\u5B9A\u4E1A\u52A1\u5904\u7406\u53C2\u8003\uFF0C\u4E24\u8005\u5206\u522B\u914D\u7F6E\u3002</p><dl class="parameter-list"><dt>Temperature</dt><dd>\u63A7\u5236\u91C7\u6837\u968F\u673A\u6027\uFF1B\u987B\u7531\u5F53\u524D\u6A21\u578B\u53CA\u9002\u914D\u5668\u786E\u8BA4\u652F\u6301\u540E\u624D\u80FD\u8C03\u8282\u3002</dd><dt>\u8F93\u51FA\u957F\u5EA6</dt><dd>\u6B63\u5F0F\u52A9\u624B\u76EE\u524D\u6BCF\u6B21\u8BF7\u6C42\u6700\u591A 2,048 Token\uFF1B\u539F\u578B\u53EA\u62AB\u9732\uFF0C\u4E0D\u4FEE\u6539\u3002</dd><dt>\u63A8\u7406\u5F3A\u5EA6</dt><dd>\u6309\u6A21\u578B\u652F\u6301\u8303\u56F4\u63D0\u4F9B\uFF1B\u4E0D\u80FD\u4FDD\u8BC1\u6240\u6709\u6A21\u578B\u5747\u53EF\u8C03\u6574\u3002</dd></dl><details class="disclosure"><summary>\u5176\u4ED6\u53C2\u6570\u4E0E\u751F\u6548\u8303\u56F4</summary><p>top_p\u3001\u60E9\u7F5A\u7CFB\u6570\u3001stop \u7B49\u4E0D\u80FD\u4EC5\u56E0\u63A5\u53E3\u540D\u79F0\u5E38\u89C1\u5C31\u63D0\u4F9B\u5F00\u5173\u3002\u9700\u9010\u9879\u6838\u5BF9\u5B9E\u9645\u8C03\u7528\u94FE\uFF0C\u672A\u63A5\u901A\u65F6\u4E0D\u663E\u793A\u53EF\u4FDD\u5B58\u7684\u63A7\u4EF6\u3002</p><p>\u8FD0\u884C\u8BBE\u7F6E\u7531\u7CFB\u7EDF\u7BA1\u7406\uFF1B\u6559\u5E08\u4E2A\u4EBA\u89C4\u5219\u4EC5\u5F71\u54CD\u672C\u4EBA\u540E\u7EED\u5BF9\u8BDD\uFF0C\u4E0D\u6539\u53D8\u6A21\u578B\u4F9B\u5E94\u5546\u3001\u8EAB\u4EFD\u6743\u9650\u6216\u5168\u5C40\u9884\u7B97\u3002</p></details></section><section class="capability-block"><h3>\u8FD0\u884C\u4E0E\u4E0A\u4E0B\u6587</h3><dl class="parameter-list"><dt>\u5904\u7406\u9884\u7B97</dt><dd>\u76EE\u524D\u6BCF\u8F6E\u6700\u591A 8 \u6B65\u300112 \u6B21\u5DE5\u5177\u8C03\u7528\u3001180 \u79D2\u3002</dd><dt>\u6392\u961F</dt><dd>\u76EE\u524D\u5168\u5C40 1 \u6761\u6267\u884C\uFF0C\u6700\u591A 3 \u6761\u7B49\u5F85\u3002\u7B49\u5F85\u4E0D\u4EE3\u8868\u6A21\u578B\u5DF2\u7ECF\u5F00\u59CB\u751F\u6210\u3002</dd><dt>\u8BB0\u5FC6\u4F7F\u7528</dt><dd>\u52A0\u8F7D\u6709\u6548\u4E2A\u4EBA\u89C4\u5219\u5E76\u6709\u9650\u53EC\u56DE\uFF1B\u5DE5\u4F5C\u4E8B\u9879\u4E0E\u53EF\u9760\u7EED\u529E\u662F\u5F85\u5B9E\u73B0\u76EE\u6807\u3002</dd></dl><details class="disclosure"><summary>\u67E5\u770B\u4E0A\u4E0B\u6587\u7EC4\u6210</summary><p>\u7CFB\u7EDF\u804C\u8D23\u4E0E\u6743\u9650 \u2192 \u5F53\u524D\u8BF7\u6C42 \u2192 \u7ECF\u6838\u5BF9\u7684\u5DE5\u4F5C\u72B6\u6001\u4E0E\u4E1A\u52A1\u8BC1\u636E \u2192 \u76F8\u5173\u4E2A\u4EBA\u80CC\u666F\u3002\u5B57\u6BB5\u4E0E\u5DE5\u5177\u65B9\u6CD5\u7531 Skill/\u5951\u7EA6\u63CF\u8FF0\u3002</p><p>\u538B\u7F29\u4FDD\u7559\u76EE\u6807\u3001\u672A\u51B3\u95EE\u9898\u3001\u5BF9\u8C61\u4E0E\u64CD\u4F5C\u5F15\u7528\uFF0C\u4E0D\u628A\u6458\u8981\u4F5C\u4E3A\u5199\u5165\u56DE\u6267\u3002\u6B64\u5904\u662F\u76EE\u6807\u7ED3\u6784\uFF0C\u5C1A\u672A\u6539\u53D8\u8FD0\u884C\u65F6\u3002</p></details></section>`;
+  content.innerHTML = heading("\u6A21\u578B\u4E0E\u8FD0\u884C", "\u8C03\u6574\u5F53\u524D\u4F1A\u8BDD\u7684\u751F\u6210\u65B9\u5F0F\uFF0C\u4E86\u89E3\u80FD\u529B\u4E0E\u8FD0\u884C\u8FB9\u754C\u3002") + generationControls() + `<section class="capability-block"><h3>\u53EF\u8BBF\u95EE\u7684\u6559\u5B66\u4FE1\u606F</h3><p>\u73ED\u7EA7\u4E0E\u540D\u5355\u3001\u8BFE\u8868\u3001\u8BFE\u5802\u4EFB\u52A1\u3001\u5EA7\u4F4D\u3001\u63D0\u9192\u53CA\u90E8\u5206\u5B66\u751F\u8BB0\u5F55\u3002</p><details class="disclosure"><summary>\u67E5\u770B\u6743\u9650\u4E0E\u5C1A\u672A\u5F00\u653E\u7684\u80FD\u529B</summary><p>\u5B66\u751F\u4E3B\u4F53\u53CA\u8EAB\u4EFD\u7531\u6559\u5E08\u624B\u52A8\u7EF4\u62A4\u3002\u8D44\u6599\u68C0\u7D22\u3001\u6279\u6539\u7ED3\u679C\u4E0E\u4E1A\u52A1\u5199\u5165\u5C1A\u672A\u63A5\u5165\u6B63\u5F0F\u52A9\u624B\u3002</p><p>\u8BFE\u5802\u7ED3\u679C\u5199\u5165\u3001\u52A8\u6001\u5B57\u6BB5\u66F4\u65B0\u3001\u8DE8\u4F1A\u8BDD\u4E8B\u9879\u5C5E\u4E8E\u672C\u6B21\u8BBE\u8BA1\u76EE\u6807\u3002\u539F\u578B\u91CC\u7684\u6210\u529F\u72B6\u6001\u4E0D\u4EE3\u8868\u5DF2\u4E0A\u7EBF\u3002</p></details></section><section class="capability-block"><h3>\u6A21\u578B\u4E0E\u751F\u6210\u53C2\u6570</h3><p>\u6A21\u578B\u53C2\u6570\u51B3\u5B9A\u751F\u6210\u65B9\u5F0F\uFF0COCR \u4E0E\u8BC4\u5206\u9608\u503C\u51B3\u5B9A\u4E1A\u52A1\u5904\u7406\u53C2\u8003\uFF0C\u4E24\u8005\u5206\u522B\u914D\u7F6E\u3002</p><dl class="parameter-list"><dt>Temperature</dt><dd>\u63A7\u5236\u91C7\u6837\u968F\u673A\u6027\u3002\u4E0A\u65B9\u53EF\u6A21\u62DF\u9009\u62E9\u8DDF\u968F\u6A21\u578B\u6216\u4E3A\u5F53\u524D\u4F1A\u8BDD\u81EA\u5B9A\u4E49\u3002</dd><dt>\u8F93\u51FA\u957F\u5EA6</dt><dd>\u6B63\u5F0F\u52A9\u624B\u76EE\u524D\u6BCF\u6B21\u8BF7\u6C42\u6700\u591A 2,048 Token\uFF1B\u539F\u578B\u53EA\u62AB\u9732\uFF0C\u4E0D\u4FEE\u6539\u3002</dd><dt>\u63A8\u7406\u5F3A\u5EA6</dt><dd>\u6309\u6A21\u578B\u652F\u6301\u8303\u56F4\u63D0\u4F9B\uFF1B\u4E0D\u80FD\u4FDD\u8BC1\u6240\u6709\u6A21\u578B\u5747\u53EF\u8C03\u6574\u3002</dd></dl><details class="disclosure"><summary>\u5176\u4ED6\u53C2\u6570\u4E0E\u751F\u6548\u8303\u56F4</summary><p>top_p\u3001\u60E9\u7F5A\u7CFB\u6570\u3001stop \u7B49\u4E0D\u80FD\u4EC5\u56E0\u63A5\u53E3\u540D\u79F0\u5E38\u89C1\u5C31\u63D0\u4F9B\u5F00\u5173\u3002\u9700\u9010\u9879\u6838\u5BF9\u5B9E\u9645\u8C03\u7528\u94FE\uFF0C\u672A\u63A5\u901A\u65F6\u4E0D\u663E\u793A\u53EF\u4FDD\u5B58\u7684\u63A7\u4EF6\u3002</p><p>\u6E29\u5EA6\u5728\u539F\u578B\u4E2D\u6309\u5F53\u524D\u4F1A\u8BDD\u5C55\u793A\uFF1B\u4E2A\u4EBA\u89C4\u5219\u548C\u957F\u671F\u80CC\u666F\u6309\u672C\u4EBA\u8DE8\u4F1A\u8BDD\u4F7F\u7528\u3002\u6A21\u578B\u4F9B\u5E94\u5546\u3001\u8EAB\u4EFD\u6743\u9650\u4E0E\u5168\u5C40\u9884\u7B97\u7531\u7CFB\u7EDF\u7BA1\u7406\u3002</p></details></section><section class="capability-block"><h3>\u8FD0\u884C\u4E0E\u4E0A\u4E0B\u6587</h3><dl class="parameter-list"><dt>\u5904\u7406\u9884\u7B97</dt><dd>\u76EE\u524D\u6BCF\u8F6E\u6700\u591A 8 \u6B65\u300112 \u6B21\u5DE5\u5177\u8C03\u7528\u3001180 \u79D2\u3002</dd><dt>\u6392\u961F</dt><dd>\u76EE\u524D\u5168\u5C40 1 \u6761\u6267\u884C\uFF0C\u6700\u591A 3 \u6761\u7B49\u5F85\u3002\u7B49\u5F85\u4E0D\u4EE3\u8868\u6A21\u578B\u5DF2\u7ECF\u5F00\u59CB\u751F\u6210\u3002</dd><dt>\u8BB0\u5FC6\u4F7F\u7528</dt><dd>\u52A0\u8F7D\u6709\u6548\u4E2A\u4EBA\u89C4\u5219\u5E76\u6709\u9650\u53EC\u56DE\uFF1B\u5DE5\u4F5C\u4E8B\u9879\u4E0E\u53EF\u9760\u7EED\u529E\u662F\u5F85\u5B9E\u73B0\u76EE\u6807\u3002</dd></dl><details class="disclosure"><summary>\u67E5\u770B\u4E0A\u4E0B\u6587\u7EC4\u6210</summary><p>\u7CFB\u7EDF\u804C\u8D23\u4E0E\u6743\u9650 \u2192 \u5F53\u524D\u8BF7\u6C42 \u2192 \u7ECF\u6838\u5BF9\u7684\u5DE5\u4F5C\u72B6\u6001\u4E0E\u4E1A\u52A1\u8BC1\u636E \u2192 \u76F8\u5173\u4E2A\u4EBA\u80CC\u666F\u3002\u5B57\u6BB5\u4E0E\u5DE5\u5177\u65B9\u6CD5\u7531 Skill/\u5951\u7EA6\u63CF\u8FF0\u3002</p><p>\u538B\u7F29\u4FDD\u7559\u76EE\u6807\u3001\u672A\u51B3\u95EE\u9898\u3001\u5BF9\u8C61\u4E0E\u64CD\u4F5C\u5F15\u7528\uFF0C\u4E0D\u628A\u6458\u8981\u4F5C\u4E3A\u5199\u5165\u56DE\u6267\u3002\u6B64\u5904\u662F\u76EE\u6807\u7ED3\u6784\uFF0C\u5C1A\u672A\u6539\u53D8\u8FD0\u884C\u65F6\u3002</p></details></section>`;
 }
 var demoSessions = {
   classroom: { title: "\u672C\u5468\u7684\u8BFE\u5802\u8BB0\u5F55", loaded: true, draft: "\u628A\u9605\u8BFB\u68C0\u67E5\u4E2D\u5C0F\u6797\u548C\u5C0F\u5468\u7684\u7ED3\u679C\u8BB0\u4E3A\u5DF2\u5B8C\u6210\u3002", status: "", messages: [{ role: "assistant", text: "\u53EF\u4EE5\u5148\u6838\u5BF9\u8FD9\u6B21\u9605\u8BFB\u68C0\u67E5\uFF0C\u518D\u9884\u89C8\u5177\u4F53\u4FEE\u6539\u3002\u6240\u6709\u59D3\u540D\u4E0E\u8BB0\u5F55\u90FD\u662F\u6F14\u793A\u6570\u636E\u3002" }] },

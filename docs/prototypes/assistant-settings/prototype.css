@@ -1572,3 +1572,82 @@ body[data-phone=true] .entry-dialog {
     animation: none;
   }
 }
+.generation-controls {
+  border: 1px solid #56734a25;
+  border-radius: 16px;
+  padding: 22px;
+  margin-bottom: 30px;
+  background: #f0f5e9;
+}
+.generation-title {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.generation-title h3 span {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 7px;
+}
+.generation-title .status-pill {
+  margin: 0;
+}
+.generation-controls > p {
+  font-size: 14px;
+  line-height: 1.9;
+  color: var(--muted);
+  margin-top: 16px;
+}
+.inherit-control {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  font-size: 14px;
+  margin-top: 12px;
+}
+.inherit-control input {
+  width: 20px;
+  height: 20px;
+  accent-color: #657e60;
+}
+#temperature-custom {
+  margin-top: 18px;
+}
+#temperature-custom > label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+#temperature-output {
+  font-size: 23px;
+  font-variant-numeric: tabular-nums;
+  color: #426b56;
+}
+.range-captions {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+.generation-controls > .footnote {
+  font-size: 12px;
+}
+@media (max-width: 700px) {
+  .generation-controls {
+    padding: 16px;
+  }
+  .prototype-bar nav {
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+  .prototype-bar nav button {
+    padding: 0 8px;
+  }
+}
