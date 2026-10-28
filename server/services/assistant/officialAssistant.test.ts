@@ -145,6 +145,13 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
     const response = await fetch(apiRoot + '/api/assistant/official/api/qingsong/workspace', {method: 'POST', headers: {...headers, Cookie: cookie}, body: JSON.stringify({title, requestId, ...extra})});
     return {status: response.status, body: await response.json()};
   };
+  const streamAbort=new AbortController();
+  try{
+    const stream=await fetch(apiRoot+'/api/assistant/official/plugins/events',{headers:{...headers,Cookie:a},signal:AbortSignal.any([streamAbort.signal,AbortSignal.timeout(3000)])});
+    assert.equal(stream.status,200);assert.match(stream.headers.get('content-type')??'',/text\/event-stream/);
+    assert.equal(stream.headers.get('x-accel-buffering'),'no');assert.equal(stream.headers.get('cache-control'),'no-store');
+    const first=await stream.body!.getReader().read();assert.ok(!first.done&&first.value.length>0,'first SSE data must arrive before stream ends');
+  }finally{streamAbort.abort();}
   const requestId = crypto.randomUUID();
   const wa = await addWorkspace(a, '备课', requestId);
   assert.equal(wa.status, 200, JSON.stringify(wa));
@@ -154,6 +161,16 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   assert.equal(wb.status, 200, JSON.stringify(wb));
   assert.notEqual(wb.body.workspace.workspaceId, wa.body.workspace.workspaceId);
   assert.notEqual(wb.body.workspace.path, wa.body.workspace.path);
+  // The browser needs both catalog/control baselines on one physical connection.
+  await new Promise<void>((resolve,reject)=>{
+    const socket=new WebSocket(apiRoot.replace('http:','ws:')+'/api/assistant/official/api/remote.mux',{headers:{Origin:origin,Cookie:a}});
+    const received=new Map<string,unknown>();
+    const timer=setTimeout(()=>{socket.terminate();reject(Error('catalog baseline timeout'));},5000);
+    socket.once('open',()=>{for(const [streamId,endpoint] of [['workspace','workspace/follow'],['control','session/control']])socket.send(JSON.stringify({type:'open',streamId,endpoint,payload:{args:{}}}));});
+    socket.on('message',(raw:any)=>{const frame=JSON.parse(raw.toString());if(frame.type==='error'){clearTimeout(timer);socket.close();reject(Error(JSON.stringify(frame)));return;}if(frame.type==='item'&&frame.value?.type==='baseline')received.set(frame.streamId,frame.value);if(received.size===2){clearTimeout(timer);socket.close();try{assert.match(JSON.stringify(received.get('workspace')),new RegExp(wa.body.workspace.workspaceId));assert.doesNotMatch(JSON.stringify(received.get('workspace')),new RegExp(wb.body.workspace.workspaceId));resolve();}catch(error){reject(error);}}});
+    socket.once('error',(error:Error)=>{clearTimeout(timer);reject(error);});
+  });
+
   assert.equal((await addWorkspace(a, '../escape')).status, 400);
   assert.equal((await addWorkspace(a, '路径注入', crypto.randomUUID(), {path: '/tmp'})).status, 400);
   assert.equal((await rpc(b, 'session/create', {request: {workspaceId: wa.body.workspace.workspaceId}})).ok, false);

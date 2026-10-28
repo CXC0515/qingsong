@@ -16,6 +16,7 @@ import {recallPersonalContext, personalTool, explicitPersonalCommand, PersonalCo
 import { officialBudget } from './officialBudget';
 import {teachingFailure, officialAssetCache} from './officialResponses';
 import {logEvent} from '../../observability/logger';
+import {pipeOfficialEventStream} from './officialStream';
 import { startOfficialRuntime } from '../../../agent/official-runtime.mjs';
 import { allowOfficialCall } from '../../../agent/official-policy.mjs';
 import { relayOfficialSocket } from '../../../agent/official-relay.mjs';
@@ -221,6 +222,7 @@ export async function officialAssistantProxy(req: Request, res: Response) {
   try {
     const context = getWorkspaceContext();
     const instance = await ensureInstance(context, () => checkIdentity(req.headers, context), createHash('sha256').update(req.headers.cookie ?? '').digest('hex'));
+    if(res.destroyed)return;
     const instanceMs = performance.now() - requestStarted;
     if (target.pathname === '/api/session/prompt') {
       const request = req.body?.payload?.args?.request;
@@ -234,12 +236,18 @@ export async function officialAssistantProxy(req: Request, res: Response) {
       }
     }
     const upstreamStarted = performance.now();
+    let firstByteMs:number|undefined,headersMs:number|undefined,bytes=0;
+    const report=(outcome:string)=>logEvent('info','assistant_official_request',{requestId:res.getHeader('x-request-id'),endpoint:target.pathname,method:req.method,status:res.statusCode,outcome,instanceMs:Math.round(instanceMs),upstreamHeadersMs:headersMs===undefined?null:Math.round(headersMs),firstByteMs:firstByteMs===undefined?null:Math.round(firstByteMs),bytes,totalMs:Math.round(performance.now()-requestStarted)});
+    let reported=false;
+    res.once('close',()=>{if(!reported){reported=true;report(res.writableFinished?'complete':'closed');}});
     const body = req.method === 'POST' ? JSON.stringify(req.body) : undefined;
     const headers: Record<string, string> = {host: new URL(runtimeConfig.appUrl).host, cookie: instance.cookie};
     for (const name of ['content-type', 'accept', 'origin', 'if-none-match']) if (typeof req.headers[name] === 'string') headers[name] = req.headers[name];
     if (body) headers['content-length'] = String(Buffer.byteLength(body));
     const upstream = httpRequest({hostname: '127.0.0.1', port: instance.runtime.port, path: target.pathname + target.search, method: req.method, headers}, incoming => {
       res.status(incoming.statusCode ?? 502);
+      headersMs=performance.now()-upstreamStarted;
+      incoming.on('data',(chunk:Buffer)=>{if(firstByteMs===undefined){firstByteMs=performance.now()-upstreamStarted;logEvent('info','assistant_official_first_byte',{requestId:res.getHeader('x-request-id'),endpoint:target.pathname,instanceMs:Math.round(instanceMs),upstreamHeadersMs:Math.round(headersMs!),firstByteMs:Math.round(firstByteMs)});}bytes+=chunk.length;});
       res.setHeader('Server-Timing', 'instance;dur=' + instanceMs.toFixed(1) + ', upstream;dur=' + (performance.now() - upstreamStarted).toFixed(1));
       if (['GET', 'HEAD'].includes(req.method) && [200, 304].includes(incoming.statusCode ?? 0)) {
         res.setHeader('Cache-Control', officialAssetCache(target.pathname, String(incoming.headers['content-type'] ?? '')));
@@ -250,6 +258,10 @@ export async function officialAssistantProxy(req: Request, res: Response) {
       const nativeCsp = String(incoming.headers['content-security-policy'] ?? '').split(';').filter(rule => !/^\s*frame-ancestors\b/i.test(rule)).filter(rule => rule.trim()).join('; ');
       res.setHeader('Content-Security-Policy', [nativeCsp, "frame-ancestors 'self'", ...(nativeCsp ? [] : ["object-src 'none'", "base-uri 'self'"])].filter(Boolean).join('; '));
       if (incoming.headers.location) { res.status(502).end('助手连接未完成，已有对话保留，请重新打开助手。'); incoming.resume(); return; }
+      if(/^text\/event-stream\b/i.test(String(incoming.headers['content-type']??''))){
+        pipeOfficialEventStream(incoming,res,upstream,()=>checkIdentity(req.headers,context),{onHeartbeat:()=>{instance.touched=Date.now();}});
+        return;
+      }
       const cache = String(res.getHeader('Cache-Control'));
       if (req.method === 'GET' && incoming.statusCode === 200 && cache.startsWith('private,')) {
         let chunks: Buffer[] = [], size = 0, streaming = false;
@@ -277,9 +289,10 @@ export async function officialAssistantProxy(req: Request, res: Response) {
     upstream.setTimeout(60000, () => upstream.destroy(Error('NATIVE_TIMEOUT')));
     upstream.on('error', () => { if (!res.headersSent) res.status(502).json({message: '助手连接中断，已有对话保留，教学数据未修改，请刷新重试。'}); else res.end(); });
     res.on('close', () => upstream.destroy()); upstream.end(body);
-  } catch { if (!res.headersSent) res.status(503).json({message: '助手暂时未能启动，已有对话保留，教学数据未修改，请稍后重试。'}); }
+  } catch {logEvent('warn','assistant_official_request',{endpoint:target.pathname,method:req.method,status:503,outcome:'startup_failed',totalMs:Math.round(performance.now()-requestStarted)});if (!res.headersSent&&!res.destroyed) res.status(503).json({message: '助手暂时未能启动，已有对话保留，教学数据未修改，请稍后重试。'}); }
 }
 export async function officialAssistantUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer) {
+  const started=performance.now();
   try {
     if (req.url !== officialPrefix + '/api/remote.mux' || req.headers.origin !== origin()) throw Error('ORIGIN');
     const session = await auth.api.getSession({headers: fromNodeHeaders(req.headers)});
@@ -291,7 +304,8 @@ export async function officialAssistantUpgrade(req: IncomingMessage, socket: Dup
     let relay: {close: () => void} | undefined;
     let closed = false;
     relay = await relayOfficialSocket(req, socket, head, {port: instance.runtime.port, cookie: instance.cookie, host: new URL(runtimeConfig.appUrl).host, authorize, onClose: () => { closed = true; if (relay) instance.sockets.delete(relay); }});
+    logEvent('info','assistant_official_socket',{outcome:'connected',durationMs:Math.round(performance.now()-started)});
     if (instance.closing) relay.close();
     else if (!closed) instance.sockets.add(relay);
-  } catch { if (!socket.destroyed) socket.end('HTTP/1.1 403 Forbidden\r\n\r\n'); }
+  } catch(error) {const code=error instanceof Error&&['ORIGIN','AUTH','AUTH_EXPIRED','ACCESS_DENIED'].includes(error.message)?error.message:'UPSTREAM_CONNECTION';logEvent('warn','assistant_official_socket',{outcome:'failed',code,durationMs:Math.round(performance.now()-started)});if (!socket.destroyed) socket.end('HTTP/1.1 '+(code==='UPSTREAM_CONNECTION'?'503 Service Unavailable':'403 Forbidden')+'\r\n\r\n'); }
 }

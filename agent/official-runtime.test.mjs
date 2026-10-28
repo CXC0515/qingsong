@@ -97,3 +97,24 @@ test('teaching settings footer renders, opens host settings and has no unconditi
   assert.match(css,/\.hHd-Xa_settingsArea\{display:none!important\}/,'native management must remain hidden');
   assert.match(css,/data-sidebar-collapsed[^{}]*\.qs-sidebar-settings\{display:none/,'collapsed sidebar must not show settings');
 });
+
+test('connection observer reports catalog failures, recovers, answers trusted probes and disposes',async()=>{
+ const require=createRequire(new URL('../package.json',import.meta.url));
+ const source=await readFile(new URL('./official-ui/client.js',import.meta.url),'utf8');
+ const listeners=new Map(),effects=[],messages=[];
+ const parent={postMessage:(data,origin)=>messages.push({data,origin})};
+ const workspace={phase:'pending',state:'loading'},sessions={phase:'pending',state:'loading'};
+ const store=snapshot=>{const callbacks=new Set();return{getSnapshot:()=>snapshot,subscribe:callback=>{callbacks.add(callback);return()=>callbacks.delete(callback);},notify:()=>callbacks.forEach(callback=>callback()),callbacks};};
+ const workStore=store(workspace),sessionStore=store(sessions);let plugin;
+ vm.runInNewContext(source,{window:{name:'qingsong-assistant:attempt-one',__ModuleLoader__:{load:module=>{plugin=module.factory(require);}},addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:(name)=>listeners.delete(name)},parent,location:{origin:'https://fixture.test',search:'?connection=removed-by-router'},URLSearchParams,performance,crypto:globalThis.crypto});
+ plugin.apply({slots:{inject:()=>{}},effect:fn=>effects.push(fn),workspaces:{list:workStore},sessions:{list:sessionStore}});
+ const dispose=effects.at(-1)();assert.equal(messages.at(-1).data.phase,'catalogs');
+ workspace.state='error';workStore.notify();assert.equal(messages.at(-1).data.phase,'error');assert.equal(messages.at(-1).data.pending,'workspace');
+ workspace.state='idle';workspace.phase='ready';sessions.state='error';sessionStore.notify();assert.equal(messages.at(-1).data.pending,'sessions');
+ sessions.phase='ready';sessions.state='idle';sessionStore.notify();assert.equal(messages.at(-1).data.type,'qingsong:ready');
+ const before=messages.length;listeners.get('message')({origin:'https://evil.test',source:parent,data:{type:'qingsong:probe',connectionId:'attempt-one'}});assert.equal(messages.length,before);
+ listeners.get('message')({origin:'https://fixture.test',source:parent,data:{type:'qingsong:probe',connectionId:'old-attempt'}});assert.equal(messages.length,before);
+ listeners.get('message')({origin:'https://fixture.test',source:parent,data:{type:'qingsong:probe',connectionId:'attempt-one'}});assert.ok(messages.length>before);
+ assert.ok(messages.every(m=>m.data.connectionId==='attempt-one'&&m.origin==='https://fixture.test'));
+ dispose();assert.equal(workStore.callbacks.size,0);assert.equal(sessionStore.callbacks.size,0);assert.equal(listeners.size,0);
+});
