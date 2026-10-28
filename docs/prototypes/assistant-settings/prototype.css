@@ -1801,3 +1801,50 @@ body[data-phone=true] .entry-dialog {
     gap: 6px;
   }
 }
+.prompt-reading {
+  flex: 1;
+  min-height: 260px;
+  margin: 0;
+  padding: 26px 2px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 2;
+  color: #425344;
+}
+.prompt-document.is-editing #prompt-markdown {
+  flex: 1;
+  min-height: 300px;
+  margin: 20px 0;
+  padding: 18px 20px;
+  border: 1px solid #748d624d;
+  border-radius: 14px;
+  background: #eef2e8;
+  box-shadow: inset 0 1px 4px #364c3510;
+  outline-offset: 3px;
+}
+.prompt-document.is-editing #prompt-markdown:focus-visible {
+  outline: 2px solid #6b865c80;
+}
+.is-editing .document-footer {
+  margin-top: 0;
+}
+.document-toolbar > .document-name {
+  min-width: 100px;
+}
+@media (max-width: 700px) {
+  .prompt-reading {
+    min-height: 220px;
+    padding-top: 22px;
+  }
+  .prompt-document.is-editing #prompt-markdown {
+    min-height: 260px;
+    padding: 15px 16px;
+  }
+  .document-toolbar > div {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
