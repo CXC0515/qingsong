@@ -32,6 +32,7 @@ import scheduleRouter from './routes/schedule';
 import registrationRouter from './routes/registration';
 import accountRouter from './routes/account';
 import assistantRouter from './routes/assistant';
+import generationPolicyRouter from './routes/generationPolicy';
 import { modelAdminProxy } from './services/assistant/modelAdmin';
 import { requireOwner, requireAuthenticatedWorkspace } from './middleware/authenticated';
 import { requireSameOriginMutation } from './middleware/csrf';
@@ -113,6 +114,7 @@ export const createApp = (config: RuntimeConfig = runtimeConfig) => {
   app.use('/api/assistant/manage', requireOwner, modelAdminProxy);
   app.use('/api/assistant/official', officialAssistantProxy);
   app.use('/api', requireSameOriginMutation);
+  app.use('/api', generationPolicyRouter);
   app.use('/api', assistantRouter);
   app.use('/api', personalContextRouter);
   app.use('/api', accountRouter);

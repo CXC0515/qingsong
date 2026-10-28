@@ -691,7 +691,7 @@ export default function App() {
   };
 
   if (adminRoute) {
-    if (authState.role !== 'owner' || window.location.pathname !== '/admin/accounts') {
+    if (authState.role !== 'owner' || !['/admin/accounts','/admin/assistant'].includes(window.location.pathname)) {
       return <main className="grid min-h-dvh place-items-center bg-slate-50 px-4 text-center"><div className="max-w-md rounded-2xl border border-slate-200 bg-white p-6"><h1 className="text-xl font-black">{authState.role === 'owner' ? '管理页面不存在' : '无权访问管理后台'}</h1><p className="mt-2 text-sm text-slate-500">{authState.role === 'owner' ? '请从教师工作台重新进入管理后台。' : '此页面仅供管理员使用，你的工作区数据没有改变。'}</p><button type="button" onClick={returnToTeacher} className="mt-5 min-h-11 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white">返回教师工作台</button></div></main>;
     }
     return <AdminConsole accountEmail={authState.user.email} onReturn={returnToTeacher} onSignOut={signOut} />;

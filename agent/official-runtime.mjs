@@ -84,5 +84,5 @@ export async function prepareOfficialRuntime({home, configHome}) {
 }
 export async function startOfficialRuntime(options) {
   const patchRows = await prepareOfficialRuntime(options);
-  return startWebRuntime({...options, patchRows, environment: {QS_TOOL_ENDPOINT: options.endpoint, QS_TOOL_TOKEN: options.token}});
+  return startWebRuntime({...options, patchRows, environment: {QS_TOOL_ENDPOINT: options.endpoint, QS_TOOL_TOKEN: options.token, QS_GENERATION_POLICY:JSON.stringify(options.generationPolicy??{entries:{}})}});
 }

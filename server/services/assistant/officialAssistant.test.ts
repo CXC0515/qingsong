@@ -1,6 +1,6 @@
 import test, {after} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp, rm} from 'node:fs/promises';
+import {mkdtemp, rm, readFile, writeFile} from 'node:fs/promises';
 import {createServer} from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,11 +13,13 @@ const testPort = Number(process.env.QS_TEST_PORT ?? 4475);
 const apiRoot = 'http://127.0.0.1:' + testPort;
 process.env.APP_DATA_ROOT = root; process.env.APP_URL = origin; process.env.API_PORT = String(testPort);
 process.env.OPENAI_VISION_MODEL = 'fixture'; process.env.OPENAI_API_KEY = 'fixture';
+const capturedRequests:any[] = [];
 let delayNext = false;
 let queryScenario: string | undefined;
 const model = createServer(async (req, res) => {
   let text = ''; for await (const chunk of req) text += chunk;
   const input = JSON.parse(text);
+  capturedRequests.push(input);
   if (delayNext) { delayNext = false; await new Promise(resolve => setTimeout(resolve, 1500)); if (res.destroyed) return; }
   res.writeHead(200, {'content-type': 'text/event-stream'});
   const frame = (delta: unknown, finish_reason: string | null = null) => ({id: 'fixture', object: 'chat.completion.chunk', created: 1, model: 'fixture', choices: [{index: 0, delta, finish_reason}]});
@@ -82,8 +84,8 @@ after(async () => {
   closeRosterDatabase(); closeResourceDatabase(); closeAuthDatabase(); closePersonalContext(); await rm(root, {recursive: true, force: true});
 });
 const headers = {Origin: origin, 'content-type': 'application/json', 'x-demo-csrf': '1'};
-async function register(email: string, className: string) {
-  const invite = createInvitation({email, displayName: className, role: 'teacher'});
+async function register(email: string, className: string, role:'teacher'|'owner'='teacher') {
+  const invite = createInvitation({email, displayName: className, role});
   const password = 'Fixture-password-12345';
   const made = await fetch(apiRoot + '/api/register', {method: 'POST', headers, body: JSON.stringify({token: invite.token, email, name: className, password})});
   assert.equal(made.status, 201);
@@ -332,4 +334,57 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
     await disconnected;
   }
   if (process.env.QS_NATIVE_PREVIEW) console.log('本机样本预览可登录：native-a@fixture.test / Fixture-password-12345；数据根：' + root);
+});
+
+
+test('owner generation settings: permissions, durable revision, native payload and next-turn snapshot', {timeout:120000}, async()=>{
+ const admin=await register('admin-preview@fixture.test','管理员样本','owner');
+ const teacher=await register('generation@fixture.test','参数教师');
+ const endpoint=apiRoot+'/api/admin/assistant/generation';
+ const get=(cookie:string)=>fetch(endpoint,{headers:{...headers,Cookie:cookie}});
+ const put=(cookie:string,body:any,csrf=true)=>fetch(endpoint,{method:'PUT',headers:{Origin:origin,'content-type':'application/json',Cookie:cookie,...(csrf?{'x-demo-csrf':'1'}:{})},body:JSON.stringify(body)});
+ assert.equal((await get('')).status,401);assert.equal((await get(teacher)).status,403);
+ let state=await (await get(admin)).json();
+ assert.equal(state.policy.revision,0);
+ const m=state.models[0];
+ assert.deepEqual(Object.keys(m.capabilities),['temperature','maxTokens','reasoningEffort']);
+ assert.equal(m.capabilities.reasoningEffort.supported,false);
+ assert.doesNotMatch(JSON.stringify(state),/apiKeyEnv|baseURL|QS_MODEL_KEY/);
+ const values={temperature:.3,maxTokens:1024,reasoningEffort:null};
+ const payload={revision:0,provider:m.provider,model:m.id,values};
+ assert.equal((await put(teacher,payload)).status,403);
+ assert.equal((await put(admin,payload,false)).status,403);
+ for(const invalid of [{...values,temperature:3},{...values,maxTokens:4097},{...values,maxTokens:1.5},{...values,reasoningEffort:'low'},{...values,topP:.8}])assert.equal((await put(admin,{...payload,values:invalid})).status,400);
+ const saved=await put(admin,payload);assert.equal(saved.status,200,await saved.clone().text());
+ state=await (await get(admin)).json();assert.equal(state.policy.revision,1);assert.deepEqual(state.models[0].values,values);
+ assert.equal((await put(admin,payload)).status,409);
+ // Give only this temporary fixture model real native reasoning metadata.
+ const {configHome}=await import('./assistantService');
+ const yaml=require('yaml');const profileFile=path.join(configHome,'profiles/web/cordis.patch.yml');
+ const rows=yaml.parse(await readFile(profileFile,'utf8'));
+ rows.find((row:any)=>row.id==='llm-pi-ai').config.providers[m.provider].models[0].reasoningEfforts={off:null,low:'low',medium:'medium',high:'high'};
+ await writeFile(profileFile,yaml.stringify(rows));
+ const v2={temperature:.4,maxTokens:1024,reasoningEffort:'low'};
+ assert.equal((await put(admin,{...payload,revision:1,values:v2})).status,200);
+ const id=(await rpc(teacher,'session/create',{request:{}})).value.sessionId;
+ const send=()=>rpc(teacher,'session/prompt',{request:{sessionId:id,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:'查询课表'}]}});
+ const until=async(check:()=>unknown|Promise<unknown>)=>{for(let i=0;i<300;i++){if(await check())return;await new Promise(r=>setTimeout(r,50));}throw Error('GENERATION_TIMEOUT');};
+ const offset=capturedRequests.length;delayNext=true;
+ assert.equal((await send()).ok,true);
+ await until(()=>capturedRequests.length>offset);
+ const wire=capturedRequests[offset];assert.equal(wire.temperature,.4);assert.equal(wire.max_tokens??wire.max_completion_tokens,1024);assert.equal(wire.reasoning_effort,'low');
+ const v3={temperature:.8,maxTokens:512,reasoningEffort:'high'};
+ assert.equal((await put(admin,{...payload,revision:2,values:v3})).status,200);
+ const queued=await fetch(apiRoot+'/api/assistant/official/api/session/prompt',{method:'POST',headers:{...headers,Cookie:teacher},body:JSON.stringify({type:'client-request',method:'session/prompt',payload:{args:{request:{sessionId:id,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:'新消息'}]}}}})});
+ assert.equal(queued.status,409);
+ await until(()=>officialBudget.size.active===0);
+ // The tool continuation of the existing round retains its captured policy.
+ for(const wire of capturedRequests.slice(offset)){assert.equal(wire.temperature,.4);assert.equal(wire.reasoning_effort,'low');}
+ const next=capturedRequests.length;assert.equal((await send()).ok,true);
+ await until(()=>capturedRequests.length>next);assert.equal(capturedRequests[next].temperature,.8);assert.equal(capturedRequests[next].max_tokens??capturedRequests[next].max_completion_tokens,512);assert.equal(capturedRequests[next].reasoning_effort,'high');
+ await until(()=>officialBudget.size.active===0);
+ const {generationPolicyPath,loadGenerationPolicy}=await import('./generationPolicy');
+ assert.equal(JSON.parse(await readFile(generationPolicyPath+'.previous','utf8')).revision,2);
+ if(!process.env.QS_NATIVE_PREVIEW){const durable=await readFile(generationPolicyPath,'utf8');await writeFile(generationPolicyPath,'broken');await assert.rejects(loadGenerationPolicy,/无法读取/);await writeFile(generationPolicyPath,durable);}
+ if(process.env.QS_NATIVE_PREVIEW)console.log('管理员预览：admin-preview@fixture.test / Fixture-password-12345');
 });

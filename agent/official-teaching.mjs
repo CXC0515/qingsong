@@ -1,7 +1,9 @@
 import { defineTool } from '@deepseek-ai/dsh-tools';
+import { applyGenerationPolicy } from './generation-policy.mjs';
 export const name = 'qingsong-official-teaching';
 export const inject = ['tools', 'systemPrompt'];
 export function apply(ctx) {
+  const generationPolicy=JSON.parse(process.env.QS_GENERATION_POLICY??'{"entries":{}}');
   const turns = new Map();
   ctx.effect(() => ctx.systemPrompt.context({name:'青松个人规则与记忆', order:100, required:true, interpolate:false,
     text: ({agent}) => turns.get(agent?.id)?.contextText ?? ''}));
@@ -39,7 +41,7 @@ export function apply(ctx) {
   });
   ctx.on('agent/request', async (_payload, next) => {
     const config = await next();
-    return {...config, maxTokens: Math.min(config.maxTokens ?? 2048, 2048)};
+    return applyGenerationPolicy(config,generationPolicy);
   });
   ctx.on('session/event', (session, event) => { if (event.type === 'turn/end') finish(session.id); });
   ctx.effect(() => () => { for (const id of [...turns.keys()]) finish(id); });

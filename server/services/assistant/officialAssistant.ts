@@ -20,6 +20,7 @@ import {pipeOfficialEventStream} from './officialStream';
 import { startOfficialRuntime } from '../../../agent/official-runtime.mjs';
 import { allowOfficialCall } from '../../../agent/official-policy.mjs';
 import { relayOfficialSocket } from '../../../agent/official-relay.mjs';
+import {loadGenerationPolicy,generationFingerprint} from './generationPolicy';
 export const officialPrefix = '/api/assistant/official';
 const instances = new Map<string, Instance>();
 const starting = new Map<string, Promise<Instance>>();
@@ -56,6 +57,7 @@ async function checkIdentity(headers: IncomingMessage['headers'], context: Works
 }
 async function fingerprint() {
   const hash = createHash('sha256');
+  hash.update(await generationFingerprint());
   for (const file of ['profiles/web/cordis.patch.yml', '.credentials.yaml']) {
     try { hash.update(await readFile(path.join(configHome, file))); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
@@ -108,6 +110,7 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
   if (instances.size + starting.size >= 4) throw Error('INSTANCE_CAPACITY');
   const start = (async () => {
     const token = randomUUID();
+    const generationPolicy=await loadGenerationPolicy();
     const leases = new Map<string, AbortController>();
     let instance: Instance | undefined;
     const bridge = createServer(async (req, res) => {
@@ -162,7 +165,8 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
     let runtimeReady = startTime, authenticated = startTime;
     let runtime: Awaited<ReturnType<typeof startOfficialRuntime>> | undefined;
     try {
-      runtime = await startOfficialRuntime({home: path.join(context.dataDirectory, 'assistant', key, 'official'), configHome, publicUrl: origin() + officialPrefix + '/', key: getModelConfig().apiKey, endpoint: 'http://127.0.0.1:' + port + '/', token});
+      const endpoint='http://127.0.0.1:'+port+'/';
+      runtime = await startOfficialRuntime({home: path.join(context.dataDirectory, 'assistant', key, 'official'), configHome, publicUrl: origin() + officialPrefix + '/', key: getModelConfig().apiKey, endpoint, token, generationPolicy});
       runtimeReady = performance.now();
       const cookie = await new Promise<string>((resolve, reject) => {
         const exchange = httpRequest({hostname: '127.0.0.1', port: runtime!.port, path: '/' + new URL(runtime!.url).search, headers: {host: new URL(runtimeConfig.appUrl).host}}, response => {
@@ -226,6 +230,9 @@ export async function officialAssistantProxy(req: Request, res: Response) {
     const instanceMs = performance.now() - requestStarted;
     if (target.pathname === '/api/session/prompt') {
       const request = req.body?.payload?.args?.request;
+      if (request?.mode !== 'steer' && instance.fingerprint !== await fingerprint()) {
+        res.status(409).json({message:'管理员已更新生成配置，请等待当前一轮结束后重新发送。本条消息尚未提交。'}); return;
+      }
       if (typeof request?.sessionId === 'string') {
         const text = request.content.map((part: {text:string}) => part.text).join('\n');
         if (explicitPersonalCommand(text)) {
