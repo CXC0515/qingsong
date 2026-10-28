@@ -1674,18 +1674,38 @@ function toast(text) {
 function pendingMemoryCount() {
   return records.filter((r) => r.kind === "memory" && r.status === "candidate").length;
 }
+function attachSegments(host, value, onChange) {
+  const api = mountSegmented(host, { value, trackRim: false, liftPx: 2, glass: { theme: "light", lightAngle: 225, reflection: 1 }, onChange });
+  materials.set(host, api);
+  return api;
+}
 function renderLinks() {
-  const data = settingsArea === "general" ? [["metrics", "sliders", "OCR \u4E0E\u8BC4\u5206"]] : [["rules", "rules", "\u4E2A\u4EBA\u6307\u4EE4"], ["memory", "memory", "\u8BB0\u5FC6\u4E0E\u4E8B\u9879"], ["capabilities", "sliders", "\u52A9\u624B\u80FD\u529B"]];
+  const data = settingsArea === "general" ? [["metrics", "sliders", "OCR \u4E0E\u8BC4\u5206"]] : [["rules", "rules", "\u4E2A\u4EBA\u6307\u4EE4"], ["memory", "memory", "\u8BB0\u5FC6\u4E0E\u4E8B\u9879"]];
   $(".settings-nav h1").textContent = settingsArea === "general" ? "\u4E3B\u8BBE\u7F6E" : "\u4F1A\u8BDD\u8BBE\u7F6E";
   $(".nav-note").hidden = true;
-  const pending = pendingMemoryCount();
-  $("#settings-links").innerHTML = data.map(([id, i, label]) => `<button class="settings-link" data-section="${id}" ${section === id ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "memory" && pending ? `<span class="nav-count" aria-label="${pending}\u6761\u5F85\u786E\u8BA4">${pending}</span>` : ""}</button>`).join("");
-  content.setAttribute("aria-label", data.find(([id]) => id === section)?.[2] ?? "\u4F1A\u8BDD\u8BBE\u7F6E");
-  $("#settings-links").querySelectorAll("button").forEach((b) => b.onclick = () => {
-    section = b.dataset.section;
-    query = "";
-    renderSettings();
+  const nav = $("#settings-links");
+  if (nav.dataset.area !== settingsArea) {
+    disposeWithin(nav);
+    nav.dataset.area = settingsArea;
+    nav.innerHTML = `<div class="settings-directory">${data.map(([id, i, label]) => `<button class="settings-link" data-section="${id}">${icon(i)}<span>${label}</span></button>`).join("")}</div><div class="settings-compact"><div id="settings-segments" aria-label="\u4F1A\u8BDD\u8BBE\u7F6E\u5206\u7C7B">${data.map(([id, , label]) => `<button data-value="${id}">${label}</button>`).join("")}</div></div>`;
+    const change = (value) => {
+      section = value;
+      query = "";
+      renderSettings();
+    };
+    nav.querySelectorAll("[data-section]").forEach((b) => b.onclick = () => change(b.dataset.section));
+    if (data.length > 1) attachSegments($("#settings-segments"), section, change);
+    else $("#settings-segments").classList.add("single-section");
+  }
+  nav.querySelectorAll("[data-section]").forEach((b) => {
+    if (b.dataset.section === section) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
   });
+  materials.get($("#settings-segments"))?.select(section, { notify: false });
+  content.setAttribute("aria-label", data.find(([id]) => id === section)?.[2] ?? "\u4F1A\u8BDD\u8BBE\u7F6E");
+}
+function capabilityDisclosure() {
+  return `<details class="disclosure capability-disclosure"><summary>\u80FD\u529B\u4E0E\u6743\u9650</summary><dl class="parameter-list"><dt>\u53EF\u67E5\u8BE2</dt><dd>\u53EF\u8BBF\u95EE\u73ED\u7EA7\u3001\u540D\u5355\u3001\u8BFE\u8868\u3001\u8BFE\u5802\u4EFB\u52A1\u3001\u5EA7\u4F4D\u3001\u63D0\u9192\u53CA\u90E8\u5206\u5B66\u751F\u8BB0\u5F55\u3002</dd><dt>\u5C1A\u672A\u5F00\u653E</dt><dd>\u6B63\u5F0F\u52A9\u624B\u7684\u6559\u5B66\u4E1A\u52A1\u5199\u5165\u3001\u8D44\u6599\u68C0\u7D22\u548C\u6279\u6539\u7ED3\u679C\u67E5\u8BE2\u3002</dd><dt>\u63A7\u5236\u8303\u56F4</dt><dd>\u5B66\u751F\u4E3B\u4F53\u53CA\u8EAB\u4EFD\u7531\u6559\u5E08\u624B\u52A8\u7EF4\u62A4\u3002\u4E2A\u4EBA\u6307\u4EE4\u6309\u672C\u4EBA\u8DE8\u4F1A\u8BDD\u4F7F\u7528\uFF0C\u4E0D\u6539\u53D8\u5DE5\u5177\u6743\u9650\u3002</dd></dl></details>`;
 }
 function rows() {
   const selected = records.filter((r) => r.kind === section && r.status !== "deleted" && (section !== "memory" || (memoryFilter === "pending" ? r.status === "candidate" : r.status !== "candidate")) && r.content.includes(query));
@@ -1698,9 +1718,9 @@ function renderSettings() {
   disposeWithin(content);
   renderLinks();
   if (section === "metrics") renderMetrics();
-  else if (section === "capabilities") renderCapabilities();
   else if (section === "memory") renderMemory();
   else renderPrompt();
+  if (settingsArea === "conversation") content.insertAdjacentHTML("beforeend", capabilityDisclosure());
   hydrate(content);
 }
 var promptDraft = "# \u4EA4\u6D41\u65B9\u5F0F\n\n\u56DE\u7B54\u7B80\u6D01\uFF0C\u4F7F\u7528\u4E2D\u6587\u3002\n\u4E0D\u786E\u5B9A\u7684\u5B66\u751F\u60C5\u51B5\u5148\u67E5\u8BB0\u5F55\u3002\n\n# \u6559\u5B66\u5B89\u6392\n\n\u6559\u6848\u5148\u5217\u6559\u5B66\u76EE\u6807\uFF0C\u518D\u5217\u6559\u5B66\u8FC7\u7A0B\u3002\n\u8BFE\u5802\u6D3B\u52A8\u7ED9\u51FA\u5177\u4F53\u7684\u6559\u5E08\u63D0\u95EE\uFF0C\u4F18\u5148\u8003\u8651\u56DB\u5341\u5206\u949F\u5185\u80FD\u5B8C\u6210\u7684\u5B89\u6392\u3002";
@@ -1752,14 +1772,14 @@ function renderPrompt() {
   };
 }
 function renderMemory() {
-  content.innerHTML = `<div class="memory-toolbar"><div class="segment-wrap"><div id="memory-segments"><button data-value="work">\u534F\u4F5C\u4E8B\u9879</button><button data-value="saved">\u957F\u671F\u80CC\u666F</button><button data-value="pending">\u5F85\u786E\u8BA4</button></div></div><div id="memory-actions"></div></div><div id="memory-body"></div>`;
+  content.innerHTML = `<div class="memory-toolbar"><div class="segment-wrap"><div id="memory-segments"><button data-value="work">\u534F\u4F5C\u4E8B\u9879</button><button data-value="saved">\u957F\u671F\u80CC\u666F</button><button data-value="pending">\u5F85\u786E\u8BA4${pendingMemoryCount() ? ` \xB7 ${pendingMemoryCount()}` : ""}</button></div></div><div id="memory-actions"></div></div><div id="memory-body"></div>`;
   const host = $("#memory-segments");
-  materials.set(host, mountSegmented(host, { value: memoryFilter, trackRim: false, liftPx: 2, glass: { theme: "light", lightAngle: 225, reflection: 1 }, onChange: (value) => {
+  attachSegments(host, memoryFilter, (value) => {
     memoryFilter = value;
     query = "";
     selectedWork = null;
     renderMemoryBody();
-  } }));
+  });
   renderMemoryBody();
 }
 function renderMemoryBody() {
@@ -1963,9 +1983,6 @@ function renderWork() {
     }
     $("#chat-draft").focus();
   };
-}
-function renderCapabilities() {
-  content.innerHTML = `<section class="capability-block"><h3>\u53EF\u67E5\u8BE2</h3><dl class="parameter-list"><dt>\u73ED\u7EA7\u4E0E\u5B66\u751F</dt><dd>\u53EF\u8BBF\u95EE\u73ED\u7EA7\u3001\u540D\u5355\u4E0E\u90E8\u5206\u5B66\u751F\u8BB0\u5F55\u3002</dd><dt>\u6559\u5B66\u5B89\u6392</dt><dd>\u8BFE\u8868\u3001\u8BFE\u5802\u4EFB\u52A1\u3001\u5EA7\u4F4D\u548C\u63D0\u9192\u3002</dd></dl></section><section class="capability-block"><h3>\u6743\u9650\u8FB9\u754C</h3><p>\u5B66\u751F\u4E3B\u4F53\u4E0E\u8EAB\u4EFD\u7531\u6559\u5E08\u624B\u52A8\u7EF4\u62A4\u3002\u6B63\u5F0F\u52A9\u624B\u5C1A\u672A\u5F00\u653E\u6559\u5B66\u4E1A\u52A1\u5199\u5165\u3001\u8D44\u6599\u68C0\u7D22\u548C\u6279\u6539\u7ED3\u679C\u67E5\u8BE2\u3002</p><details class="disclosure"><summary>\u6765\u6E90\u4E0E\u5904\u7406\u6D41\u7A0B</summary><p>\u4E2A\u4EBA\u6307\u4EE4\u6309\u672C\u4EBA\u8DE8\u4F1A\u8BDD\u4F7F\u7528\u3002\u5177\u4F53\u4EFB\u52A1\u4F1A\u8BFB\u53D6\u53EF\u8BBF\u95EE\u7684\u4E1A\u52A1\u8BB0\u5F55\uFF0C\u5E76\u6807\u660E\u6765\u6E90\u548C\u8986\u76D6\u8303\u56F4\u3002</p><p>\u7CFB\u7EDF\u65B9\u6CD5\u4E0E\u5DE5\u5177\u6743\u9650\u7531\u7BA1\u7406\u5458\u7EDF\u4E00\u7EF4\u62A4\uFF0C\u4E2A\u4EBA\u6307\u4EE4\u4E0D\u4F1A\u6269\u5927\u6743\u9650\u3002\u539F\u578B\u4E2D\u7684\u4E1A\u52A1\u64CD\u4F5C\u4E3A\u6A21\u62DF\u6570\u636E\u3002</p></details></section>`;
 }
 var demoSessions = {
   classroom: { title: "\u672C\u5468\u7684\u8BFE\u5802\u8BB0\u5F55", loaded: true, draft: "\u628A\u9605\u8BFB\u68C0\u67E5\u4E2D\u5C0F\u6797\u548C\u5C0F\u5468\u7684\u7ED3\u679C\u8BB0\u4E3A\u5DF2\u5B8C\u6210\u3002", status: "", messages: [{ role: "assistant", text: "\u53EF\u4EE5\u5148\u6838\u5BF9\u8FD9\u6B21\u9605\u8BFB\u68C0\u67E5\uFF0C\u518D\u9884\u89C8\u5177\u4F53\u4FEE\u6539\u3002\u6240\u6709\u59D3\u540D\u4E0E\u8BB0\u5F55\u90FD\u662F\u6F14\u793A\u6570\u636E\u3002" }] },
