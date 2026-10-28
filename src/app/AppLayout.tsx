@@ -22,6 +22,7 @@ interface AppLayoutProps {
   scheduleSection: 'schedule' | 'reminders';
   children: ReactNode;
   onSelectClass: (classId: string) => void;
+  onOpenAssistant: () => void;
   onSelectPage: (pageId: PageId) => void;
   onSelectScheduleSection: (section: 'schedule' | 'reminders') => void;
   onOpenScheduleTools: () => void;
@@ -47,6 +48,7 @@ export default function AppLayout({
   scheduleSection,
   children,
   onSelectClass,
+  onOpenAssistant,
   onSelectPage,
   onSelectScheduleSection,
   onOpenScheduleTools,
@@ -120,8 +122,9 @@ export default function AppLayout({
           {showGlobalClassPicker&&<div className="qs-topbar-class"><ClassPicker classes={classes.filter(c=>c.status==='active')} value={selectedClassId} onChange={onSelectClass} label="选择快捷入口班级"/></div>}
           <div className="qs-mobile-account">{accountButton(true)}</div>
         </header>
-        <main className={'app-shell-main qs-main '+(isImmersiveWorkspace?'flex min-h-0 flex-col overflow-hidden':activePage==='workbench'?'overflow-y-auto md:flex md:min-h-0 md:flex-col md:overflow-hidden':'overflow-y-auto')}>{children}</main>
+        <main className={'app-shell-main qs-main '+(isImmersiveWorkspace?'flex min-h-0 flex-col overflow-hidden':activePage==='workbench'?'overflow-y-auto min-[900px]:flex min-[900px]:min-h-0 min-[900px]:flex-col min-[900px]:overflow-hidden':'overflow-y-auto')}>{children}</main>
       </div>
+      <button id="mobile-ai-launch" className="qs-mobile-ai-launch" type="button" onClick={onOpenAssistant} aria-haspopup="dialog"><Sparkles size={20}/>AI 助手</button>
       {accountMenuOpen&&<ResponsiveDialog title="账号菜单" onClose={()=>setAccountMenuOpen(false)}><p className="break-all text-sm text-slate-500">{accountEmail}</p>{isOwner&&<button type="button" className="qs-account-action" onClick={()=>{setAccountMenuOpen(false);onEnterAdmin();}}><ShieldCheck className="h-4 w-4"/>进入管理后台</button>}<button type="button" className="qs-account-action" onClick={()=>{setAccountMenuOpen(false);onSignOut();}}><LogOut className="h-4 w-4"/>退出登录</button></ResponsiveDialog>}
       {showToast&&<div role="status" className="fixed right-4 top-4 z-50 flex items-center gap-2 rounded-2xl bg-slate-900/90 px-5 py-3 text-sm text-white shadow-lg"><Sparkles className="h-5 w-5"/>{toastMessage}</div>}
     </div>

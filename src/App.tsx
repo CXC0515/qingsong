@@ -97,6 +97,9 @@ export default function App() {
   const teacherReturnPage = useRef<PageId>('workbench');
   // Navigation & View State
   const [activePage, setActivePageState] = useState<PageId>(() => assistantSourceRoute(window.location.href).page);
+  const [settingsVisited,setSettingsVisited]=useState(false);
+  useEffect(()=>{if(activePage==='settings')setSettingsVisited(true);},[activePage]);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [workbenchVisited, setWorkbenchVisited] = useState(() => assistantSourceRoute(window.location.href).page==='workbench');
   useEffect(() => { if (activePage === 'workbench') setWorkbenchVisited(true); }, [activePage]);
   const [lessonRoute,setLessonRoute]=useState<LessonRoute|null>(()=>readLessonRoute(authState.user.id));
@@ -113,9 +116,9 @@ export default function App() {
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [studentManagementTargetId, setStudentManagementTargetId] = useState<string | null>(null);
   const [diagnosisRequestedTab, setDiagnosisRequestedTab] = useState<DiagnosisTab | null>(()=>assistantSourceRoute(window.location.href).studentId?'student':null);
-  const [lowConfidenceThreshold, setLowConfidenceThreshold] = useState<number>(0.75);
-  const [ocrHumanReviewThreshold, setOcrHumanReviewThreshold] = useState<number>(0.70);
-  const [ocrAutoPassThreshold, setOcrAutoPassThreshold] = useState<number>(0.90);
+  const lowConfidenceThreshold = 0.75;
+  const ocrHumanReviewThreshold = 0.70;
+  const ocrAutoPassThreshold = 0.90;
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     teaching: true,
     homeSchool: true,
@@ -135,7 +138,7 @@ export default function App() {
   const [reminders, setReminders] = useState<TimerReminder[]>([]);
   const [schedulePeriods, setSchedulePeriods] = useState<SchedulePeriod[]>([]);
   const [showWeekends, setShowWeekends] = useState(() => localStorage.getItem(`schedule-show-weekends:${authState.user.id}`) === 'true');
-  const [settingsRequestedSection, setSettingsRequestedSection] = useState<'schedule-periods' | null>(null);
+  const [settingsRequestedSection, setSettingsRequestedSection] = useState<'schedule-periods' | 'assistant' | null>(null);
   const [reviewQueue, setReviewQueue] = useState<ReviewItem[]>([]);
   const [workflowStates, setWorkflowStates] = useState<Record<string, WorkflowState>>({});
   const [knowledgeNodes, setKnowledgeNodes] = useState<KnowledgeNode[]>([]);
@@ -182,7 +185,8 @@ export default function App() {
   };
 
   const setActivePage = (pageId: PageId) => {
-    if (pageId === activePage || !canLeaveTask()) return;
+    if (pageId === activePage) return true;
+    if (!canLeaveTask()) return false;
     clearLessonRoute();
     if (pageId === 'classroom-tasks') {
       setTaskNavigation(null);
@@ -198,6 +202,7 @@ export default function App() {
       setTaskNavigation(null);
     }
     setActivePageState(pageId);
+    return true;
   };
 
   const openClassroomTask = (taskId?: string, classId = selectedClassId, studentId = '') => {
@@ -649,6 +654,12 @@ export default function App() {
 
   // Page Routing Navigation
   const handleNavigate = (pageId: string, subPageId?: string) => {
+    if (pageId === 'settings' && subPageId === 'assistant') {
+      if (!setActivePage('settings')) return;
+      setAssistantOpen(false);
+      setSettingsRequestedSection('assistant');
+      return;
+    }
     if (pageId === 'grading-flow' || pageId === 'grading-tasks' || pageId === 'review-queue') {
       setActivePage('grading-workspace');
       return;
@@ -734,6 +745,7 @@ export default function App() {
       isOwner={authState.role === 'owner'}
       onEnterAdmin={enterAdmin}
       onSignOut={signOut}
+      onOpenAssistant={() => { setWorkbenchVisited(true); setAssistantOpen(true); }}
       onSelectClass={selectRecordingClass}
       onSelectPage={setActivePage}
       onSelectScheduleSection={setScheduleSection}
@@ -760,10 +772,12 @@ export default function App() {
               onNavigate={handleNavigate}
             />
           )}
-          {(workbenchVisited || activePage === 'workbench') && (
-            <div className={activePage === 'workbench' ? 'contents' : 'hidden'} aria-hidden={activePage !== 'workbench'}>
+          {(workbenchVisited || assistantOpen || activePage === 'workbench') && (
+            <div className={activePage === 'workbench' || assistantOpen ? 'contents' : 'hidden'} aria-hidden={activePage !== 'workbench' && !assistantOpen}>
             <Workbench
               active={activePage === 'workbench'}
+              assistantOpen={assistantOpen}
+              onCloseAssistant={() => setAssistantOpen(false)}
               classes={classes}
               schedule={schedule}
               reminders={reminders}
@@ -993,16 +1007,9 @@ export default function App() {
             <TagManagement onShowToast={triggerToast} />
           )}
 
-          {activePage === 'settings' && (
-            <SystemSettings
-              lowConfidenceThreshold={lowConfidenceThreshold}
-              onUpdateThreshold={setLowConfidenceThreshold}
-              ocrHumanReviewThreshold={ocrHumanReviewThreshold}
-              ocrAutoPassThreshold={ocrAutoPassThreshold}
-              onUpdateOcrThresholds={(humanReview, autoPass) => {
-                setOcrHumanReviewThreshold(humanReview);
-                setOcrAutoPassThreshold(autoPass);
-              }}
+          {(settingsVisited || activePage === 'settings') && (
+            <div className={activePage==='settings'?'contents':'hidden'} aria-hidden={activePage!=='settings'}><SystemSettings
+              active={activePage==='settings'}
               showWeekends={showWeekends}
               onShowWeekendsChange={value => {
                 setShowWeekends(value);
@@ -1025,17 +1032,14 @@ export default function App() {
               onUpdateCommitteeRole={handleUpdateCommitteeRole}
               onDeleteCommitteeRole={handleDeleteCommitteeRole}
               teacherProfile={teacherProfile}
-              onSaveTeacherProfile={profile => {
-                setTeacherProfile(profile);
-                void apiFetch('/api/account/profile', {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(profile),
-                }).then(response => {
-                  if (!response.ok) triggerToast('教师信息保存失败');
+              onSaveTeacherProfile={async profile => {
+                const response = await apiFetch('/api/account/profile', {
+                  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profile),
                 });
+                if (!response.ok) throw new Error(response.status === 400 ? '教师信息未保存：填写内容不符合要求。昵称和姓名最多40字，学校最多100字，职称最多60字；当前填写已保留，请修改后重试。' : '服务暂时无法保存教师信息，保存结果未能确认。当前填写已保留，请稍后重试或刷新核对。');
+                setTeacherProfile(profile);
               }}
-            />
+            /></div>
           )}
 
 
