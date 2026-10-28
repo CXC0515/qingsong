@@ -1,3 +1,4 @@
+import {readReviewPreferences,saveReviewPreferences,type ReviewPreferences} from './domain/reviewPreferences';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -116,9 +117,9 @@ export default function App() {
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [studentManagementTargetId, setStudentManagementTargetId] = useState<string | null>(null);
   const [diagnosisRequestedTab, setDiagnosisRequestedTab] = useState<DiagnosisTab | null>(()=>assistantSourceRoute(window.location.href).studentId?'student':null);
-  const lowConfidenceThreshold = 0.75;
-  const ocrHumanReviewThreshold = 0.70;
-  const ocrAutoPassThreshold = 0.90;
+  const [reviewPreferences,setReviewPreferences]=useState(()=>readReviewPreferences(authState.user.id));
+  useEffect(()=>setReviewPreferences(readReviewPreferences(authState.user.id)),[authState.user.id]);
+  const lowConfidenceThreshold=reviewPreferences.score,ocrHumanReviewThreshold=reviewPreferences.human,ocrAutoPassThreshold=reviewPreferences.auto;
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     teaching: true,
     homeSchool: true,
@@ -1021,6 +1022,8 @@ export default function App() {
                 const saved = await saveSchedulePeriods(periods);
                 setSchedulePeriods(saved);
               }}
+              reviewPreferences={reviewPreferences}
+              onSaveReviewPreferences={(value:ReviewPreferences)=>{saveReviewPreferences(authState.user.id,value);setReviewPreferences(value);}}
               requestedSection={settingsRequestedSection}
               onRequestedSectionHandled={() => setSettingsRequestedSection(null)}
               classes={classes}

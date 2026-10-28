@@ -51,3 +51,4 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 .qs-sidebar-resize:hover,.qs-sidebar-resize:focus-visible{background:#426b5630;outline:none}
 [data-sidebar-collapsed] .qs-sidebar-resize{display:none}
 @media(max-width:480px){.qs-sidebar-resize{display:none}}
+.qs-sidebar-settings{width:44px;min-height:44px;border:0;border-radius:12px;background:transparent;display:grid;place-items:center;color:var(--dsw-alias-label-secondary);cursor:pointer}.qs-sidebar-settings:hover{background:var(--dsw-alias-interactive-bg-hover)}.pI_x6G_frame[data-sidebar-collapsed] .qs-sidebar-settings{display:none}.qs-sidebar-settings:focus-visible{outline:2px solid currentColor;outline-offset:-3px}

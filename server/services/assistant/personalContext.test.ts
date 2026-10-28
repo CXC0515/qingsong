@@ -75,3 +75,26 @@ test('user memory survives restart, online product backup and restore',async()=>
  const {default:Database}=await import('better-sqlite3');const d=new Database(path.join(restored,relative),{readonly:true});
  assert.equal((d.prepare('SELECT content FROM personal_entries WHERE id=?').get(original.id) as {content:string}).content,original.content);d.close();
 });
+
+test('instruction document saves atomically, preserves timed/candidate rules and reconciles retries',()=>{
+ const owner=createWorkspaceContext('document-owner','doc-workspace','teacher');
+ runWithWorkspace(owner,()=>{
+  const first=store.createPersonalEntry({operationId:operationId(),kind:'rule',content:'旧指令一'});
+  store.createPersonalEntry({operationId:operationId(),kind:'rule',content:'旧指令二'});
+  const timed=store.createPersonalEntry({operationId:operationId(),kind:'rule',content:'限期规则',expiresAt:new Date(Date.now()+86400000).toISOString()});
+  const candidate=store.createPersonalEntry({operationId:operationId(),kind:'rule',content:'待确认规则'},{type:'chat'},'candidate');
+  const before=store.readInstructionDocument();assert.match(before.content,/旧指令/);assert.ok(!before.content.includes('限期'));
+  const input={operationId:operationId(),expectedRevision:before.revision,content:'# 指令\n'+ '文'.repeat(1100)};
+  const saved=store.saveInstructionDocument(input);assert.equal(saved.content,input.content);assert.deepEqual(store.saveInstructionDocument(input),saved);
+  assert.equal(store.listPersonalEntries().find(e=>e.id===timed.id)?.version,1);
+  assert.equal(store.listPersonalEntries().find(e=>e.id===candidate.id)?.status,'candidate');
+  assert.ok(store.personalHistory(first.id).some(e=>e.content==='旧指令一'));
+  assert.throws(()=>store.saveInstructionDocument({...input,operationId:operationId(),content:'覆盖'}),/已在别处修改/);
+  assert.throws(()=>store.saveInstructionDocument({...input,content:'复用编号不同内容'}),/操作编号/);
+  assert.throws(()=>store.saveInstructionDocument({operationId:operationId(),expectedRevision:saved.revision,content:'文'.repeat(3000)}),/最多/);
+  assert.deepEqual(store.readInstructionDocument(),saved); // failed merge rolls back retired rows too
+  const cleared=store.saveInstructionDocument({operationId:operationId(),expectedRevision:saved.revision,content:''});assert.equal(cleared.content,'');
+  assert.ok(store.recallPersonalContext('').entries.some(e=>e.id===timed.id));
+ });
+ assert.equal(runWithWorkspace(b,store.readInstructionDocument).content,'');
+});

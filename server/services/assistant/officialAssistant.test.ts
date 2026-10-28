@@ -217,6 +217,15 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   assert.equal((await personal(b,'PATCH','/'+created.data.entry.id,{operationId:crypto.randomUUID(),expectedVersion:1,status:'deleted'})).status,409);
   assert.equal((await personal(a,'POST','',{operationId:crypto.randomUUID(),kind:'memory',content:'spoof',userId:'other'})).status,400);
   assert.equal((await fetch(apiRoot+'/api/assistant/personal-context',{method:'POST',headers:{...headers,Cookie:a,Origin:'https://evil.test'},body:'{}'})).status,403);
+  const document=(await personal(a,'GET','/instructions')).data;
+  const documentWrite={operationId:crypto.randomUUID(),expectedRevision:document.revision,content:'# 个人指令\nfixture-rule-manual'};
+  assert.equal((await personal(b,'PUT','/instructions',documentWrite)).status,409);
+  const documentSaved=await personal(a,'PUT','/instructions',documentWrite);
+  assert.equal(documentSaved.status,200);
+  assert.deepEqual((await personal(a,'PUT','/instructions',documentWrite)).data,documentSaved.data);
+  assert.equal((await personal(a,'PUT','/instructions',{...documentWrite,operationId:crypto.randomUUID(),content:'stale'})).status,409);
+  assert.equal((await fetch(apiRoot+'/api/assistant/personal-context/instructions',{method:'PUT',headers:{...headers,Cookie:a,Origin:'https://evil.test'},body:JSON.stringify(documentWrite)})).status,403);
+  assert.equal((await fetch(apiRoot+'/api/assistant/personal-context/instructions')).status,401);
   const memoryTurn=async(scenario:string,text:string,cookie=a)=>{
     queryScenario=scenario;
     try{

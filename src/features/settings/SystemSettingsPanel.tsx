@@ -10,10 +10,12 @@ import { CommitteeRole, ScheduleItem, SchedulePeriod, SchoolClass, TeacherProfil
 import ScheduleTimeInput from '../../components/ScheduleTimeInput';
 import { isScheduleTime } from '../../domain/scheduleTime';
 import { useAuth } from '../auth/AuthGate';
-import PersonalContextPanel from '../assistant/PersonalContextPanel';
+import type {ReviewPreferences} from '../../domain/reviewPreferences';
 import { readClassroomExportStudentNo, writeClassroomExportStudentNo } from '../../domain/userPreferences';
 
 interface SystemSettingsPanelProps {
+  reviewPreferences:ReviewPreferences;
+  onSaveReviewPreferences:(value:ReviewPreferences)=>void;
   active: boolean;
   showWeekends: boolean;
   onShowWeekendsChange: (value: boolean) => void;
@@ -39,7 +41,7 @@ type SettingsTab = 'teacher' | 'teaching' | 'ai' | 'storage' | 'appearance';
 const tabs: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: 'teacher', label: '教师信息', icon: UserRound },
   { id: 'teaching', label: '教学设置', icon: BookOpen },
-  { id: 'ai', label: 'AI 助手', icon: Sliders },
+  { id: 'ai', label: 'OCR 与评分', icon: Sliders },
   { id: 'storage', label: '导出', icon: Database },
   { id: 'appearance', label: '外观', icon: Palette }
 ];
@@ -77,6 +79,7 @@ const addMinutes = (time: string, minutes: number) => {
 
 export default function SystemSettingsPanel({
   active,
+  reviewPreferences,onSaveReviewPreferences,
   showWeekends,
   onShowWeekendsChange,
   schedulePeriods,
@@ -96,6 +99,9 @@ export default function SystemSettingsPanel({
   onSaveTeacherProfile
 }: SystemSettingsPanelProps) {
   const { user } = useAuth();
+  const [reviewDraft,setReviewDraft]=useState(reviewPreferences);
+  const [reviewError,setReviewError]=useState('');
+  useEffect(()=>setReviewDraft(reviewPreferences),[reviewPreferences]);
   const [activeTab, setActiveTab] = useState<SettingsTab>('teacher');
   const [nickname, setNickname] = useState(teacherProfile.nickname);
   const [realName, setRealName] = useState(teacherProfile.realName);
@@ -206,9 +212,7 @@ export default function SystemSettingsPanel({
     <div className="max-w-5xl mx-auto space-y-5 animate-fade-in" id="system-settings-page">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">设置</p>
           <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">我的设置</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">管理当前教师工作区的资料、教学设置和外观偏好。</p>
         </div>
         {(activeTab === 'teacher' || activeTab === 'storage') && <GlassButton
           disabled={saving}
@@ -292,7 +296,12 @@ export default function SystemSettingsPanel({
         )}
 
         <div hidden={activeTab !== 'ai'}>
-          <PersonalContextPanel active={active && activeTab === 'ai'} />
+          <div className="space-y-6">
+            {([{key:'human',label:'OCR 人工复核参考'},{key:'auto',label:'OCR 较高质量参考'},{key:'score',label:'评分置信度参考'}] as const).map(({key,label})=><label key={key} className="block max-w-xl"><span className="flex justify-between">{label}<output>{Math.round(reviewDraft[key]*100)}%</output></span><input className="mt-4 w-full accent-emerald-700" type="range" min={0} max={100} value={Math.round(reviewDraft[key]*100)} onChange={e=>setReviewDraft(v=>({...v,[key]:Number(e.target.value)/100}))}/></label>)}
+            <p className="text-sm leading-6 text-slate-500">仅保存到本设备的当前账号，用于批改页置信度颜色与复核参考标记；不改变后台识别、评分、自动放行或教师确认要求。</p>
+            {reviewError&&<p role="alert" className="text-sm text-red-700">{reviewError}</p>}
+            <GlassButton variant="primary" onClick={()=>{try{onSaveReviewPreferences(reviewDraft);setReviewError('');onShowToast('复核标记偏好已保存。');}catch(e){setReviewError(e instanceof Error?e.message:'偏好未保存，请检查浏览器存储设置后重试。');}}}>保存复核标记</GlassButton>
+          </div>
         </div>
 
         {activeTab === 'storage' && (
