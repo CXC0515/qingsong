@@ -52,18 +52,29 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     }
     ctx.effect(() => ctx.locale.addLanguage({id: 'zh-CN-x-qingsong', label: '简体中文（青松）', fallback: 'zh'}));
     ctx.effect(() => ctx.locale.register('conversation', 'zh-CN-x-qingsong', {'placeholder.hero': '问问课表、班级名单或课堂记录…', 'placeholder.default': '继续问问教学上的事…'}));
-    // The preference is provided by the isolated host; do not write admin settings from the client.
+    // Observe native stores; a failed initial pull is not an endless loading state.
     ctx.effect(() => {
-      void (async () => {
-        try {
-          await new Promise(resolve => {
-            const check = () => { if (ctx.workspaces.list.getSnapshot().phase === 'ready' && ctx.sessions.list.getSnapshot().phase === 'ready') { offWork(); offSessions(); resolve(); } };
-            const offWork = ctx.workspaces.list.subscribe(check), offSessions = ctx.sessions.list.subscribe(check); check();
-          });
-          // Official navigation restores the current selection; a second startup navigation races it.
-          parent.postMessage({type: 'qingsong:ready'}, location.origin);
-        } catch { parent.postMessage({type: 'qingsong:error'}, location.origin); }
-      })();
+      const frameName=window.name||'';
+      const connectionId=frameName.startsWith('qingsong-assistant:')?frameName.slice('qingsong-assistant:'.length):new URLSearchParams(location.search).get('connection')??'';
+      const started=performance.now();let disposed=false,last='';
+      let offWork=()=>{},offSessions=()=>{};
+      const check=(force=false)=>{
+        if(disposed)return;
+        const work=ctx.workspaces.list.getSnapshot(),sessions=ctx.sessions.list.getSnapshot();
+        const ready=work.phase==='ready'&&sessions.phase==='ready';
+        const failed=work.state==='error'||(!ready&&sessions.state==='error');
+        const phase=failed?'error':ready&&work.state==='loading'?'reconnecting':ready?'ready':'catalogs';
+        const pending=work.phase!=='ready'||work.state==='error'||(ready&&work.state==='loading')?'workspace':'sessions';
+        const signature=phase+':'+pending;if(!force&&last===signature)return;last=signature;
+        const message={type:'qingsong:connection',connectionId,phase,pending,durationMs:Math.round(performance.now()-started)};
+        parent.postMessage(message,location.origin);
+        if(ready)parent.postMessage({type:'qingsong:ready',connectionId},location.origin);
+      };
+      const probe=event=>{if(event.origin===location.origin&&event.source===parent&&event.data?.type==='qingsong:probe'&&event.data.connectionId===connectionId)check(true);};
+      window.addEventListener('message',probe);
+      try{offWork=ctx.workspaces.list.subscribe(()=>check());offSessions=ctx.sessions.list.subscribe(()=>check());check();}
+      catch{parent.postMessage({type:'qingsong:connection',connectionId,phase:'error',pending:'initialization'},location.origin);}
+      return()=>{disposed=true;offWork();offSessions();window.removeEventListener('message',probe);};
     });
   },
 })});
