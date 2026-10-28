@@ -10,20 +10,17 @@ import { CommitteeRole, ScheduleItem, SchedulePeriod, SchoolClass, TeacherProfil
 import ScheduleTimeInput from '../../components/ScheduleTimeInput';
 import { isScheduleTime } from '../../domain/scheduleTime';
 import { useAuth } from '../auth/AuthGate';
+import PersonalContextPanel from '../assistant/PersonalContextPanel';
 import { readClassroomExportStudentNo, writeClassroomExportStudentNo } from '../../domain/userPreferences';
 
 interface SystemSettingsPanelProps {
-  lowConfidenceThreshold: number;
-  onUpdateThreshold: (val: number) => void;
-  ocrHumanReviewThreshold: number;
-  ocrAutoPassThreshold: number;
-  onUpdateOcrThresholds: (humanReview: number, autoPass: number) => void;
+  active: boolean;
   showWeekends: boolean;
   onShowWeekendsChange: (value: boolean) => void;
   schedulePeriods: SchedulePeriod[];
   schedule: ScheduleItem[];
   onSaveSchedulePeriods: (periods: SchedulePeriod[]) => Promise<void>;
-  requestedSection: 'schedule-periods' | null;
+  requestedSection: 'schedule-periods' | 'assistant' | null;
   onRequestedSectionHandled: () => void;
   classes: SchoolClass[];
   committeeRoles: CommitteeRole[];
@@ -34,7 +31,7 @@ interface SystemSettingsPanelProps {
   onUpdateCommitteeRole: (roleId: string, name: string) => Promise<void>;
   onDeleteCommitteeRole: (roleId: string) => Promise<void>;
   teacherProfile: TeacherProfile;
-  onSaveTeacherProfile: (profile: TeacherProfile) => void;
+  onSaveTeacherProfile: (profile: TeacherProfile) => Promise<void>;
 }
 
 type SettingsTab = 'teacher' | 'teaching' | 'ai' | 'storage' | 'appearance';
@@ -42,8 +39,8 @@ type SettingsTab = 'teacher' | 'teaching' | 'ai' | 'storage' | 'appearance';
 const tabs: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: 'teacher', label: '教师信息', icon: UserRound },
   { id: 'teaching', label: '教学设置', icon: BookOpen },
-  { id: 'ai', label: 'AI 参数', icon: Sliders },
-  { id: 'storage', label: '数据与存储', icon: Database },
+  { id: 'ai', label: 'AI 助手', icon: Sliders },
+  { id: 'storage', label: '导出', icon: Database },
   { id: 'appearance', label: '外观', icon: Palette }
 ];
 
@@ -79,11 +76,7 @@ const addMinutes = (time: string, minutes: number) => {
 };
 
 export default function SystemSettingsPanel({
-  lowConfidenceThreshold,
-  onUpdateThreshold,
-  ocrHumanReviewThreshold,
-  ocrAutoPassThreshold,
-  onUpdateOcrThresholds,
+  active,
   showWeekends,
   onShowWeekendsChange,
   schedulePeriods,
@@ -108,24 +101,13 @@ export default function SystemSettingsPanel({
   const [realName, setRealName] = useState(teacherProfile.realName);
   const [schoolName, setSchoolName] = useState(teacherProfile.schoolName);
   const [title, setTitle] = useState(teacherProfile.title);
-  const [term, setTerm] = useState('2026 春季学期');
-  const [subject, setSubject] = useState('初中语文');
-  const [grade, setGrade] = useState('七年级');
-  const [textbook, setTextbook] = useState('统编版七年级下册');
-  const [localThreshold, setLocalThreshold] = useState(lowConfidenceThreshold);
-  const [localOcrHumanThreshold, setLocalOcrHumanThreshold] = useState(ocrHumanReviewThreshold);
-  const [localOcrAutoThreshold, setLocalOcrAutoThreshold] = useState(ocrAutoPassThreshold);
-  const [scoreGapThreshold, setScoreGapThreshold] = useState(1);
-  const [resourceSource, setResourceSource] = useState('国家中小学智慧教育平台');
-  const [lessonReferenceSite, setLessonReferenceSite] = useState('学科网 / 语文报教研资源');
-  const [imageSavePolicy, setImageSavePolicy] = useState('保存原图与裁剪图');
-  const [archivePolicy, setArchivePolicy] = useState('按学期归档');
-  const [exportFormat, setExportFormat] = useState('PDF + Excel');
   const [classroomExportStudentNo, setClassroomExportStudentNo] = useState(() => readClassroomExportStudentNo(user.id));
   const [theme, setTheme] = useState(() => readStoredTheme(user.id));
   const [localSchedulePeriods, setLocalSchedulePeriods] = useState(schedulePeriods);
   const [isScheduleSaving, setIsScheduleSaving] = useState(false);
   const [scheduleSaveError, setScheduleSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [newCommitteeRole,setNewCommitteeRole]=useState('');
   const [roleDrafts,setRoleDrafts]=useState<Record<string,string>>({});
   const lastPeriod = localSchedulePeriods.at(-1);
@@ -135,6 +117,12 @@ export default function SystemSettingsPanel({
   useEffect(() => setLocalSchedulePeriods(schedulePeriods), [schedulePeriods]);
 
   useEffect(() => {
+    if (!active || saving) return;
+    if (requestedSection === 'assistant') {
+      setActiveTab('ai');
+      onRequestedSectionHandled();
+      return;
+    }
     if (requestedSection !== 'schedule-periods') return;
     setActiveTab('teaching');
     const timeout = window.setTimeout(() => {
@@ -142,7 +130,7 @@ export default function SystemSettingsPanel({
       onRequestedSectionHandled();
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [onRequestedSectionHandled, requestedSection]);
+  }, [active, saving, onRequestedSectionHandled, requestedSection]);
 
   useEffect(() => {
     localStorage.setItem(`app-theme:${user.id}`, theme);
@@ -175,18 +163,20 @@ export default function SystemSettingsPanel({
   };
 
   const handleSaveSettings = async () => {
-    onUpdateThreshold(localThreshold);
-    onUpdateOcrThresholds(localOcrHumanThreshold, localOcrAutoThreshold);
-    onSaveTeacherProfile({
-      nickname: nickname.trim() || realName.trim() || '老师',
-      realName: realName.trim(),
-      schoolName: schoolName.trim(),
-      title: title.trim()
-    });
-    if (await saveSchedulePeriodSettings(false)) {
-      writeClassroomExportStudentNo(user.id, classroomExportStudentNo);
-      onShowToast('系统设置已保存');
-    }
+    if (saving) return;
+    setSaving(true);
+    setSaveError('');
+    try {
+      if (activeTab === 'teacher') {
+        await onSaveTeacherProfile({nickname: nickname.trim() || realName.trim() || '老师', realName: realName.trim(), schoolName: schoolName.trim(), title: title.trim()});
+        onShowToast('教师信息已保存');
+      } else if (activeTab === 'storage') {
+        writeClassroomExportStudentNo(user.id, classroomExportStudentNo);
+        onShowToast('座位表导出偏好已保存在当前设备');
+      }
+    } catch (error) {
+      setSaveError(activeTab === 'teacher' ? (error instanceof Error && !(error instanceof TypeError) ? error.message : '连接中断，教师信息保存未能确认。当前填写内容已保留，请重试或刷新核对。') : '导出偏好未保存，当前选择保留。请检查浏览器存储权限后重试。');
+    } finally { setSaving(false); }
   };
 
   const updateSchedulePeriod = (index: number, patch: Partial<SchedulePeriod>) => {
@@ -220,18 +210,20 @@ export default function SystemSettingsPanel({
           <h2 className="text-2xl font-black text-slate-900 dark:text-slate-50 tracking-tight">我的设置</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">管理当前教师工作区的资料、教学设置和外观偏好。</p>
         </div>
-        <GlassButton
+        {(activeTab === 'teacher' || activeTab === 'storage') && <GlassButton
+          disabled={saving}
           onClick={() => void handleSaveSettings()}
           variant="primary" className="px-4 py-2.5 text-sm font-bold flex items-center gap-1.5 cursor-pointer transition-all"
         >
           <Save className="w-4 h-4" />
-          保存设置
-        </GlassButton>
+          {saving ? '正在保存…' : activeTab === 'teacher' ? '保存教师信息' : '保存导出偏好'}
+        </GlassButton>}
       </div>
 
-      <GlassSegments label="设置分类" value={activeTab} options={tabs.map(tab=>({value:tab.id,label:<><tab.icon className="w-4 h-4"/>{tab.label}</>}))} onChange={setActiveTab}/>
+      <GlassSegments label="设置分类" value={activeTab} options={tabs.map(tab=>({value:tab.id,label:<><tab.icon className="w-4 h-4"/>{tab.label}</>}))} onChange={value => { if (saving) return false; setActiveTab(value); setSaveError(''); }}/>
 
-      <div className="glass-panel rounded-[24px] p-6">
+      {saveError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{saveError}</p>}
+      <fieldset disabled={saving} className="glass-panel min-w-0 rounded-[24px] p-4 sm:p-6" aria-busy={saving}>
         {activeTab === 'teacher' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <SettingInput label="昵称" value={nickname} onChange={setNickname} />
@@ -243,16 +235,12 @@ export default function SystemSettingsPanel({
 
         {activeTab === 'teaching' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <SettingSelect label="当前学期" value={term} onChange={setTerm} options={['2026 春季学期', '2026 秋季学期', '2025 秋季学期']} />
-            <SettingSelect label="学科" value={subject} onChange={setSubject} options={['初中语文', '初中数学', '初中英语']} />
-            <SettingSelect label="年级" value={grade} onChange={setGrade} options={['七年级', '八年级', '九年级']} />
-            <SettingSelect label="教材版本" value={textbook} onChange={setTextbook} options={['统编版七年级下册', '统编版七年级上册', '统编版八年级上册', '统编版八年级下册']} />
             <label className="space-y-1.5 md:col-span-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">默认显示班级</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">工作台快捷入口班级（当前会话）</span>
               <select
                 value={selectedClassId}
                 onChange={(event) => onSelectClass(event.target.value)}
-                className="qs-field-input w-full px-3 py-2 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-sm focus:outline-none"
+                className="qs-field-input w-full px-3 py-2 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-base focus:outline-none"
               >
                 {classes.filter(c => c.status === 'active').map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -262,7 +250,7 @@ export default function SystemSettingsPanel({
             <label className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2 dark:border-zinc-800 dark:bg-zinc-900/60">
               <span>
                 <strong className="block text-sm text-slate-700 dark:text-slate-200">课表显示周六、周日</strong>
-                <span className="mt-1 block text-xs text-slate-400">关闭时，课表始终完整显示周一至周五。</span>
+                <span className="mt-1 block text-xs text-slate-400">关闭时，课表始终完整显示周一至周五。修改立即保存至当前设备。</span>
               </span>
               <input type="checkbox" checked={showWeekends} onChange={event => onShowWeekendsChange(event.target.checked)} className="h-4 w-4 accent-emerald-700" />
             </label>
@@ -303,62 +291,16 @@ export default function SystemSettingsPanel({
           </div>
         )}
 
-        {activeTab === 'ai' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">作业图像与 OCR 质检</label>
-              <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2 dark:border-zinc-800 dark:bg-zinc-900/60">
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm font-bold">
-                    <span>人工复核阈值</span>
-                    <span className="font-mono text-rose-700 dark:text-rose-300">{localOcrHumanThreshold.toFixed(2)}</span>
-                  </div>
-                  <input type="range" min="0.50" max="0.80" step="0.05" value={localOcrHumanThreshold} onChange={(event) => setLocalOcrHumanThreshold(Math.min(parseFloat(event.target.value), localOcrAutoThreshold - 0.05))} className="w-full cursor-pointer accent-rose-600" />
-                  <p className="text-xs leading-5 text-slate-500">低于该值，或出现缺页、学号冲突等硬异常，直接交给教师。</p>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm font-bold">
-                    <span>自动通过阈值</span>
-                    <span className="font-mono text-emerald-700 dark:text-emerald-300">{localOcrAutoThreshold.toFixed(2)}</span>
-                  </div>
-                  <input type="range" min="0.75" max="0.98" step="0.01" value={localOcrAutoThreshold} onChange={(event) => setLocalOcrAutoThreshold(Math.max(parseFloat(event.target.value), localOcrHumanThreshold + 0.05))} className="w-full cursor-pointer accent-emerald-700" />
-                  <p className="text-xs leading-5 text-slate-500">两个阈值之间先由多模态模型核验，高于该值且无硬异常才自动通过。</p>
-                </div>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">AI 评分置信度</label>
-              <div className="p-4 bg-slate-50 dark:bg-zinc-900/60 rounded-2xl border border-slate-200 dark:border-zinc-800 space-y-3">
-                <div className="flex justify-between text-sm font-bold">
-                  <span>评分异常拦截</span>
-                  <span className="text-emerald-700 dark:text-emerald-300 font-mono">{localThreshold.toFixed(2)}</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.50"
-                  max="0.95"
-                  step="0.05"
-                  value={localThreshold}
-                  onChange={(event) => setLocalThreshold(parseFloat(event.target.value))}
-                  className="w-full accent-emerald-700 cursor-pointer"
-                />
-              </div>
-            </div>
-            <SettingSelect label="分差复核阈值" value={`${scoreGapThreshold} 分`} onChange={(value) => setScoreGapThreshold(parseInt(value, 10))} options={['1 分', '2 分', '3 分']} />
-            <SettingInput label="首选资料源" value={resourceSource} onChange={setResourceSource} />
-            <SettingInput label="参考教案网站" value={lessonReferenceSite} onChange={setLessonReferenceSite} />
-          </div>
-        )}
+        <div hidden={activeTab !== 'ai'}>
+          <PersonalContextPanel active={active && activeTab === 'ai'} />
+        </div>
 
         {activeTab === 'storage' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <SettingSelect label="原图保存策略" value={imageSavePolicy} onChange={setImageSavePolicy} options={['保存原图与裁剪图', '仅保存原图', '仅保存裁剪图']} />
-            <SettingSelect label="诊断报告导出格式" value={exportFormat} onChange={setExportFormat} options={['PDF + Excel', 'PDF', 'Excel', 'CSV']} />
-            <SettingSelect label="数据归档策略" value={archivePolicy} onChange={setArchivePolicy} options={['按学期归档', '按学年归档', '手动归档']} />
             <label className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2 dark:border-zinc-800 dark:bg-zinc-900/60">
               <span>
                 <strong className="block text-sm text-slate-700 dark:text-slate-200">座位表导出包含学号</strong>
-                <span className="mt-1 block text-xs text-slate-400">关闭后，Excel 座位只显示学生姓名。</span>
+                <span className="mt-1 block text-xs text-slate-400">关闭后，Excel 座位只显示学生姓名。保存后用于当前设备、当前账号的后续导出。</span>
               </span>
               <input type="checkbox" checked={classroomExportStudentNo} onChange={event => setClassroomExportStudentNo(event.target.checked)} className="h-5 w-5 accent-emerald-700" />
             </label>
@@ -400,7 +342,7 @@ export default function SystemSettingsPanel({
             </div>
           </div>
         )}
-      </div>
+      </fieldset>
     </div>
   );
 }
@@ -419,37 +361,10 @@ function SettingInput({
       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">{label}</span>
       <input
         value={value}
+        maxLength={label === '学校' ? 100 : label === '职称' ? 60 : 40}
         onChange={(event) => onChange(event.target.value)}
-        className="qs-field-input w-full px-3 py-2 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-sm focus:outline-none"
+        className="qs-field-input w-full px-3 py-2 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-base focus:outline-none"
       />
     </label>
   );
 }
-
-function SettingSelect({
-  label,
-  value,
-  options,
-  onChange
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="space-y-1.5">
-      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="qs-field-input w-full px-3 py-2 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-sm focus:outline-none"
-      >
-        {options.map(option => (
-          <option key={option} value={option}>{option}</option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
