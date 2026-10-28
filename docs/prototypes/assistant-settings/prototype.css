@@ -2058,3 +2058,110 @@ body > svg[width="0"][height="0"] {
     padding: 0 6px;
   }
 }
+#compact-settings-nav {
+  display: none;
+  min-width: 0;
+}
+.background-list-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.background-list-tools > #background-search {
+  flex: 1;
+  min-width: 0;
+}
+.background-list-tools .memory-search {
+  width: 100%;
+  margin: 0;
+}
+.background-list-tools > #memory-actions {
+  margin: 0;
+  flex-shrink: 0;
+}
+.background-list-tools .material > .lg-content {
+  padding: 0 12px;
+  white-space: nowrap;
+}
+#preview.phone #compact-settings-nav {
+  display: block;
+  justify-self: center;
+  max-width: 100%;
+}
+#preview.phone .app-header {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  gap: 8px;
+  padding: 0 12px;
+}
+#preview.phone .app-header .brand {
+  grid-column: 1;
+}
+#preview.phone #compact-settings-nav {
+  grid-column: 2;
+}
+#preview.phone .app-header > #return-chat {
+  grid-column: 3;
+  margin: 0;
+  min-width: 44px;
+  width: 44px;
+  padding: 0;
+  font-size: 0;
+}
+#preview.phone #return-chat span {
+  font-size: 19px;
+}
+#preview.phone .settings-nav {
+  padding: 0;
+}
+#compact-settings-nav #settings-segments button {
+  padding: 0 7px;
+  font-size: 14px;
+}
+#compact-settings-nav .settings-compact {
+  max-width: 100%;
+}
+#preview.phone #compact-settings-nav .settings-compact {
+  display: block;
+}
+#preview.phone .background-list-tools {
+  gap: 10px;
+}
+@media (max-width: 700px) {
+  .app-header {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    gap: 8px;
+    padding: 0 12px;
+  }
+  .app-header .brand {
+    grid-column: 1;
+  }
+  #compact-settings-nav {
+    display: block;
+    grid-column: 2;
+    justify-self: center;
+    max-width: 100%;
+  }
+  .app-header > #return-chat {
+    grid-column: 3;
+    margin: 0;
+    min-width: 44px;
+    width: 44px;
+    padding: 0;
+    font-size: 0;
+  }
+  #return-chat span {
+    font-size: 19px;
+  }
+  .settings-nav {
+    padding: 0;
+  }
+  .background-list-tools {
+    gap: 10px;
+  }
+  .background-list-tools .material > .lg-content {
+    padding: 0 10px;
+  }
+}

@@ -1691,8 +1691,10 @@ function renderLinks() {
   const nav = $("#settings-links");
   if (nav.dataset.area !== settingsArea) {
     disposeWithin(nav);
+    disposeWithin($("#compact-settings-nav"));
     nav.dataset.area = settingsArea;
-    nav.innerHTML = `<div class="settings-directory">${data.map(([id, i, label]) => `<button class="settings-link" data-section="${id}">${icon(i)}<span>${label}</span></button>`).join("")}</div><div class="settings-compact"><div id="settings-segments" aria-label="\u4F1A\u8BDD\u8BBE\u7F6E\u5206\u7C7B">${data.map(([id, , label]) => `<button data-value="${id}">${label}</button>`).join("")}</div></div>`;
+    nav.innerHTML = `<div class="settings-directory">${data.map(([id, i, label]) => `<button class="settings-link" data-section="${id}">${icon(i)}<span>${label}</span></button>`).join("")}</div>`;
+    $("#compact-settings-nav").innerHTML = `<div class="settings-compact"><div id="settings-segments" aria-label="\u4F1A\u8BDD\u8BBE\u7F6E\u5206\u7C7B">${data.map(([id, , label]) => `<button data-value="${id}">${label}</button>`).join("")}</div></div>`;
     const change = (value) => {
       section = value;
       query = "";
@@ -1793,16 +1795,18 @@ function renderMemoryBody() {
     hydrate(body);
     return;
   }
-  body.innerHTML = `<div class="background-actions"><div id="memory-actions"></div></div><div id="background-body"></div>`;
+  body.innerHTML = `<div class="background-list-tools" id="background-list-tools"><div id="background-search"></div><div id="memory-actions"></div></div><div id="background-body"></div>`;
   renderBackgroundBody();
 }
 function renderBackgroundBody() {
-  const body = $("#background-body"), actions = $("#memory-actions");
+  const body = $("#background-body"), actions = $("#memory-actions"), search = $("#background-search");
   disposeWithin(body);
   disposeWithin(actions);
+  $("#background-list-tools").hidden = backgroundFilter !== "saved";
   actions.innerHTML = backgroundFilter === "saved" ? button("new-entry", icon("plus") + "\u65B0\u589E", true) : "";
+  search.innerHTML = backgroundFilter === "saved" ? `<label class="search memory-search">${icon("search")}<input id="search-memory" type="search" aria-label="\u641C\u7D22\u957F\u671F\u80CC\u666F" placeholder="\u641C\u7D22\u957F\u671F\u80CC\u666F" value="${esc(query)}"></label>` : "";
   if ($("#new-entry")) $("#new-entry").onclick = () => openEntry(null);
-  body.innerHTML = (backgroundFilter === "saved" ? `<label class="search memory-search">${icon("search")}<input id="search-memory" type="search" aria-label="\u641C\u7D22\u957F\u671F\u80CC\u666F" placeholder="\u641C\u7D22\u957F\u671F\u80CC\u666F" value="${esc(query)}"></label>` : "") + `<div class="row-list" id="memory-list">${rows()}</div>`;
+  body.innerHTML = `<div class="row-list" id="memory-list">${rows()}</div>`;
   if ($("#search-memory")) $("#search-memory").oninput = (e) => {
     query = e.target.value;
     $("#memory-list").innerHTML = rows();
@@ -1937,6 +1941,7 @@ function scene(name) {
     else if (section === "metrics") section = "rules";
     renderSettings();
   }
+  $("#compact-settings-nav").hidden = chat;
   $("#settings-scene").hidden = chat;
   $("#chat-scene").hidden = !chat;
   $("#breadcrumb").textContent = chat ? "\u5DE5\u4F5C\u53F0 / AI \u52A9\u624B" : settingsArea === "general" ? "\u4E3B\u8BBE\u7F6E / OCR \u4E0E\u8BC4\u5206" : "AI \u52A9\u624B / \u4F1A\u8BDD\u8BBE\u7F6E";
