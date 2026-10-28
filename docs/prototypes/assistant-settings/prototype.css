@@ -1107,3 +1107,468 @@ body[data-phone=true] .entry-dialog {
   width: min(390px, calc(100vw - 32px));
   max-height: min(730px, 90dvh);
 }
+.demo-mode-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.demo-mode-label select {
+  font: inherit;
+  font-size: 16px;
+  min-height: 44px;
+  max-width: 180px;
+  border: 1px solid var(--line);
+  background: #f7f9f3;
+  border-radius: 10px;
+  color: #465e4b;
+  padding: 0 10px;
+}
+.prototype-bar {
+  height: auto;
+  min-height: 64px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.prototype-bar nav {
+  margin-left: auto;
+}
+#preview {
+  min-height: 0;
+}
+.app {
+  display: flex;
+  flex-direction: column;
+  height: min(880px, calc(100dvh - 114px));
+  min-height: 340px;
+}
+.app-header {
+  flex-shrink: 0;
+}
+.settings-shell {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.settings-nav {
+  overflow: auto;
+}
+#settings-content {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.chat-shell {
+  height: auto;
+  flex: 1;
+  min-height: 0;
+}
+.chat-main {
+  min-height: 0;
+  overflow: hidden;
+}
+.chat-reading {
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+.chat-sidebar {
+  min-height: 0;
+  flex-shrink: 0;
+}
+.conversation-list {
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+}
+.chat-side-footer {
+  flex-shrink: 0;
+}
+.chat-side-head,
+.new-chat {
+  flex-shrink: 0;
+}
+.composer {
+  flex-shrink: 0;
+  margin-top: 16px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+}
+.composer > div {
+  gap: 12px;
+}
+.composer span {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.conversation-heading {
+  flex-shrink: 0;
+  margin: 0 auto 5px;
+  max-width: 650px;
+  width: 100%;
+}
+.conversation-heading h2 {
+  font-size: 16px;
+  font-weight: 550;
+}
+.conversation-heading p {
+  font-size: 12px;
+  color: #7b7c5b;
+  line-height: 1.7;
+  padding: 9px 0;
+}
+.answer {
+  margin-top: 24px;
+}
+.answer:first-child {
+  margin-top: 12px;
+}
+.answer p {
+  font-size: 14px;
+}
+.submission-status {
+  font-size: 12px;
+  text-align: right;
+  margin-top: 6px;
+  color: #7a887e;
+}
+.message-group {
+  margin-top: 16px;
+}
+.user-message {
+  overflow-wrap: anywhere;
+}
+.history-placeholder {
+  padding: 36px 0;
+  font-size: 14px;
+  line-height: 1.9;
+}
+.history-placeholder p {
+  margin: 12px 0;
+}
+.history-placeholder small {
+  font-size: 12px;
+}
+.loading-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background: #729678;
+  border-radius: 50%;
+  margin-right: 8px;
+  animation: breathe 1.5s ease-in-out infinite;
+}
+@keyframes breathe {
+  50% {
+    opacity: .35;
+  }
+}
+.operation-card {
+  border: 1px solid #56734a25;
+  border-radius: 16px;
+  background: #f4f7f0;
+  padding: 18px;
+  margin: 16px 0;
+}
+.status-pill {
+  display: inline-block;
+  font-size: 12px;
+  color: #607858;
+  background: #e6edde;
+  padding: 4px 9px;
+  border-radius: 7px;
+  margin-bottom: 14px;
+}
+.operation-card h3 {
+  line-height: 1.8;
+  font-size: 15px;
+}
+.operation-card .operation-meta {
+  font-size: 12px;
+  color: #81907e;
+}
+.operation-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.operation-card details,
+.disclosure {
+  font-size: 14px;
+  color: #697c6d;
+  line-height: 1.9;
+}
+.operation-card details {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.operation-card details p {
+  font-size: 12px;
+}
+.disclosure {
+  margin-top: 24px;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.disclosure p {
+  margin: 10px 0;
+}
+.disclosure small {
+  display: block;
+  line-height: 1.8;
+  margin: 12px 0;
+}
+.capability-block {
+  border-bottom: 1px solid var(--line);
+  padding: 24px 0;
+}
+.capability-block:first-of-type {
+  padding-top: 0;
+}
+.capability-block > p {
+  font-size: 14px;
+  line-height: 1.9;
+  color: var(--muted);
+  margin-top: 12px;
+}
+.capability-block .disclosure {
+  margin-top: 14px;
+}
+.parameter-list,
+.work-detail dl,
+.operation-card dl {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 12px 20px;
+  font-size: 14px;
+  line-height: 1.9;
+  margin: 20px 0;
+}
+.parameter-list dt,
+.work-detail dt,
+.operation-card dt {
+  color: #81907e;
+}
+.parameter-list dd,
+.work-detail dd,
+.operation-card dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.memory-tabs {
+  display: flex;
+  gap: 8px;
+  overflow: auto;
+  margin-bottom: 24px;
+}
+.memory-tabs button {
+  flex-shrink: 0;
+  border-radius: 11px;
+  padding: 0 14px;
+  font-size: 14px;
+  color: #7b897e;
+}
+.memory-tabs button[aria-pressed=true] {
+  background: #e7eee0;
+  color: #3f6245;
+}
+.work-next {
+  display: block;
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #73816f;
+}
+.work-detail > h3 {
+  font-size: 19px;
+  line-height: 1.8;
+  margin: 8px 0 16px;
+}
+.work-detail > p {
+  font-size: 14px;
+  line-height: 2;
+  color: #73816f;
+}
+.work-detail > .text-button {
+  display: block;
+  margin-bottom: 20px;
+  padding-left: 0;
+}
+.work-detail > .material {
+  margin-top: 10px;
+}
+.metric-group h3:after {
+  content: "\8bbe\8ba1\6f14\793a";
+  font-size: 12px;
+  font-weight: 400;
+  color: #89957e;
+  margin-left: 12px;
+}
+.segment-wrap > div {
+  min-width: 0;
+}
+.lg-segmented button {
+  padding: 0 14px;
+}
+.footnote {
+  color: #73806f;
+}
+.row-subtitle {
+  flex-wrap: wrap;
+}
+.app-header .text-button {
+  min-width: 70px;
+}
+#preview.phone .app {
+  height: min(810px, calc(100dvh - 140px));
+  min-height: 320px;
+}
+#preview.phone .settings-shell {
+  height: auto;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+}
+#preview.phone .settings-nav {
+  flex-shrink: 0;
+  overflow: visible;
+}
+#preview.phone #settings-content {
+  min-height: 0;
+  flex: 1;
+}
+#preview.phone .chat-shell {
+  height: auto;
+  min-height: 0;
+}
+#preview.phone .chat-main {
+  padding: 48px 18px 12px;
+}
+#preview.phone .operation-card {
+  padding: 14px;
+}
+#preview.phone .parameter-list {
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+#preview.phone .parameter-list dd {
+  margin-bottom: 12px;
+}
+#preview.phone .memory-tools {
+  display: block;
+}
+#preview.phone .segment-wrap {
+  width: 100%;
+}
+#preview.phone .search {
+  margin-top: 12px;
+}
+#preview.phone .new-chat {
+  align-self: stretch;
+}
+@media (max-width: 700px) {
+  .prototype-bar {
+    padding: 8px 12px;
+    gap: 4px 10px;
+  }
+  .prototype-bar nav {
+    margin: 0;
+  }
+  .prototype-bar .demo-mode-label {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .demo-mode-label select {
+    max-width: 220px;
+    flex: 1;
+  }
+  .app {
+    height: calc(100dvh - 196px);
+    min-height: 320px;
+  }
+  #preview.phone .app {
+    height: calc(100dvh - 210px);
+  }
+  .settings-shell {
+    display: flex;
+    flex-direction: column;
+  }
+  .settings-nav {
+    flex-shrink: 0;
+    overflow: visible;
+  }
+  #settings-content {
+    min-height: 0;
+    flex: 1;
+    padding: 24px 20px 28px;
+  }
+  .settings-link {
+    font-size: 14px;
+    min-height: 44px;
+  }
+  .chat-shell {
+    height: auto;
+    min-height: 0;
+  }
+  .chat-main {
+    padding: 45px 18px 10px;
+  }
+  .parameter-list {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .parameter-list dd {
+    margin-bottom: 12px;
+  }
+  .operation-card {
+    padding: 14px;
+  }
+  .operation-card dl,
+  .work-detail dl {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .operation-card dd,
+  .work-detail dd {
+    margin-bottom: 8px;
+  }
+  .segment-wrap {
+    width: 100%;
+  }
+  .lg-segmented button {
+    padding: 0 11px;
+    font-size: 13px;
+  }
+  .memory-tools {
+    display: block;
+  }
+  .search {
+    margin-top: 12px;
+  }
+  .composer {
+    margin-top: 12px;
+    padding: 10px 12px;
+  }
+  .composer textarea {
+    max-height: 90px;
+  }
+  .operation-actions .material > .lg-content {
+    padding: 0 12px;
+  }
+  .page-heading {
+    gap: 10px;
+  }
+  .material > .lg-content {
+    white-space: normal;
+  }
+  .row-subtitle {
+    gap: 6px 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loading-dot {
+    animation: none;
+  }
+}
