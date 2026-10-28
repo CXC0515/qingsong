@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, FileText, FolderOpen, Search } from 'lucide-react';
+import { Check, ChevronDown, FileText, Search, X } from 'lucide-react';
 import ResponsiveDialog from '../../components/ResponsiveDialog';
+import ResponsiveChoiceDialog from '../../components/ResponsiveChoiceDialog';
 import { GlassButton } from '../../components/glass/Glass';
 import type { PoolFolder, PoolItem } from '../../domain/materialPool';
 import { listPoolFolders, listPoolItems } from '../../services/materialPoolApi';
@@ -16,6 +17,7 @@ export default function MaterialPoolPicker({ onConfirm, onClose }: {
 }) {
   const [folders, setFolders] = useState<PoolFolder[]>([]);
   const [folderId, setFolderId] = useState('all');
+  const [choosingFolder,setChoosingFolder]=useState(false);
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<PoolItem[]>([]);
   const [selected, setSelected] = useState<Map<string, PoolItem>>(() => new Map());
@@ -104,24 +106,23 @@ export default function MaterialPoolPicker({ onConfirm, onClose }: {
     return parts.join(' / ');
   };
 
-  return <ResponsiveDialog title="从材料池选择" compactFull busy={busy} onClose={onClose} footer={<>
+  return <><ResponsiveDialog title="从材料池选择" mobileSnap busy={busy} onClose={onClose} footer={<>
     <span className="mr-auto self-center text-sm text-slate-600 dark:text-slate-300" aria-live="polite">已选 {selected.size} / {MAX_SELECTION}</span>
     <GlassButton type="button" variant="secondary" disabled={busy} className="min-h-11 px-4 text-sm" onClick={onClose}>取消</GlassButton>
     <GlassButton type="button" disabled={busy || selected.size === 0} className="min-h-11 px-4 text-sm" onClick={() => void confirm()}>{busy ? '正在引用…' : '引用所选'}</GlassButton>
   </>}>
     <div className="flex flex-wrap gap-2">
       <label className="relative min-w-0 flex-1 basis-44"><Search className="pointer-events-none absolute left-3 top-3 h-5 w-5 text-slate-400" aria-hidden="true" /><input type="search" aria-label="搜索材料池" placeholder="搜索材料名称或标签" value={query} maxLength={200} disabled={busy} onChange={event => setQuery(event.target.value)} className="qs-field-input min-h-11 w-full rounded-xl border border-slate-200 py-2 pl-10 pr-3 text-base dark:border-zinc-700 dark:bg-zinc-900" /></label>
-      <label className="flex min-h-11 min-w-0 flex-1 basis-40 items-center gap-2"><FolderOpen className="h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" /><select aria-label="筛选材料文件夹" value={folderId} disabled={busy} onChange={event => setFolderId(event.target.value)} className="qs-field-input min-h-11 min-w-0 w-full rounded-xl border border-slate-200 px-3 text-base dark:border-zinc-700 dark:bg-zinc-900"><option value="all">全部材料</option><option value="unfiled">未整理</option>{folders.map(folder => <option key={folder.id} value={folder.id}>{folderName(folder)}</option>)}</select></label>
+      <GlassButton type="button" variant="secondary" containerClassName="min-w-0 flex-1 basis-40" className="flex min-h-11 w-full items-center justify-between gap-3 px-3 text-left text-base" disabled={busy} aria-label="筛选材料文件夹" aria-haspopup="dialog" aria-expanded={choosingFolder} onClick={()=>setChoosingFolder(true)}><span className="min-w-0 flex-1 truncate">{folderId==='all'?'全部材料':folderId==='unfiled'?'未整理':folderName(folders.find(folder=>folder.id===folderId)??{name:'选择文件夹',id:folderId,parentId:null} as PoolFolder)}</span><ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" /></GlassButton>
     </div>
     {folderError && <p role="status" className="text-sm text-amber-700 dark:text-amber-300">{folderError}</p>}
-    {selected.size > 0 && <div className="flex flex-wrap gap-2" aria-label="已选材料">{[...selected.values()].map(item => <button key={item.id} type="button" disabled={busy} onClick={() => toggle(item)} aria-label={`移除所选材料：${item.originalName}`} className="min-h-11 max-w-full rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"><span className="break-all">{item.originalName}</span><span className="ml-2 whitespace-nowrap text-xs">移除</span></button>)}</div>}
-    {error && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-red-700 dark:text-red-300"><p className="min-w-0 flex-1 basis-52">{error}</p><GlassButton type="button" variant="secondary" disabled={busy || loading} className="min-h-11 px-3 text-sm" onClick={() => setRevision(value => value + 1)}>重新载入</GlassButton></div>}
+    {error && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-red-700 dark:text-red-300"><p className="min-w-0 flex-1 basis-52">{error}</p><GlassButton type="button" variant="secondary" disabled={busy || loading} className="min-h-11 px-3 text-sm" onClick={() => setRevision(value => value + 1)}>重新载入</GlassButton><button type="button" aria-label="关闭材料错误提示" className="grid min-h-11 min-w-11 place-items-center" onClick={()=>setError('')}><X className="h-4 w-4" /></button></div>}
     <div aria-busy={loading} className="space-y-2">
       {loading ? <p role="status" className="py-5 text-sm text-slate-500">正在查找材料…</p> : items.length ? items.map(item => {
         const checked = selected.has(item.id);
-        return <button key={item.id} type="button" role="checkbox" aria-checked={checked} disabled={busy || (!checked && selected.size >= MAX_SELECTION)} onClick={() => toggle(item)} className={`flex min-h-14 w-full items-center gap-3 rounded-xl border px-3 py-3 text-left disabled:opacity-50 ${checked ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/40' : 'border-slate-200 bg-white/70 dark:border-zinc-700 dark:bg-zinc-900/70'}`}><FileText className="h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" /><span className="min-w-0 flex-1"><strong className="block break-all text-sm font-medium">{item.originalName}</strong><span className="mt-1 block text-xs text-slate-500">{item.originalName.split('.').pop()?.toUpperCase()} · {displayBytes(item.sizeBytes)} · 材料池</span></span>{checked ? <Check className="h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-300" aria-hidden="true" /> : <span className="h-5 w-5 shrink-0 rounded border border-slate-300 dark:border-zinc-600" aria-hidden="true" />}</button>;
+        return <button key={item.id} type="button" role="checkbox" aria-checked={checked} disabled={busy || (!checked && selected.size >= MAX_SELECTION)} onClick={() => toggle(item)} className={`flex min-h-14 w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors disabled:opacity-50 ${checked ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200' : 'hover:bg-slate-100/60 dark:hover:bg-zinc-800/60'}`}><FileText className="h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" /><span className="min-w-0 flex-1"><strong className="block break-all text-sm font-medium">{item.originalName}</strong><span className="mt-1 block text-xs text-slate-500">{item.originalName.split('.').pop()?.toUpperCase()} · {displayBytes(item.sizeBytes)}</span></span>{checked ? <Check className="h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-300" aria-hidden="true" /> : <span className="h-5 w-5 shrink-0 rounded border border-slate-300 dark:border-zinc-600" aria-hidden="true" />}</button>;
       }) : !error && <p role="status" className="py-5 text-sm text-slate-500">没有找到材料，可以换个关键词或文件夹。</p>}
     </div>
     {nextOffset !== null && !loading && <GlassButton type="button" variant="secondary" disabled={loadingMore || busy} containerClassName="w-full" className="min-h-11 text-sm" onClick={() => void loadMore()}>{loadingMore ? '正在加载…' : '加载更多'}</GlassButton>}
-  </ResponsiveDialog>;
+  </ResponsiveDialog>{choosingFolder&&<ResponsiveChoiceDialog title="选择材料文件夹" value={folderId} options={[{value:'all',label:'全部材料'},{value:'unfiled',label:'未整理'},...folders.map(folder=>({value:folder.id,label:folderName(folder)}))]} onChange={setFolderId} onClose={()=>setChoosingFolder(false)} />}</>;
 }

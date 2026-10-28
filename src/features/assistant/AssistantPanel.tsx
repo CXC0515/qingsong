@@ -22,7 +22,7 @@ export default function AssistantPanel() {
   const pickAbort = useRef<AbortController | null>(null);
   const settingsOpen = useRef(settings);
   settingsOpen.current = settings;
-  const postPickResult = (request: MaterialPickRequest, type: 'qingsong:materials-picked' | 'qingsong:materials-cancelled', references?: unknown[]) => {
+  const postPickResult = (request: MaterialPickRequest, type: 'qingsong:materials-picked' | 'qingsong:materials-cancelled' | 'qingsong:materials-opened', references?: unknown[]) => {
     frame.current?.contentWindow?.postMessage({type, requestId: request.requestId, sessionId: request.sessionId, connectionId: request.connectionId, ...(references ? {references} : {})}, location.origin);
   };
   const closeMaterialPick = () => {
@@ -33,15 +33,20 @@ export default function AssistantPanel() {
   };
   useEffect(() => {
     const receive = (event: MessageEvent) => {
-      if (event.origin !== location.origin || event.source !== frame.current?.contentWindow || event.data?.type !== 'qingsong:pick-materials' || event.data.connectionId !== connectionId) return;
+      if (event.origin !== location.origin || event.source !== frame.current?.contentWindow || !['qingsong:pick-materials','qingsong:materials-cancelled'].includes(event.data?.type) || event.data.connectionId !== connectionId) return;
       const {requestId, sessionId} = event.data;
       if (typeof requestId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId) || typeof sessionId !== 'string' || !sessionId || sessionId.length > 160) return;
+      if(event.data.type==='qingsong:materials-cancelled'){
+        if(activePick.current?.requestId===requestId&&activePick.current.sessionId===sessionId){pickAbort.current?.abort();pickAbort.current=null;activePick.current=null;setMaterialPick(null);}
+        return;
+      }
       const request = {requestId, sessionId, connectionId, attempts: new Map<string, string>()};
       const existing = activePick.current;
-      if (existing?.requestId === requestId && existing.sessionId === sessionId) return;
+      if (existing?.requestId === requestId && existing.sessionId === sessionId) {postPickResult(existing,'qingsong:materials-opened');return;}
       // A settings draft or an existing selection must never be replaced by another frame request.
       if (settingsOpen.current || existing) { postPickResult(request, 'qingsong:materials-cancelled'); return; }
       activePick.current = request; setMaterialPick(request);
+      postPickResult(request,'qingsong:materials-opened');
     };
     window.addEventListener('message', receive);
     return () => {

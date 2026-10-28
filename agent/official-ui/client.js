@@ -19,6 +19,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       const [open,setOpen] = React.useState(false), [error,setError] = React.useState('');
       const [picking,setPicking] = React.useState(false);
       const pending = React.useRef(null), fileInput = React.useRef(null), menu = React.useRef(null);
+      const inputRef=React.useRef({inputActions,insertReference});inputRef.current={inputActions,insertReference};
       const icon = path => React.createElement('svg',{viewBox:'0 0 24 24',width:18,height:18,fill:'none',stroke:'currentColor',strokeWidth:1.8,'aria-hidden':true},React.createElement('path',{d:path}));
       React.useEffect(() => {
         const outside = event => {if(!menu.current?.contains(event.target))setOpen(false);};
@@ -28,31 +29,32 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       React.useEffect(() => {
         const receive = event => {
           const data=event.data, request=pending.current;
-          if(event.origin!==location.origin || event.source!==parent || !request || data?.connectionId!==connectionId || data?.requestId!==request.id || data?.sessionId!==sessionId || !['qingsong:materials-picked','qingsong:materials-cancelled'].includes(data?.type))return;
+          if(event.origin!==location.origin || event.source!==parent || !request || data?.connectionId!==connectionId || data?.requestId!==request.id || data?.sessionId!==sessionId || !['qingsong:materials-opened','qingsong:materials-picked','qingsong:materials-cancelled'].includes(data?.type))return;
+          if(data.type==='qingsong:materials-opened'){clearTimeout(request.timer);request.timer=null;return;}
           clearTimeout(request.timer); pending.current=null;setPicking(false);
           if(data.type==='qingsong:materials-cancelled')return;
           if(!Array.isArray(data.references)||!data.references.length||data.references.length>20||data.references.some(ref=>!materialUuid.test(ref?.id)||typeof ref.name!=='string')) {setError('资料引用未添加，请从材料池重新选择。');return;}
           let span=request.span;
           for(const ref of data.references) {
-            if(!insertReference({source:materialSource,ref:ref.id,label:'材料池 · '+ref.name.slice(0,160),appearance:'file',clipboardText:materialToken(ref.id)},span)) {
+            if(!inputRef.current.insertReference({source:materialSource,ref:ref.id,label:'材料池 · '+ref.name.slice(0,160),appearance:'file',clipboardText:materialToken(ref.id)},span)) {
               setError('输入内容已变化，部分资料可能未添加。请核对输入区后重新选择。');return;
             }
-            span=inputActions.captureInsertion();
+            span=inputRef.current.inputActions.captureInsertion();
           }
-          inputActions.persistDraft();
+          inputRef.current.inputActions.persistDraft();
         };
         window.addEventListener('message',receive);
-        return()=>{window.removeEventListener('message',receive);if(pending.current)clearTimeout(pending.current.timer);pending.current=null;};
-      },[sessionId,inputActions,insertReference]);
+        return()=>{window.removeEventListener('message',receive);if(pending.current){clearTimeout(pending.current.timer);parent.postMessage({type:'qingsong:materials-cancelled',requestId:pending.current.id,sessionId,connectionId},location.origin);}pending.current=null;};
+      },[sessionId]);
       const pickPool=()=>{
         setOpen(false);setError('');setPicking(true);
         const id=crypto.randomUUID(), span=inputActions.captureInsertion();
-        const timer=setTimeout(()=>{if(pending.current?.id===id){pending.current=null;setPicking(false);setError('材料池选择已超时，输入内容仍保留，请重新打开。');}},300000);
+        const timer=setTimeout(()=>{if(pending.current?.id===id){pending.current=null;setPicking(false);parent.postMessage({type:'qingsong:materials-cancelled',requestId:id,sessionId,connectionId},location.origin);setError('材料选择面板未能打开，输入内容仍保留，请重试。');}},10000);
         pending.current={id,span,timer};
         parent.postMessage({type:'qingsong:pick-materials',requestId:id,sessionId,connectionId},location.origin);
       };
-      return React.createElement('div',{className:'qs-materials-menu',ref:menu,onKeyDown:event=>{if(event.key==='Escape')setOpen(false);}},
-        React.createElement('button',{type:'button',className:'qs-materials-button','aria-label':'添加附件或材料池资料','aria-expanded':open,'aria-haspopup':'menu',disabled:locked||picking,onClick:()=>setOpen(value=>!value)},icon('M12 5v14M5 12h14')),
+      return React.createElement('div',{className:'qs-materials-menu',ref:menu,onKeyDown:event=>{if(event.key==='Escape'){setOpen(false);setError('');}}},
+        React.createElement('button',{type:'button',className:'qs-materials-button','aria-label':'添加附件或材料池资料','aria-expanded':open,'aria-haspopup':'menu',disabled:locked||picking,onClick:()=>{setError('');setOpen(value=>!value);}},icon('M12 5v14M5 12h14')),
         React.createElement('input',{type:'file',multiple:true,hidden:true,ref:fileInput,accept:'.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.tsv,.txt,.md,.markdown,.json,.yaml,.yml,.png,.jpg,.jpeg,.webp,.gif',onChange:event=>{
           const files=Array.from(event.target.files??[]);event.target.value='';setError('');
           if(files.length>20){setError('一次最多选择20个附件，尚未添加，请分批选择。');return;}
@@ -61,7 +63,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         open&&React.createElement('div',{className:'qs-materials-options',role:'menu'},
           React.createElement('button',{type:'button',role:'menuitem',onClick:()=>{setOpen(false);fileInput.current.click();}},icon('M21 11.5 12 20.5a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8L15 6.5'),'上传文件'),
           React.createElement('button',{type:'button',role:'menuitem',onClick:pickPool},icon('M3 7h7l2-3h9v16H3Z'),'从材料池选择')),
-        error&&React.createElement('span',{className:'qs-materials-error',role:'alert'},error));
+        error&&React.createElement('span',{className:'qs-materials-error',role:'alert'},React.createElement('span',null,error),React.createElement('button',{type:'button','aria-label':'关闭材料提示',onClick:()=>setError('')},icon('M6 6l12 12M18 6 6 18'))));
     }
     ctx.slots.inject('conversation.input.left',()=>ctx.slots.register({
       name:'conversation.input.left',id:'qingsong-materials',priority:-100,

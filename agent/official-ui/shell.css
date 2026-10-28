@@ -63,3 +63,4 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 .qs-materials-options button:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .qs-materials-error{position:absolute;bottom:calc(100% + 8px);left:0;z-index:40;width:min(280px,70vw);padding:10px;border-radius:12px;background:#fff5f2;color:#9b3131;font-size:13px;line-height:1.5}
 .qs-materials-button:focus-visible,.qs-materials-options button:focus-visible{outline:2px solid #426b56;outline-offset:2px}
+.qs-materials-error{display:flex;align-items:center;gap:8px}.qs-materials-error>span{min-width:0;flex:1}.qs-materials-error>button{display:grid;place-items:center;flex:none;width:44px;min-height:44px;padding:0;border:0;border-radius:10px;background:transparent;color:inherit;cursor:pointer}

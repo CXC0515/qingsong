@@ -79,13 +79,13 @@ test('render reservations release after image persistence, including failure',as
 test('native picker reply must match parent, connection and session, then inserts revision-guarded file chips',async()=>{
  const vm=await import('node:vm');const {readFile}=await import('node:fs/promises');const {createRequire}=await import('node:module');
  const require=createRequire(new URL('../package.json',import.meta.url));const React=require('react');
- const effects=[],slots=[],posted=[],listeners=new Map(),inserted=[];let plugin,stateCount=0,revision=3,persisted=0;
+ const effects=[],slots=[],posted=[],listeners=new Map(),inserted=[],timers=new Map();let plugin,stateCount=0,revision=3,persisted=0,timerId=0;
  const fakeReact={...React,useEffect:callback=>effects.push(callback),useRef:value=>({current:value}),useState:value=>[stateCount++===0?true:value,()=>{}]};
  const parent={postMessage:message=>posted.push(message)};
  const scope={};
  const context={slots:{inject:(_name,register)=>register(),register:(config,render)=>slots.push({config,render})},effect:()=>{},sessions:{scope:()=>scope},conversation:{input:{for:()=>({insertReference:(reference,span)=>{if(span.draftRev!==revision)return false;inserted.push(reference);revision++;return true;}})}}};
  const source=await readFile(new URL('./official-ui/client.js',import.meta.url),'utf8');
- vm.runInNewContext(source,{window:{name:'qingsong-assistant:connection-one',__ModuleLoader__:{load:module=>{plugin=module.factory(()=>fakeReact);}},addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)},parent,location:{origin:'https://fixture.test'},document:{addEventListener:()=>{},removeEventListener:()=>{}},crypto,performance,setTimeout,clearTimeout,URLSearchParams});
+ vm.runInNewContext(source,{window:{name:'qingsong-assistant:connection-one',__ModuleLoader__:{load:module=>{plugin=module.factory(()=>fakeReact);}},addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)},parent,location:{origin:'https://fixture.test'},document:{addEventListener:()=>{},removeEventListener:()=>{}},crypto,performance,setTimeout:(callback,ms)=>{timers.set(++timerId,{callback,ms});return timerId;},clearTimeout:id=>timers.delete(id),URLSearchParams});
  plugin.apply(context);
  const slot=slots.find(row=>row.config.id==='qingsong-materials');assert.ok(slot);
  const props={sessionId:'session-one',useInput:select=>select({phase:'plain'}),inputActions:{captureInsertion:()=>({start:0,end:0,draftRev:revision}),persistDraft:()=>persisted++},...slot.config.inject('session-one')};
@@ -96,6 +96,9 @@ test('native picker reply must match parent, connection and session, then insert
  const data={type:'qingsong:materials-picked',requestId:request.requestId,sessionId:'session-one',connectionId:'connection-one',references:[{id,name:'课件.pptx'}]};
  const receive=listeners.get('message');receive({origin:'https://evil.test',source:parent,data});receive({origin:'https://fixture.test',source:{},data});receive({origin:'https://fixture.test',source:parent,data:{...data,connectionId:'old'}});
  assert.equal(inserted.length,0);
+ assert.equal(timers.size,1);assert.equal([...timers.values()][0].ms,10000);
+ receive({origin:'https://fixture.test',source:parent,data:{...data,type:'qingsong:materials-opened'}});
+ assert.equal(timers.size,0,'an open picker must not time out while the teacher chooses');assert.equal(inserted.length,0);
  receive({origin:'https://fixture.test',source:parent,data});assert.equal(inserted.length,1);assert.equal(inserted[0].appearance,'file');assert.equal(inserted[0].source,'qingsong-pool');assert.equal(inserted[0].clipboardText,`[[青松材料:${id}]]`);assert.equal(persisted,1);
  for(const dispose of disposers)dispose?.();
 });

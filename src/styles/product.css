@@ -106,6 +106,8 @@
 .qs-dialog-frame{display:flex;flex-direction:column;min-height:0;max-height:var(--qs-dialog-height);padding-bottom:env(safe-area-inset-bottom)}
 .qs-dialog-full{--qs-dialog-height:100dvh;height:100dvh;border-radius:0}
 .qs-dialog-full .qs-dialog-frame{height:var(--qs-dialog-height)}
+@media(max-width:639px){.qs-dialog[data-mobile-snap=true]{--qs-dialog-height:calc(var(--qs-sheet-viewport,100dvh) * var(--qs-sheet-fraction,.6));height:var(--qs-dialog-height);max-height:var(--qs-dialog-height);border-radius:28px 28px 0 0;transition:height .18s ease,max-height .18s ease}.qs-dialog[data-mobile-snap=true] .qs-dialog-frame{height:var(--qs-dialog-height)}.qs-dialog[data-sheet-dragging=true]{transition:none}}
+@media(prefers-reduced-motion:reduce){.qs-dialog[data-mobile-snap=true]{transition:none}}
 @media(min-width:640px){.qs-dialog-full{--qs-dialog-height:92dvh;height:auto;border-radius:16px}.qs-dialog-full .qs-dialog-frame{height:auto}.qs-dialog[data-side-on-medium=true]{--qs-dialog-height:100dvh}.qs-dialog[data-side-on-medium=true] .qs-dialog-frame{height:var(--qs-dialog-height)}}
 .qs-app .qs-field-input,.qs-dialog .qs-field-input{background-color:#ffffff42;border:1px solid var(--qs-line,rgba(57,83,66,.2));border-radius:12px;min-height:44px;font-size:16px;color:inherit}
 .dark .qs-app .qs-field-input,.dark .qs-dialog .qs-field-input{background-color:#ffffff0a}
