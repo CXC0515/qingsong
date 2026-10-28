@@ -1647,9 +1647,6 @@ function hydrate(root = document) {
   });
 }
 var records = [
-  { id: 1, kind: "rules", content: "\u6559\u6848\u5148\u5217\u6559\u5B66\u76EE\u6807\uFF0C\u518D\u5217\u6559\u5B66\u8FC7\u7A0B\uFF1B\u8BFE\u5802\u6D3B\u52A8\u7ED9\u51FA\u5177\u4F53\u7684\u6559\u5E08\u63D0\u95EE\u3002", status: "active", updated: "\u4ECA\u5929", source: "\u672C\u4EBA\u6DFB\u52A0", expiry: "" },
-  { id: 2, kind: "rules", content: "\u56DE\u7B54\u5C3D\u91CF\u7B80\u6D01\uFF0C\u7528\u4E2D\u6587\u8BF4\u660E\uFF1B\u4E0D\u786E\u5B9A\u7684\u5B66\u751F\u60C5\u51B5\u5148\u67E5\u8BB0\u5F55\u3002", status: "active", updated: "\u6628\u5929", source: "\u672C\u4EBA\u6DFB\u52A0", expiry: "" },
-  { id: 3, kind: "rules", content: "\u8BFE\u5802\u5EFA\u8BAE\u4F18\u5148\u8003\u8651\u56DB\u5341\u5206\u949F\u5185\u80FD\u591F\u5B8C\u6210\u7684\u5B89\u6392\u3002", status: "disabled", updated: "10\u670825\u65E5", source: "\u672C\u4EBA\u6DFB\u52A0", expiry: "" },
   { id: 4, kind: "memory", content: "\u8FD9\u5B66\u671F\u60F3\u91CD\u70B9\u6539\u5584\u8BFE\u5802\u8BA8\u8BBA\u7684\u53C2\u4E0E\u5EA6\u3002", status: "active", updated: "\u4ECA\u5929", source: "\u8BFE\u5802\u8BA8\u8BBA\u600E\u4E48\u7EC4\u7EC7 \xB7 \u4ECA\u5929", expiry: "" },
   { id: 5, kind: "memory", content: "\u5907\u8BFE\u65F6\u4E60\u60EF\u5148\u6574\u7406\u5355\u5143\u76EE\u6807\uFF0C\u518D\u5B89\u6392\u6BCF\u8282\u8BFE\u7684\u6D3B\u52A8\u3002", status: "active", updated: "\u6628\u5929", source: "\u5907\u8BFE\u601D\u8DEF \xB7 \u6628\u5929", expiry: "" },
   { id: 6, kind: "memory", content: "\u5E0C\u671B\u6BCF\u5468\u7559\u51FA\u4E00\u6B21\u8BFE\u540E\u53CD\u601D\u7684\u65F6\u95F4\u3002", status: "active", updated: "10\u670825\u65E5", source: "\u672C\u4EBA\u6DFB\u52A0", expiry: "" },
@@ -1669,21 +1666,23 @@ var confirmAction;
 var metrics = { human: 70, auto: 90, score: 75 };
 var content = $("#settings-content");
 var button = (id, label, primary = false) => `<button id="${id}" class="material ${primary ? "primary" : ""}" type="button"><span class="lg-content">${label}</span></button>`;
-function heading(title, description, action = "") {
-  return `<header class="page-heading"><div><span class="eyebrow">${settingsArea === "general" ? "\u6559\u5B66\u4E1A\u52A1\u8BBE\u7F6E" : "AI \u52A9\u624B"}</span><h2>${title}</h2><p>${description}</p></div>${action}</header>`;
-}
 function toast(text) {
   clearTimeout(toastTimer);
   $("#toast").textContent = text;
   $("#toast").hidden = false;
   toastTimer = setTimeout(() => $("#toast").hidden = true, 3200);
 }
+function pendingMemoryCount() {
+  return records.filter((r) => r.kind === "memory" && r.status === "candidate").length;
+}
 function renderLinks() {
-  const data = settingsArea === "general" ? [["metrics", "sliders", "OCR \u4E0E\u8BC4\u5206"]] : [["rules", "rules", "\u5DE5\u4F5C\u65B9\u5F0F"], ["memory", "memory", "\u8BB0\u5FC6\u4E0E\u4E8B\u9879"], ["capabilities", "sliders", "\u6A21\u578B\u4E0E\u8FD0\u884C"]];
+  const data = settingsArea === "general" ? [["metrics", "sliders", "OCR \u4E0E\u8BC4\u5206"]] : [["rules", "rules", "\u4E2A\u4EBA\u6307\u4EE4"], ["memory", "memory", "\u8BB0\u5FC6\u4E0E\u4E8B\u9879"], ["capabilities", "sliders", "\u6A21\u578B\u4E0E\u8FD0\u884C"]];
   $(".settings-nav h1").textContent = settingsArea === "general" ? "\u4E3B\u8BBE\u7F6E" : "\u4F1A\u8BDD\u8BBE\u7F6E";
   $(".settings-nav>.nav-caption").textContent = settingsArea === "general" ? "\u9752\u677E\u6559\u5E08" : "AI \u52A9\u624B";
-  $(".nav-note").innerHTML = settingsArea === "general" ? "\u6559\u5B66\u4E1A\u52A1\u8BBE\u7F6E<br>\u6B64\u5904\u4EC5\u6F14\u793A OCR \u4E0E\u8BC4\u5206" : "\u4E2A\u4EBA\u89C4\u5219\u4E0E\u80CC\u666F\u8DE8\u4F1A\u8BDD\u751F\u6548<br>\u751F\u6210\u53C2\u6570\u53EF\u4EC5\u7528\u4E8E\u5F53\u524D\u4F1A\u8BDD";
-  $("#settings-links").innerHTML = data.map(([id, i, label]) => `<button class="settings-link" data-section="${id}" ${section === id ? 'aria-current="page"' : ""}>${icon(i)}${label}</button>`).join("");
+  $(".nav-note").hidden = true;
+  const pending = pendingMemoryCount();
+  $("#settings-links").innerHTML = data.map(([id, i, label]) => `<button class="settings-link" data-section="${id}" ${section === id ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "memory" && pending ? `<span class="nav-count" aria-label="${pending}\u6761\u5F85\u786E\u8BA4">${pending}</span>` : ""}</button>`).join("");
+  content.setAttribute("aria-label", data.find(([id]) => id === section)?.[2] ?? "\u4F1A\u8BDD\u8BBE\u7F6E");
   $("#settings-links").querySelectorAll("button").forEach((b) => b.onclick = () => {
     section = b.dataset.section;
     query = "";
@@ -1702,39 +1701,66 @@ function renderSettings() {
   renderLinks();
   if (section === "metrics") renderMetrics();
   else if (section === "capabilities") renderCapabilities();
-  else if (section === "memory" && memoryFilter === "work") renderWork();
-  else if (section === "rules") {
-    content.innerHTML = heading("\u5DE5\u4F5C\u65B9\u5F0F", "\u4F60\u7684\u4E2A\u4EBA\u89C4\u5219\uFF0C\u4EE5\u53CA\u52A9\u624B\u9075\u5FAA\u7684\u65B9\u6CD5\u3002", button("new-entry", icon("plus") + "\u65B0\u589E", true)) + `<div class="row-list">${rows()}</div><p class="footnote">\u4E2A\u4EBA\u89C4\u5219\u7528\u4E8E\u4F60\u7684\u540E\u7EED\u5BF9\u8BDD\u3002\u5F53\u524D\u660E\u786E\u8981\u6C42\u4F18\u5148\uFF1B\u4E0D\u4F1A\u6539\u53D8\u7CFB\u7EDF\u6743\u9650\u3002</p><details class="disclosure"><summary>\u884C\u4E3A\u539F\u5219\u4E0E\u5904\u7406\u65B9\u6CD5</summary><p>\u8EAB\u4EFD\u4E0E\u804C\u8D23\uFF1A\u534F\u52A9\u6559\u5E08\u67E5\u8BE2\u8BB0\u5F55\u3001\u6574\u7406\u5DE5\u4F5C\u548C\u5F62\u6210\u5EFA\u8BAE\u3002</p><p>\u5148\u6838\u5BF9\u5BF9\u8C61\u548C\u4F9D\u636E\uFF0C\u8BF4\u660E\u4E0D\u786E\u5B9A\u6027\u3002\u4E1A\u52A1\u6210\u529F\u4EE5\u56DE\u6267\u4E3A\u51C6\uFF0C\u4E0D\u80FD\u9760\u804A\u5929\u6216\u65E7\u8BB0\u5FC6\u63A8\u65AD\u3002</p><p>\u65B9\u6CD5\u4E0E\u6280\u80FD\uFF1A\u5B57\u6BB5\u5B9A\u4F4D\u3001\u5DE5\u5177\u4F7F\u7528\u548C\u5904\u7406\u6D41\u7A0B\u7531\u7CFB\u7EDF\u7EF4\u62A4\u3002\u8FD9\u91CC\u62AB\u9732\u7ED3\u6784\uFF0C\u672A\u4FEE\u6539\u771F\u5B9E\u63D0\u793A\u8BCD\u6216 Skill\u3002</p><small>\u6765\u6E90\uFF1A\u7CFB\u7EDF\u8BBE\u8BA1 \xB7 \u6559\u5E08\u4E2A\u4EBA\u89C4\u5219\u4E0D\u80FD\u8986\u76D6\u8FD9\u4E9B\u6743\u9650\u8FB9\u754C</small></details>`;
-    $("#new-entry").onclick = () => openEntry(null);
-  } else {
-    const count = records.filter((r) => r.kind === "memory" && r.status === "candidate").length;
-    content.innerHTML = heading("\u8BB0\u5FC6\u4E0E\u4E8B\u9879", "\u672A\u5B8C\u7684\u5DE5\u4F5C\u4E0E\u957F\u671F\u80CC\u666F\uFF0C\u5206\u522B\u4FDD\u5B58\u3002", button("new-entry", icon("plus") + "\u65B0\u589E", true)) + (count && memoryFilter === "saved" ? `<div class="review-line"><span>${count} \u6761\u8BB0\u5FC6\u5F85\u4F60\u786E\u8BA4</span><button id="review-pending">\u53BB\u67E5\u770B ${icon("chevron")}</button></div>` : "") + `<div class="memory-tools"><div class="segment-wrap"><div id="memory-segments"><button data-value="work">\u534F\u4F5C\u4E8B\u9879</button><button data-value="saved">\u957F\u671F\u80CC\u666F</button><button data-value="pending">\u5F85\u786E\u8BA4${count ? " \xB7 " + count : ""}</button></div></div><label class="search">${icon("search")}<input id="search-memory" type="search" aria-label="\u641C\u7D22\u8BB0\u5FC6" placeholder="\u641C\u7D22\u8BB0\u5FC6" value="${esc(query)}"></label></div><div class="row-list" id="memory-list">${rows()}</div><p class="footnote">\u53EA\u4FDD\u7559\u4F60\u5E0C\u671B\u52A9\u624B\u8BB0\u4F4F\u7684\u5185\u5BB9\u3002\u672A\u786E\u8BA4\u7684\u5EFA\u8BAE\u4E0D\u4F1A\u4F5C\u4E3A\u8BB0\u5FC6\u4F7F\u7528\u3002</p>`;
-    const host = $("#memory-segments");
-    materials.set(host, mountSegmented(host, { value: memoryFilter, trackRim: false, liftPx: 2, glass: { theme: "light", lightAngle: 225, reflection: 1 }, onChange: (value) => {
-      memoryFilter = value;
-      query = "";
-      renderSettings();
-    } }));
-    $("#new-entry").onclick = () => openEntry(null);
-    if ($("#review-pending")) $("#review-pending").onclick = () => {
-      memoryFilter = "pending";
-      renderSettings();
-    };
-    $("#search-memory").oninput = (e) => {
+  else if (section === "memory") renderMemory();
+  else renderPrompt();
+  hydrate(content);
+  if (section === "capabilities") wireGeneration();
+}
+var promptDraft = "# \u4EA4\u6D41\u65B9\u5F0F\n\n\u56DE\u7B54\u7B80\u6D01\uFF0C\u4F7F\u7528\u4E2D\u6587\u3002\n\u4E0D\u786E\u5B9A\u7684\u5B66\u751F\u60C5\u51B5\u5148\u67E5\u8BB0\u5F55\u3002\n\n# \u6559\u5B66\u5B89\u6392\n\n\u6559\u6848\u5148\u5217\u6559\u5B66\u76EE\u6807\uFF0C\u518D\u5217\u6559\u5B66\u8FC7\u7A0B\u3002\n\u8BFE\u5802\u6D3B\u52A8\u7ED9\u51FA\u5177\u4F53\u7684\u6559\u5E08\u63D0\u95EE\uFF0C\u4F18\u5148\u8003\u8651\u56DB\u5341\u5206\u949F\u5185\u80FD\u5B8C\u6210\u7684\u5B89\u6392\u3002";
+var promptSaved = promptDraft;
+function renderPrompt() {
+  content.innerHTML = `<section class="prompt-document"><div class="document-toolbar"><span class="document-name">\u4E2A\u4EBA\u6307\u4EE4.md</span><div><span id="prompt-status" role="status">${promptDraft === promptSaved ? "\u5DF2\u4FDD\u5B58 \xB7 \u6F14\u793A" : "\u672A\u4FDD\u5B58"}</span>${button("save-prompt", "\u4FDD\u5B58", true)}</div></div><label class="sr-only" for="prompt-markdown">\u4E2A\u4EBA\u6307\u4EE4 Markdown \u539F\u6587</label><textarea id="prompt-markdown" spellcheck="false" maxlength="16000">${esc(promptDraft)}</textarea><div class="document-footer"><span>Markdown</span><span>\u672C\u4EBA \xB7 \u8DE8\u4F1A\u8BDD</span></div></section>`;
+  $("#prompt-markdown").oninput = (e) => {
+    promptDraft = e.target.value;
+    $("#prompt-status").textContent = promptDraft === promptSaved ? "\u5DF2\u4FDD\u5B58 \xB7 \u6F14\u793A" : "\u672A\u4FDD\u5B58";
+  };
+  $("#save-prompt").onclick = () => {
+    promptSaved = promptDraft;
+    $("#prompt-status").textContent = "\u5DF2\u4FDD\u5B58 \xB7 \u6F14\u793A";
+    toast("\u5DF2\u4FDD\u5B58\u6F14\u793A\u8349\u7A3F\uFF0C\u672A\u6539\u53D8\u6B63\u5F0F\u52A9\u624B\u6307\u4EE4\u3002");
+  };
+  $("#prompt-markdown").onkeydown = (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      $("#save-prompt").click();
+    }
+  };
+}
+function renderMemory() {
+  content.innerHTML = `<div class="memory-toolbar"><div class="segment-wrap"><div id="memory-segments"><button data-value="work">\u534F\u4F5C\u4E8B\u9879</button><button data-value="saved">\u957F\u671F\u80CC\u666F</button><button data-value="pending">\u5F85\u786E\u8BA4</button></div></div><div id="memory-actions"></div></div><div id="memory-body"></div>`;
+  const host = $("#memory-segments");
+  materials.set(host, mountSegmented(host, { value: memoryFilter, trackRim: false, liftPx: 2, glass: { theme: "light", lightAngle: 225, reflection: 1 }, onChange: (value) => {
+    memoryFilter = value;
+    query = "";
+    selectedWork = null;
+    renderMemoryBody();
+  } }));
+  renderMemoryBody();
+}
+function renderMemoryBody() {
+  const body = $("#memory-body"), actions = $("#memory-actions");
+  disposeWithin(body);
+  disposeWithin(actions);
+  actions.innerHTML = memoryFilter === "saved" ? button("new-entry", icon("plus") + "\u65B0\u589E", true) : "";
+  if ($("#new-entry")) $("#new-entry").onclick = () => openEntry(null);
+  if (memoryFilter === "work") renderWork();
+  else {
+    body.innerHTML = (memoryFilter === "saved" ? `<label class="search memory-search">${icon("search")}<input id="search-memory" type="search" aria-label="\u641C\u7D22\u957F\u671F\u80CC\u666F" placeholder="\u641C\u7D22\u957F\u671F\u80CC\u666F" value="${esc(query)}"></label>` : "") + `<div class="row-list" id="memory-list">${rows()}</div>`;
+    if ($("#search-memory")) $("#search-memory").oninput = (e) => {
       query = e.target.value;
       $("#memory-list").innerHTML = rows();
       wireRows();
     };
+    wireRows();
   }
-  hydrate(content);
-  wireRows();
-  if (section === "capabilities") wireGeneration();
+  hydrate(actions);
+  hydrate(body);
 }
 function control(key, title, value, min, max, step = 1) {
   return `<div class="metric-control ${key === "score" ? "solo" : ""}"><label for="metric-${key}">${title}<output id="output-${key}" for="metric-${key}">${value}<small>%</small></output></label><input id="metric-${key}" type="range" value="${value}" min="${min}" max="${max}" step="${step}"></div>`;
 }
 function renderMetrics() {
-  content.innerHTML = heading("OCR \u4E0E\u8BC4\u5206", "\u4FDD\u7559\u8BC6\u522B\u8D28\u91CF\u548C\u8BC4\u5206\u7F6E\u4FE1\u5EA6\u7684\u8C03\u8282\u5165\u53E3\u3002") + `<section class="metric-group"><h3>\u56FE\u50CF\u4E0E OCR \u8D28\u68C0</h3><p>\u8C03\u6574\u8BC6\u522B\u8D28\u91CF\u7684\u53C2\u8003\u9608\u503C\u3002</p><div class="metric-controls">${control("human", "\u4EBA\u5DE5\u590D\u6838\u9608\u503C", metrics.human, 50, 80, 5)}${control("auto", "\u81EA\u52A8\u901A\u8FC7\u9608\u503C", metrics.auto, 75, 98)}</div></section><section class="metric-group"><h3>AI \u8BC4\u5206\u7F6E\u4FE1\u5EA6</h3><p>\u67E5\u770B\u8BC4\u5206\u7ED3\u679C\u65F6\u4F7F\u7528\u7684\u7F6E\u4FE1\u5EA6\u53C2\u8003\u3002</p><div class="metric-controls">${control("score", "\u8BC4\u5206\u7F6E\u4FE1\u5EA6\u9608\u503C", metrics.score, 50, 95, 5)}</div></section><div class="metric-actions">${button("save-metrics", "\u4FDD\u5B58\u8BBE\u7F6E", true)}</div><p class="footnote">\u5F53\u524D\u6B63\u5F0F\u9875\u9762\u4F7F\u7528\u56FA\u5B9A\u9ED8\u8BA4\u503C\uFF1B\u8FD9\u4E9B\u8C03\u8282\u5C1A\u672A\u5B8C\u6574\u63A5\u901A\u5224\u5B9A\u6D41\u7A0B\u3002\u6B64\u5904\u53EA\u6A21\u62DF\u4FDD\u5B58\uFF0C\u4E0D\u6539\u53D8\u771F\u5B9E\u6279\u6539\u3002</p><details class="disclosure"><summary>\u6307\u6807\u542B\u4E49\u4E0E\u751F\u6548\u8303\u56F4</summary><p>\u4EBA\u5DE5\u590D\u6838\u4E0E\u81EA\u52A8\u901A\u8FC7\u9608\u503C\uFF1A\u62DF\u7528\u4E8E OCR \u8D28\u91CF\u5206\u6D41\uFF0C\u9700\u5148\u9A8C\u8BC1\u8D28\u91CF\u5206\u6570\u7684\u5B9A\u4E49\u53CA\u5176\u4E0E\u771F\u5B9E\u9519\u8BEF\u7684\u5173\u7CFB\u3002</p><p>\u8BC4\u5206\u7F6E\u4FE1\u5EA6\u9608\u503C\uFF1A\u62DF\u7528\u4E8E\u6807\u8BB0\u9700\u6559\u5E08\u6838\u5BF9\u7684\u7ED3\u679C\uFF1B\u4E0D\u5E94\u5C06\u6A21\u578B\u81EA\u8BC4\u76F4\u63A5\u5F53\u4F5C\u51C6\u786E\u7387\u3002</p><p>\u6B63\u5F0F\u63A5\u5165\u524D\u9700\u786E\u5B9A\u53C2\u6570\u5B58\u50A8\u3001\u5BF9\u54EA\u4E9B\u65B0\u4EFB\u52A1\u751F\u6548\uFF0C\u4EE5\u53CA\u5224\u5B9A\u670D\u52A1\u7684\u5B9E\u9645\u6D88\u8D39\u4F4D\u7F6E\u3002\u672A\u63A5\u5165\u524D\u4E0D\u663E\u793A\u201C\u5168\u5C40\u5DF2\u751F\u6548\u201D\u3002</p></details>`;
+  content.innerHTML = `<section class="metric-group"><h3>\u56FE\u50CF\u4E0E OCR \u8D28\u68C0</h3><div class="metric-controls">${control("human", "\u4EBA\u5DE5\u590D\u6838\u9608\u503C", metrics.human, 50, 80, 5)}${control("auto", "\u81EA\u52A8\u901A\u8FC7\u9608\u503C", metrics.auto, 75, 98)}</div></section><section class="metric-group"><h3>AI \u8BC4\u5206\u7F6E\u4FE1\u5EA6</h3><div class="metric-controls">${control("score", "\u8BC4\u5206\u7F6E\u4FE1\u5EA6\u9608\u503C", metrics.score, 50, 95, 5)}</div></section><div class="metric-actions">${button("save-metrics", "\u4FDD\u5B58\u8BBE\u7F6E", true)}</div><p class="footnote">\u5F53\u524D\u6B63\u5F0F\u9875\u9762\u4F7F\u7528\u56FA\u5B9A\u9ED8\u8BA4\u503C\uFF1B\u8FD9\u4E9B\u8C03\u8282\u5C1A\u672A\u5B8C\u6574\u63A5\u901A\u5224\u5B9A\u6D41\u7A0B\u3002\u6B64\u5904\u53EA\u6A21\u62DF\u4FDD\u5B58\uFF0C\u4E0D\u6539\u53D8\u771F\u5B9E\u6279\u6539\u3002</p><details class="disclosure"><summary>\u6307\u6807\u542B\u4E49\u4E0E\u751F\u6548\u8303\u56F4</summary><p>\u4EBA\u5DE5\u590D\u6838\u4E0E\u81EA\u52A8\u901A\u8FC7\u9608\u503C\uFF1A\u62DF\u7528\u4E8E OCR \u8D28\u91CF\u5206\u6D41\uFF0C\u9700\u5148\u9A8C\u8BC1\u8D28\u91CF\u5206\u6570\u7684\u5B9A\u4E49\u53CA\u5176\u4E0E\u771F\u5B9E\u9519\u8BEF\u7684\u5173\u7CFB\u3002</p><p>\u8BC4\u5206\u7F6E\u4FE1\u5EA6\u9608\u503C\uFF1A\u62DF\u7528\u4E8E\u6807\u8BB0\u9700\u6559\u5E08\u6838\u5BF9\u7684\u7ED3\u679C\uFF1B\u4E0D\u5E94\u5C06\u6A21\u578B\u81EA\u8BC4\u76F4\u63A5\u5F53\u4F5C\u51C6\u786E\u7387\u3002</p><p>\u6B63\u5F0F\u63A5\u5165\u524D\u9700\u786E\u5B9A\u53C2\u6570\u5B58\u50A8\u3001\u5BF9\u54EA\u4E9B\u65B0\u4EFB\u52A1\u751F\u6548\uFF0C\u4EE5\u53CA\u5224\u5B9A\u670D\u52A1\u7684\u5B9E\u9645\u6D88\u8D39\u4F4D\u7F6E\u3002\u672A\u63A5\u5165\u524D\u4E0D\u663E\u793A\u201C\u5168\u5C40\u5DF2\u751F\u6548\u201D\u3002</p></details>`;
   for (const key of ["human", "auto", "score"]) $("#metric-" + key).oninput = (e) => {
     let value = Number(e.target.value);
     if (key === "human") value = Math.min(value, Number($("#metric-auto").value) - 5);
@@ -1908,26 +1934,16 @@ var workItems = [
   { id: "discussion", title: "\u8C03\u6574\u4E0B\u5468\u8BFE\u5802\u8BA8\u8BBA", state: "\u5F85\u8865\u5145", detail: "\u5DF2\u9009\u201C\u5148\u72EC\u7ACB\u601D\u8003\uFF0C\u518D\u5C0F\u7EC4\u4EA4\u6D41\u201D\uFF0C\u5C1A\u672A\u786E\u5B9A\u8BFE\u6587\u4E0E\u5206\u7EC4\u65B9\u5F0F\u3002", next: "\u786E\u8BA4\u8BFE\u6587\u53CA\u8BFE\u5802\u65F6\u957F\u3002", source: "\u6628\u5929 \xB7 \u8BFE\u5802\u8BA8\u8BBA\u600E\u4E48\u7EC4\u7EC7", ref: "\u6559\u5B66\u65B9\u6848\u8349\u7A3F \xB7 \u5C1A\u672A\u5199\u5165\u65E5\u7A0B" }
 ];
 var selectedWork = null;
-function memorySegments() {
-  return `<div class="memory-tabs" role="group" aria-label="\u8BB0\u5FC6\u5206\u7C7B">${[["work", "\u534F\u4F5C\u4E8B\u9879"], ["saved", "\u957F\u671F\u80CC\u666F"], ["pending", "\u5F85\u786E\u8BA4"]].map(([key, label]) => `<button data-memory-tab="${key}" aria-pressed="${memoryFilter === key}">${label}</button>`).join("")}</div>`;
-}
-function wireMemoryTabs() {
-  content.querySelectorAll("[data-memory-tab]").forEach((b) => b.onclick = () => {
-    memoryFilter = b.dataset.memoryTab;
-    selectedWork = null;
-    renderSettings();
-  });
-}
 function renderWork() {
-  content.innerHTML = heading("\u8BB0\u5FC6\u4E0E\u4E8B\u9879", "\u7EE7\u7EED\u672A\u5B8C\u7684\u5DE5\u4F5C\uFF0C\u67E5\u770B\u5DF2\u7ECF\u786E\u8BA4\u7684\u80CC\u666F\u3002") + memorySegments() + (selectedWork ? `<section class="work-detail"><button id="back-work" class="text-button">\u2039 \u8FD4\u56DE\u4E8B\u9879</button><span class="status-pill">${selectedWork.state}</span><h3>${selectedWork.title}</h3><p>${selectedWork.detail}</p><dl><dt>\u5173\u8054\u8BB0\u5F55</dt><dd>${selectedWork.ref}</dd><dt>\u4E0A\u6B21\u7EA6\u5B9A</dt><dd>${selectedWork.next}</dd><dt>\u6765\u6E90</dt><dd>${selectedWork.source}</dd></dl>${button("resume-work", "\u7EE7\u7EED\u8FD9\u4EF6\u4E8B", true)}<p class="footnote">\u7EE7\u7EED\u65F6\u91CD\u65B0\u67E5\u8BE2\u5F53\u524D\u4E1A\u52A1\u8BB0\u5F55\u3002\u65E7\u7EA6\u5B9A\u4E0D\u4F1A\u76F4\u63A5\u89E6\u53D1\u5199\u5165\u3002</p></section>` : `<div class="row-list">${workItems.map((w) => `<button class="record-row" data-work="${w.id}"><span class="row-copy"><span class="row-title">${w.title}</span><span class="row-subtitle"><span class="row-status">${w.state}</span><span>${w.source}</span></span><span class="work-next">${w.next}</span></span>${icon("chevron")}</button>`).join("")}</div><p class="footnote">\u4E8B\u9879\u4FDD\u5B58\u76EE\u6807\u3001\u7EA6\u5B9A\u548C\u4E0B\u4E00\u6B65\u3002\u5B66\u751F\u7ED3\u679C\u3001\u4EFB\u52A1\u8FDB\u5EA6\u4ECD\u4EE5\u4E1A\u52A1\u8BB0\u5F55\u4E3A\u51C6\u3002</p>`);
-  wireMemoryTabs();
-  content.querySelectorAll("[data-work]").forEach((b) => b.onclick = () => {
+  const body = $("#memory-body");
+  body.innerHTML = selectedWork ? `<section class="work-detail"><button id="back-work" class="text-button">\u2039 \u8FD4\u56DE\u4E8B\u9879</button><span class="status-pill">${selectedWork.state}</span><h3>${selectedWork.title}</h3><p>${selectedWork.detail}</p><dl><dt>\u5173\u8054\u8BB0\u5F55</dt><dd>${selectedWork.ref}</dd><dt>\u4E0A\u6B21\u7EA6\u5B9A</dt><dd>${selectedWork.next}</dd><dt>\u6765\u6E90</dt><dd>${selectedWork.source}</dd></dl>${button("resume-work", "\u7EE7\u7EED\u8FD9\u4EF6\u4E8B", true)}</section>` : `<div class="row-list">${workItems.map((w) => `<button class="record-row" data-work="${w.id}"><span class="row-copy"><span class="row-title">${w.title}</span><span class="row-subtitle"><span class="row-status">${w.state}</span><span>${w.source}</span></span><span class="work-next">${w.next}</span></span>${icon("chevron")}</button>`).join("")}</div>`;
+  body.querySelectorAll("[data-work]").forEach((b) => b.onclick = () => {
     selectedWork = workItems.find((w) => w.id === b.dataset.work);
-    renderSettings();
+    renderMemoryBody();
   });
   if ($("#back-work")) $("#back-work").onclick = () => {
     selectedWork = null;
-    renderSettings();
+    renderMemoryBody();
   };
   if ($("#resume-work")) $("#resume-work").onclick = () => {
     const follow = selectedWork.id === "follow";
@@ -1945,7 +1961,7 @@ function renderWork() {
   };
 }
 function renderCapabilities() {
-  content.innerHTML = heading("\u6A21\u578B\u4E0E\u8FD0\u884C", "\u8C03\u6574\u5F53\u524D\u4F1A\u8BDD\u7684\u751F\u6210\u65B9\u5F0F\uFF0C\u4E86\u89E3\u80FD\u529B\u4E0E\u8FD0\u884C\u8FB9\u754C\u3002") + generationControls() + `<section class="capability-block"><h3>\u53EF\u8BBF\u95EE\u7684\u6559\u5B66\u4FE1\u606F</h3><p>\u73ED\u7EA7\u4E0E\u540D\u5355\u3001\u8BFE\u8868\u3001\u8BFE\u5802\u4EFB\u52A1\u3001\u5EA7\u4F4D\u3001\u63D0\u9192\u53CA\u90E8\u5206\u5B66\u751F\u8BB0\u5F55\u3002</p><details class="disclosure"><summary>\u67E5\u770B\u6743\u9650\u4E0E\u5C1A\u672A\u5F00\u653E\u7684\u80FD\u529B</summary><p>\u5B66\u751F\u4E3B\u4F53\u53CA\u8EAB\u4EFD\u7531\u6559\u5E08\u624B\u52A8\u7EF4\u62A4\u3002\u8D44\u6599\u68C0\u7D22\u3001\u6279\u6539\u7ED3\u679C\u4E0E\u4E1A\u52A1\u5199\u5165\u5C1A\u672A\u63A5\u5165\u6B63\u5F0F\u52A9\u624B\u3002</p><p>\u8BFE\u5802\u7ED3\u679C\u5199\u5165\u3001\u52A8\u6001\u5B57\u6BB5\u66F4\u65B0\u3001\u8DE8\u4F1A\u8BDD\u4E8B\u9879\u5C5E\u4E8E\u672C\u6B21\u8BBE\u8BA1\u76EE\u6807\u3002\u539F\u578B\u91CC\u7684\u6210\u529F\u72B6\u6001\u4E0D\u4EE3\u8868\u5DF2\u4E0A\u7EBF\u3002</p></details></section><section class="capability-block"><h3>\u6A21\u578B\u4E0E\u751F\u6210\u53C2\u6570</h3><p>\u6A21\u578B\u53C2\u6570\u51B3\u5B9A\u751F\u6210\u65B9\u5F0F\uFF0COCR \u4E0E\u8BC4\u5206\u9608\u503C\u51B3\u5B9A\u4E1A\u52A1\u5904\u7406\u53C2\u8003\uFF0C\u4E24\u8005\u5206\u522B\u914D\u7F6E\u3002</p><dl class="parameter-list"><dt>Temperature</dt><dd>\u63A7\u5236\u91C7\u6837\u968F\u673A\u6027\u3002\u4E0A\u65B9\u53EF\u6A21\u62DF\u9009\u62E9\u8DDF\u968F\u6A21\u578B\u6216\u4E3A\u5F53\u524D\u4F1A\u8BDD\u81EA\u5B9A\u4E49\u3002</dd><dt>\u8F93\u51FA\u957F\u5EA6</dt><dd>\u6B63\u5F0F\u52A9\u624B\u76EE\u524D\u6BCF\u6B21\u8BF7\u6C42\u6700\u591A 2,048 Token\uFF1B\u539F\u578B\u53EA\u62AB\u9732\uFF0C\u4E0D\u4FEE\u6539\u3002</dd><dt>\u63A8\u7406\u5F3A\u5EA6</dt><dd>\u6309\u6A21\u578B\u652F\u6301\u8303\u56F4\u63D0\u4F9B\uFF1B\u4E0D\u80FD\u4FDD\u8BC1\u6240\u6709\u6A21\u578B\u5747\u53EF\u8C03\u6574\u3002</dd></dl><details class="disclosure"><summary>\u5176\u4ED6\u53C2\u6570\u4E0E\u751F\u6548\u8303\u56F4</summary><p>top_p\u3001\u60E9\u7F5A\u7CFB\u6570\u3001stop \u7B49\u4E0D\u80FD\u4EC5\u56E0\u63A5\u53E3\u540D\u79F0\u5E38\u89C1\u5C31\u63D0\u4F9B\u5F00\u5173\u3002\u9700\u9010\u9879\u6838\u5BF9\u5B9E\u9645\u8C03\u7528\u94FE\uFF0C\u672A\u63A5\u901A\u65F6\u4E0D\u663E\u793A\u53EF\u4FDD\u5B58\u7684\u63A7\u4EF6\u3002</p><p>\u6E29\u5EA6\u5728\u539F\u578B\u4E2D\u6309\u5F53\u524D\u4F1A\u8BDD\u5C55\u793A\uFF1B\u4E2A\u4EBA\u89C4\u5219\u548C\u957F\u671F\u80CC\u666F\u6309\u672C\u4EBA\u8DE8\u4F1A\u8BDD\u4F7F\u7528\u3002\u6A21\u578B\u4F9B\u5E94\u5546\u3001\u8EAB\u4EFD\u6743\u9650\u4E0E\u5168\u5C40\u9884\u7B97\u7531\u7CFB\u7EDF\u7BA1\u7406\u3002</p></details></section><section class="capability-block"><h3>\u8FD0\u884C\u4E0E\u4E0A\u4E0B\u6587</h3><dl class="parameter-list"><dt>\u5904\u7406\u9884\u7B97</dt><dd>\u76EE\u524D\u6BCF\u8F6E\u6700\u591A 8 \u6B65\u300112 \u6B21\u5DE5\u5177\u8C03\u7528\u3001180 \u79D2\u3002</dd><dt>\u6392\u961F</dt><dd>\u76EE\u524D\u5168\u5C40 1 \u6761\u6267\u884C\uFF0C\u6700\u591A 3 \u6761\u7B49\u5F85\u3002\u7B49\u5F85\u4E0D\u4EE3\u8868\u6A21\u578B\u5DF2\u7ECF\u5F00\u59CB\u751F\u6210\u3002</dd><dt>\u8BB0\u5FC6\u4F7F\u7528</dt><dd>\u52A0\u8F7D\u6709\u6548\u4E2A\u4EBA\u89C4\u5219\u5E76\u6709\u9650\u53EC\u56DE\uFF1B\u5DE5\u4F5C\u4E8B\u9879\u4E0E\u53EF\u9760\u7EED\u529E\u662F\u5F85\u5B9E\u73B0\u76EE\u6807\u3002</dd></dl><details class="disclosure"><summary>\u67E5\u770B\u4E0A\u4E0B\u6587\u7EC4\u6210</summary><p>\u7CFB\u7EDF\u804C\u8D23\u4E0E\u6743\u9650 \u2192 \u5F53\u524D\u8BF7\u6C42 \u2192 \u7ECF\u6838\u5BF9\u7684\u5DE5\u4F5C\u72B6\u6001\u4E0E\u4E1A\u52A1\u8BC1\u636E \u2192 \u76F8\u5173\u4E2A\u4EBA\u80CC\u666F\u3002\u5B57\u6BB5\u4E0E\u5DE5\u5177\u65B9\u6CD5\u7531 Skill/\u5951\u7EA6\u63CF\u8FF0\u3002</p><p>\u538B\u7F29\u4FDD\u7559\u76EE\u6807\u3001\u672A\u51B3\u95EE\u9898\u3001\u5BF9\u8C61\u4E0E\u64CD\u4F5C\u5F15\u7528\uFF0C\u4E0D\u628A\u6458\u8981\u4F5C\u4E3A\u5199\u5165\u56DE\u6267\u3002\u6B64\u5904\u662F\u76EE\u6807\u7ED3\u6784\uFF0C\u5C1A\u672A\u6539\u53D8\u8FD0\u884C\u65F6\u3002</p></details></section>`;
+  content.innerHTML = generationControls() + `<section class="capability-block"><h3>\u53EF\u8BBF\u95EE\u7684\u6559\u5B66\u4FE1\u606F</h3><p>\u73ED\u7EA7\u4E0E\u540D\u5355\u3001\u8BFE\u8868\u3001\u8BFE\u5802\u4EFB\u52A1\u3001\u5EA7\u4F4D\u3001\u63D0\u9192\u53CA\u90E8\u5206\u5B66\u751F\u8BB0\u5F55\u3002</p><details class="disclosure"><summary>\u67E5\u770B\u6743\u9650\u4E0E\u5C1A\u672A\u5F00\u653E\u7684\u80FD\u529B</summary><p>\u5B66\u751F\u4E3B\u4F53\u53CA\u8EAB\u4EFD\u7531\u6559\u5E08\u624B\u52A8\u7EF4\u62A4\u3002\u8D44\u6599\u68C0\u7D22\u3001\u6279\u6539\u7ED3\u679C\u4E0E\u4E1A\u52A1\u5199\u5165\u5C1A\u672A\u63A5\u5165\u6B63\u5F0F\u52A9\u624B\u3002</p><p>\u8BFE\u5802\u7ED3\u679C\u5199\u5165\u3001\u52A8\u6001\u5B57\u6BB5\u66F4\u65B0\u3001\u8DE8\u4F1A\u8BDD\u4E8B\u9879\u5C5E\u4E8E\u672C\u6B21\u8BBE\u8BA1\u76EE\u6807\u3002\u539F\u578B\u91CC\u7684\u6210\u529F\u72B6\u6001\u4E0D\u4EE3\u8868\u5DF2\u4E0A\u7EBF\u3002</p></details></section><section class="capability-block"><h3>\u5176\u4ED6\u751F\u6210\u53C2\u6570</h3><dl class="parameter-list"><dt>\u8F93\u51FA\u957F\u5EA6</dt><dd>\u6B63\u5F0F\u52A9\u624B\u76EE\u524D\u6BCF\u6B21\u8BF7\u6C42\u6700\u591A 2,048 Token\uFF1B\u539F\u578B\u53EA\u62AB\u9732\uFF0C\u4E0D\u4FEE\u6539\u3002</dd><dt>\u63A8\u7406\u5F3A\u5EA6</dt><dd>\u6309\u6A21\u578B\u652F\u6301\u8303\u56F4\u63D0\u4F9B\uFF1B\u4E0D\u80FD\u4FDD\u8BC1\u6240\u6709\u6A21\u578B\u5747\u53EF\u8C03\u6574\u3002</dd></dl><details class="disclosure"><summary>\u5176\u4ED6\u53C2\u6570\u4E0E\u751F\u6548\u8303\u56F4</summary><p>top_p\u3001\u60E9\u7F5A\u7CFB\u6570\u3001stop \u7B49\u4E0D\u80FD\u4EC5\u56E0\u63A5\u53E3\u540D\u79F0\u5E38\u89C1\u5C31\u63D0\u4F9B\u5F00\u5173\u3002\u9700\u9010\u9879\u6838\u5BF9\u5B9E\u9645\u8C03\u7528\u94FE\uFF0C\u672A\u63A5\u901A\u65F6\u4E0D\u663E\u793A\u53EF\u4FDD\u5B58\u7684\u63A7\u4EF6\u3002</p><p>\u6E29\u5EA6\u5728\u539F\u578B\u4E2D\u6309\u5F53\u524D\u4F1A\u8BDD\u5C55\u793A\uFF1B\u4E2A\u4EBA\u89C4\u5219\u548C\u957F\u671F\u80CC\u666F\u6309\u672C\u4EBA\u8DE8\u4F1A\u8BDD\u4F7F\u7528\u3002\u6A21\u578B\u4F9B\u5E94\u5546\u3001\u8EAB\u4EFD\u6743\u9650\u4E0E\u5168\u5C40\u9884\u7B97\u7531\u7CFB\u7EDF\u7BA1\u7406\u3002</p></details></section><section class="capability-block"><h3>\u8FD0\u884C\u4E0E\u4E0A\u4E0B\u6587</h3><dl class="parameter-list"><dt>\u5904\u7406\u9884\u7B97</dt><dd>\u76EE\u524D\u6BCF\u8F6E\u6700\u591A 8 \u6B65\u300112 \u6B21\u5DE5\u5177\u8C03\u7528\u3001180 \u79D2\u3002</dd><dt>\u6392\u961F</dt><dd>\u76EE\u524D\u5168\u5C40 1 \u6761\u6267\u884C\uFF0C\u6700\u591A 3 \u6761\u7B49\u5F85\u3002\u7B49\u5F85\u4E0D\u4EE3\u8868\u6A21\u578B\u5DF2\u7ECF\u5F00\u59CB\u751F\u6210\u3002</dd><dt>\u8BB0\u5FC6\u4F7F\u7528</dt><dd>\u52A0\u8F7D\u6709\u6548\u4E2A\u4EBA\u89C4\u5219\u5E76\u6709\u9650\u53EC\u56DE\uFF1B\u5DE5\u4F5C\u4E8B\u9879\u4E0E\u53EF\u9760\u7EED\u529E\u662F\u5F85\u5B9E\u73B0\u76EE\u6807\u3002</dd></dl><details class="disclosure"><summary>\u67E5\u770B\u4E0A\u4E0B\u6587\u7EC4\u6210</summary><p>\u7CFB\u7EDF\u804C\u8D23\u4E0E\u6743\u9650 \u2192 \u5F53\u524D\u8BF7\u6C42 \u2192 \u7ECF\u6838\u5BF9\u7684\u5DE5\u4F5C\u72B6\u6001\u4E0E\u4E1A\u52A1\u8BC1\u636E \u2192 \u76F8\u5173\u4E2A\u4EBA\u80CC\u666F\u3002\u5B57\u6BB5\u4E0E\u5DE5\u5177\u65B9\u6CD5\u7531 Skill/\u5951\u7EA6\u63CF\u8FF0\u3002</p><p>\u538B\u7F29\u4FDD\u7559\u76EE\u6807\u3001\u672A\u51B3\u95EE\u9898\u3001\u5BF9\u8C61\u4E0E\u64CD\u4F5C\u5F15\u7528\uFF0C\u4E0D\u628A\u6458\u8981\u4F5C\u4E3A\u5199\u5165\u56DE\u6267\u3002\u6B64\u5904\u662F\u76EE\u6807\u7ED3\u6784\uFF0C\u5C1A\u672A\u6539\u53D8\u8FD0\u884C\u65F6\u3002</p></details></section>`;
 }
 var demoSessions = {
   classroom: { title: "\u672C\u5468\u7684\u8BFE\u5802\u8BB0\u5F55", loaded: true, draft: "\u628A\u9605\u8BFB\u68C0\u67E5\u4E2D\u5C0F\u6797\u548C\u5C0F\u5468\u7684\u7ED3\u679C\u8BB0\u4E3A\u5DF2\u5B8C\u6210\u3002", status: "", messages: [{ role: "assistant", text: "\u53EF\u4EE5\u5148\u6838\u5BF9\u8FD9\u6B21\u9605\u8BFB\u68C0\u67E5\uFF0C\u518D\u9884\u89C8\u5177\u4F53\u4FEE\u6539\u3002\u6240\u6709\u59D3\u540D\u4E0E\u8BB0\u5F55\u90FD\u662F\u6F14\u793A\u6570\u636E\u3002" }] },
