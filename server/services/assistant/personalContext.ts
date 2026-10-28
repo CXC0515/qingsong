@@ -37,7 +37,7 @@ type Row = Omit<PersonalEntry, 'source'> & {source: string};
 const unpack = (row: Row): PersonalEntry => ({...row, source: JSON.parse(row.source), status: row.status !== 'deleted' && row.expiresAt && Date.parse(row.expiresAt) <= Date.now() ? 'expired' : row.status});
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const normalized = (value: string) => value.trim().replace(/\s+/g, ' ');
-function mutate(operationId: string, input: unknown, fn: () => PersonalEntry): PersonalEntry {
+function mutate<T>(operationId: string, input: unknown, fn: () => T): T {
   const d = db(), fingerprint = digest(input);
   return d.transaction(() => {
     const previous = d.prepare('SELECT fingerprint,result FROM personal_operations WHERE id=?').get(operationId) as {fingerprint:string; result:string} | undefined;
@@ -124,4 +124,29 @@ export function personalTool(input: unknown, source: PersonalEntry['source'], au
   const existing = listPersonalEntries().find(e=>e.kind===(args.kind??'memory') && normalized(e.content)===normalized(args.content!) && ['active','candidate'].includes(e.status));
   const entry = existing ? direct && existing.status==='candidate' ? updatePersonalEntry(existing.id,{operationId:randomUUID(),expectedVersion:existing.version,status:'active'}) : existing : createPersonalEntry({operationId:randomUUID(),kind:args.kind??'memory',content:args.content},source,direct?'active':'candidate');
   return {ok:true,entry,message:entry.status==='active'?'个人记录已保存并生效。':'已提出候选，尚未生效。请在“规则与记忆”确认后使用。'};
+}
+
+
+// A document is a view over permanent active rules, not a second source of truth.
+export function readInstructionDocument() {
+  const rules=listPersonalEntries().filter(e=>e.kind==='rule').sort((a,b)=>a.id.localeCompare(b.id));
+  return {content:rules.filter(e=>e.status==='active'&&!e.expiresAt).map(e=>e.content).join('\n\n'),revision:digest(rules.map(e=>[e.id,e.version,e.status,e.expiresAt]))};
+}
+export function saveInstructionDocument(input:unknown) {
+  const args=z.object({operationId:z.uuid(),expectedRevision:z.string().min(1),content:z.string().trim().max(3000)}).strict().parse(input);
+  return mutate(args.operationId,{instructionDocument:args},()=>{
+    if(readInstructionDocument().revision!==args.expectedRevision)fail('VERSION_CONFLICT','个人指令已在别处修改，本次未覆盖。请保留草稿并刷新核对。');
+    const previous=listPersonalEntries().filter(e=>e.kind==='rule'&&e.status==='active'&&!e.expiresAt).sort((a,b)=>a.id.localeCompare(b.id));
+    const now=new Date().toISOString();
+    // Retire before writing so count/length checks see the final effective set.
+    for(const e of previous)save({...e,status:'disabled',version:e.version+1,updatedAt:now});
+    if(args.content){
+      if(previous[0])save({...previous[0],content:args.content,status:'active',source:{type:'manual'},version:previous[0].version+2,updatedAt:now});
+      else{
+        if(listPersonalEntries().length>=150)fail('CONTEXT_LIMIT','个人记录已满，本次未保存，请先整理已有记录。');
+        save({id:randomUUID(),kind:'rule',content:args.content,status:'active',source:{type:'manual'},expiresAt:null,version:1,createdAt:now,updatedAt:now},true);
+      }
+    }
+    return readInstructionDocument();
+  });
 }

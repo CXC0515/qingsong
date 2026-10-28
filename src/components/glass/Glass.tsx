@@ -49,6 +49,7 @@ export function GlassSegments<T extends string>({ value, options, onChange, labe
   useEffect(() => {
     const instance = mountSegmented(host.current!, {
       value: latest.current.value, trackRim: false, liftPx: 2,
+      ...(density==='compact'?{stretch:.098,bulge:.238,liftPx:1.4}:{}),
       glass: { theme, lightAngle: 225, reflection: 1 },
       onChange: (next: T) => {
         if (latest.current.onChange(next) === false) instance.select(latest.current.value, { notify: false });
@@ -56,7 +57,7 @@ export function GlassSegments<T extends string>({ value, options, onChange, labe
     });
     api.current = instance;
     return () => { api.current = null; instance.destroy(); };
-  }, [keys, theme]);
+  }, [keys, theme, density]);
   useEffect(() => { api.current?.select(value, { notify: false }); }, [value]);
   return <div className="qs-segment-scroll" data-density={density}><GlassSurface className="qs-segments"><div ref={host} aria-label={label}>{options.map(option => <button type="button" key={option.value} data-value={option.value}>{option.label}</button>)}</div></GlassSurface></div>;
 }

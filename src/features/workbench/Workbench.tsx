@@ -66,7 +66,7 @@ export default function Workbench({active,assistantOpen,onCloseAssistant,classes
     </div>
     <dialog ref={assistantDialog} className="qs-assistant-space qs-assistant-dialog" aria-label="AI助手" onCancel={e=>{e.preventDefault();closeAssistant();}}>
       <header className="qs-mobile-ai-header"><strong>AI助手</strong><button type="button" onClick={closeAssistant} aria-label="返回原页面"><X size={22}/></button></header>
-      <AssistantPanel onOpenSettings={()=>onNavigate('settings','assistant')}/>
+      <AssistantPanel/>
     </dialog>
   </div>;
 }

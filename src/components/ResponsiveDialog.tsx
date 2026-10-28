@@ -7,8 +7,8 @@ let openDialogs = 0;
 let originalBodyOverflow = '';
 
 /** Native modal provides focus containment, Escape and focus restoration. */
-export default function ResponsiveDialog({ children, title, subtitle, onClose, busy = false, sideOnMedium = false, wide = false, compactFull = false, footer, confirmDiscard = false, closeRef }: {
-  children: ReactNode; title: string; subtitle?: ReactNode; onClose: () => void; busy?: boolean; sideOnMedium?: boolean; wide?:boolean; compactFull?:boolean; footer?:ReactNode; confirmDiscard?:boolean; closeRef?:Ref<()=>void>;
+export default function ResponsiveDialog({ children, title, subtitle, onClose, busy = false, sideOnMedium = false, wide = false, compactFull = false, footer, confirmDiscard = false, closeRef, header }: {
+  children: ReactNode; title: string; subtitle?: ReactNode; onClose: () => void; busy?: boolean; sideOnMedium?: boolean; wide?:boolean; compactFull?:boolean; footer?:ReactNode; confirmDiscard?:boolean; closeRef?:Ref<()=>void>;header?:ReactNode;
 }) {
   const [discardOpen,setDiscardOpen]=useState(false);
   const requestClose=()=>{if(busy)return;if(confirmDiscard)setDiscardOpen(true);else onClose();};
@@ -44,10 +44,10 @@ export default function ResponsiveDialog({ children, title, subtitle, onClose, b
           onPointerCancel={() => { dragStart.current = null; }}>
           <span className="my-3 h-1 w-10 rounded-full bg-slate-300" />
         </div>
-        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-2 dark:border-zinc-800">
+        {header!==undefined?header:<header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-2 dark:border-zinc-800">
           <div className="min-w-0"><h3 className="break-words text-lg font-bold">{title}</h3>{subtitle && <p className="mt-1 break-words text-xs leading-5 text-slate-500 dark:text-slate-400">{subtitle}</p>}</div>
           <button type="button" disabled={busy} onClick={requestClose} aria-label="关闭" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800"><X className="h-5 w-5" /></button>
-        </header>
+        </header>}
         <div data-dialog-scroll className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:p-5">{children}</div>
         {footer&&<footer className="shrink-0 flex flex-wrap justify-end gap-2 border-t border-slate-100 px-4 py-3 dark:border-zinc-800">{footer}</footer>}
       </div></GlassSurface>

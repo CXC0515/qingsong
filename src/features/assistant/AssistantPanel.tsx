@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import ResponsiveDialog from '../../components/ResponsiveDialog';
+import PersonalContextPanel from './PersonalContextPanel';
 import { GlassSurface } from '../../components/glass/Glass';
 
-export default function AssistantPanel({onOpenSettings}:{onOpenSettings:()=>void}) {
+export default function AssistantPanel() {
+  const [settings,setSettings]=useState(false),[dirty,setDirty]=useState(false),[busy,setBusy]=useState(false);
+  const closeSettings=useRef<()=>void>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
@@ -9,6 +13,7 @@ export default function AssistantPanel({onOpenSettings}:{onOpenSettings:()=>void
     let active = true;
     const connectedAt = performance.now();
     const receive = (event: MessageEvent) => {
+      if(event.origin===location.origin&&event.source===frame.current?.contentWindow&&event.data?.type==='qingsong:settings')setSettings(true);
       if (event.origin === location.origin && event.source === frame.current?.contentWindow && event.data?.type === 'qingsong:ready') {
         console.info('[青松助手] 页面连接完成', {durationMs: Math.round(performance.now() - connectedAt)});
         clearTimeout(timeout); setReady(true); setError('');
@@ -26,6 +31,6 @@ export default function AssistantPanel({onOpenSettings}:{onOpenSettings:()=>void
     {!ready && !error && <p className="px-4 py-2 text-sm text-gray-500" role="status">正在连接教学助手…</p>}
     {error && <p className="px-4 py-2 text-sm text-red-700" role="alert">{error}</p>}
     <div className="qs-official-frame"><iframe ref={frame} title="青松教学助手" src="/api/assistant/official/" className="min-h-0 w-full flex-1 border-0" sandbox="allow-scripts allow-same-origin allow-downloads allow-popups" onError={() => setError('助手未能打开，已有对话保留，请刷新重试。')}/></div>
-    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 px-3 pb-2 text-xs text-slate-500"><span>个人规则、记忆和待确认记录</span><button type="button" onClick={onOpenSettings} className="min-h-11 px-2 text-sm underline">前往助手设置</button></div>
+    {settings&&<ResponsiveDialog title="会话设置" header={null} wide compactFull busy={busy} confirmDiscard={dirty} closeRef={closeSettings} onClose={()=>setSettings(false)}><PersonalContextPanel active onClose={()=>closeSettings.current?.()} onDirtyChange={setDirty} onBusyChange={setBusy}/></ResponsiveDialog>}
   </GlassSurface>;
 }
