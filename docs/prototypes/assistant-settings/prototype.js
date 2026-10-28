@@ -1645,6 +1645,10 @@ function hydrate(root = document) {
   root.querySelectorAll(".material").forEach((el) => {
     if (!materials.has(el)) materials.set(el, mountGlass(el, { preset: "button", radius: 16, theme: "light", lightAngle: 225, reflection: 1 }));
   });
+  document.querySelectorAll('body > svg[width="0"][height="0"]').forEach((svg) => {
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+  });
 }
 var records = [
   { id: 4, kind: "memory", content: "\u8FD9\u5B66\u671F\u60F3\u91CD\u70B9\u6539\u5584\u8BFE\u5802\u8BA8\u8BBA\u7684\u53C2\u4E0E\u5EA6\u3002", status: "active", updated: "\u4ECA\u5929", source: "\u8BFE\u5802\u8BA8\u8BBA\u600E\u4E48\u7EC4\u7EC7 \xB7 \u4ECA\u5929", expiry: "" },
@@ -1656,6 +1660,7 @@ var records = [
 var settingsArea = "conversation";
 var section = "rules";
 var memoryFilter = "work";
+var backgroundFilter = "saved";
 var query = "";
 var current = null;
 var initial = "";
@@ -1708,7 +1713,7 @@ function capabilityDisclosure() {
   return `<details class="disclosure capability-disclosure"><summary>\u80FD\u529B\u4E0E\u6743\u9650</summary><dl class="parameter-list"><dt>\u53EF\u67E5\u8BE2</dt><dd>\u53EF\u8BBF\u95EE\u73ED\u7EA7\u3001\u540D\u5355\u3001\u8BFE\u8868\u3001\u8BFE\u5802\u4EFB\u52A1\u3001\u5EA7\u4F4D\u3001\u63D0\u9192\u53CA\u90E8\u5206\u5B66\u751F\u8BB0\u5F55\u3002</dd><dt>\u5C1A\u672A\u5F00\u653E</dt><dd>\u6B63\u5F0F\u52A9\u624B\u7684\u6559\u5B66\u4E1A\u52A1\u5199\u5165\u3001\u8D44\u6599\u68C0\u7D22\u548C\u6279\u6539\u7ED3\u679C\u67E5\u8BE2\u3002</dd><dt>\u63A7\u5236\u8303\u56F4</dt><dd>\u5B66\u751F\u4E3B\u4F53\u53CA\u8EAB\u4EFD\u7531\u6559\u5E08\u624B\u52A8\u7EF4\u62A4\u3002\u4E2A\u4EBA\u6307\u4EE4\u6309\u672C\u4EBA\u8DE8\u4F1A\u8BDD\u4F7F\u7528\uFF0C\u4E0D\u6539\u53D8\u5DE5\u5177\u6743\u9650\u3002</dd></dl></details>`;
 }
 function rows() {
-  const selected = records.filter((r) => r.kind === section && r.status !== "deleted" && (section !== "memory" || (memoryFilter === "pending" ? r.status === "candidate" : r.status !== "candidate")) && r.content.includes(query));
+  const selected = records.filter((r) => r.kind === section && r.status !== "deleted" && (section !== "memory" || (backgroundFilter === "pending" ? r.status === "candidate" : r.status !== "candidate")) && r.content.includes(query));
   return selected.length ? selected.map((r) => `<button class="record-row" data-record="${r.id}" aria-label="\u67E5\u770B${esc(r.content)}"><span class="row-copy"><span class="row-title">${esc(r.content)}</span><span class="row-subtitle"><span class="row-status ${r.status === "candidate" ? "pending" : ""}">${{ active: "\u5DF2\u542F\u7528", disabled: "\u5DF2\u505C\u7528", candidate: "\u5F85\u786E\u8BA4" }[r.status]}</span><span>${r.updated}${r.source === "\u672C\u4EBA\u6DFB\u52A0" ? " \xB7 \u672C\u4EBA\u6DFB\u52A0" : ""}</span></span></span>${icon("chevron")}</button>`).join("") : '<p class="empty">\u6CA1\u6709\u7B26\u5408\u6761\u4EF6\u7684\u8BB0\u5F55\u3002</p>';
 }
 function wireRows() {
@@ -1716,6 +1721,7 @@ function wireRows() {
 }
 function renderSettings() {
   disposeWithin(content);
+  content.classList.toggle("prompt-page", section === "rules");
   renderLinks();
   if (section === "metrics") renderMetrics();
   else if (section === "memory") renderMemory();
@@ -1727,21 +1733,13 @@ var promptDraft = "# \u4EA4\u6D41\u65B9\u5F0F\n\n\u56DE\u7B54\u7B80\u6D01\uFF0C\
 var promptSaved = promptDraft;
 var promptEditing = false;
 function renderPrompt() {
-  content.innerHTML = `<section class="prompt-document ${promptEditing ? "is-editing" : "is-reading"}"><div class="document-toolbar"><span class="document-name">\u4E2A\u4EBA\u6307\u4EE4.md</span><div><span id="prompt-status" role="status">${promptEditing ? promptDraft === promptSaved ? "\u7F16\u8F91\u4E2D" : "\u672A\u4FDD\u5B58" : ""}</span>${promptEditing ? button("cancel-prompt", "\u53D6\u6D88") + button("save-prompt", "\u4FDD\u5B58", true) : button("copy-prompt", "\u590D\u5236") + button("edit-prompt", "\u7F16\u8F91", true)}</div></div>${promptEditing ? `<label class="sr-only" for="prompt-markdown">\u4E2A\u4EBA\u6307\u4EE4 Markdown \u539F\u6587</label><textarea id="prompt-markdown" spellcheck="false" maxlength="16000">${esc(promptDraft)}</textarea>` : `<pre class="prompt-reading" tabindex="0" aria-label="\u4E2A\u4EBA\u6307\u4EE4 Markdown \u5185\u5BB9">${esc(promptSaved)}</pre>`}<div class="document-footer"><span>Markdown</span><span>\u672C\u4EBA \xB7 \u8DE8\u4F1A\u8BDD</span></div></section>`;
+  content.innerHTML = `<section class="prompt-document ${promptEditing ? "is-editing" : "is-reading"}"><div class="document-toolbar"><span class="document-name">\u4E2A\u4EBA\u6307\u4EE4.md</span><div><span id="prompt-status" role="status">${promptEditing ? promptDraft === promptSaved ? "\u7F16\u8F91\u4E2D" : "\u672A\u4FDD\u5B58" : ""}</span>${promptEditing ? button("cancel-prompt", "\u53D6\u6D88") + button("save-prompt", "\u4FDD\u5B58", true) : button("edit-prompt", "\u7F16\u8F91", true)}</div></div>${promptEditing ? `<label class="sr-only" for="prompt-markdown">\u4E2A\u4EBA\u6307\u4EE4 Markdown \u539F\u6587</label><textarea id="prompt-markdown" spellcheck="false" maxlength="16000">${esc(promptDraft)}</textarea>` : `<pre class="prompt-reading" tabindex="0" aria-label="\u4E2A\u4EBA\u6307\u4EE4 Markdown \u5185\u5BB9">${esc(promptSaved)}</pre>`}</section>`;
   if (!promptEditing) {
     $("#edit-prompt").onclick = () => {
       promptDraft = promptSaved;
       promptEditing = true;
       renderSettings();
       $("#prompt-markdown").focus();
-    };
-    $("#copy-prompt").onclick = async () => {
-      try {
-        await navigator.clipboard.writeText(promptSaved);
-        toast("\u5DF2\u590D\u5236\u4E2A\u4EBA\u6307\u4EE4\u3002");
-      } catch {
-        toast("\u590D\u5236\u672A\u5B8C\u6210\uFF0C\u8BF7\u9009\u4E2D\u6587\u672C\u540E\u624B\u52A8\u590D\u5236\u3002");
-      }
     };
     return;
   }
@@ -1772,9 +1770,8 @@ function renderPrompt() {
   };
 }
 function renderMemory() {
-  content.innerHTML = `<div class="memory-toolbar"><div class="segment-wrap"><div id="memory-segments"><button data-value="work">\u534F\u4F5C\u4E8B\u9879</button><button data-value="saved">\u957F\u671F\u80CC\u666F</button><button data-value="pending">\u5F85\u786E\u8BA4${pendingMemoryCount() ? ` \xB7 ${pendingMemoryCount()}` : ""}</button></div></div><div id="memory-actions"></div></div><div id="memory-body"></div>`;
-  const host = $("#memory-segments");
-  attachSegments(host, memoryFilter, (value) => {
+  content.innerHTML = `<div class="memory-toolbar"><div class="segment-wrap"><div id="memory-segments"><button data-value="work">\u534F\u4F5C\u4E8B\u9879</button><button data-value="saved">\u957F\u671F\u80CC\u666F</button></div></div></div><div id="memory-body"></div>`;
+  attachSegments($("#memory-segments"), memoryFilter, (value) => {
     memoryFilter = value;
     query = "";
     selectedWork = null;
@@ -1783,21 +1780,34 @@ function renderMemory() {
   renderMemoryBody();
 }
 function renderMemoryBody() {
-  const body = $("#memory-body"), actions = $("#memory-actions");
+  const body = $("#memory-body");
+  disposeWithin(body);
+  if (memoryFilter === "work") {
+    renderWork();
+    hydrate(body);
+    return;
+  }
+  body.innerHTML = `<div class="background-toolbar"><div class="segment-wrap"><div id="background-segments"><button data-value="saved">\u5DF2\u4FDD\u5B58</button><button data-value="pending">\u5F85\u786E\u8BA4${pendingMemoryCount() ? ` \xB7 ${pendingMemoryCount()}` : ""}</button></div></div><div id="memory-actions"></div></div><div id="background-body"></div>`;
+  attachSegments($("#background-segments"), backgroundFilter, (value) => {
+    backgroundFilter = value;
+    query = "";
+    renderBackgroundBody();
+  });
+  renderBackgroundBody();
+}
+function renderBackgroundBody() {
+  const body = $("#background-body"), actions = $("#memory-actions");
   disposeWithin(body);
   disposeWithin(actions);
-  actions.innerHTML = memoryFilter === "saved" ? button("new-entry", icon("plus") + "\u65B0\u589E", true) : "";
+  actions.innerHTML = backgroundFilter === "saved" ? button("new-entry", icon("plus") + "\u65B0\u589E", true) : "";
   if ($("#new-entry")) $("#new-entry").onclick = () => openEntry(null);
-  if (memoryFilter === "work") renderWork();
-  else {
-    body.innerHTML = (memoryFilter === "saved" ? `<label class="search memory-search">${icon("search")}<input id="search-memory" type="search" aria-label="\u641C\u7D22\u957F\u671F\u80CC\u666F" placeholder="\u641C\u7D22\u957F\u671F\u80CC\u666F" value="${esc(query)}"></label>` : "") + `<div class="row-list" id="memory-list">${rows()}</div>`;
-    if ($("#search-memory")) $("#search-memory").oninput = (e) => {
-      query = e.target.value;
-      $("#memory-list").innerHTML = rows();
-      wireRows();
-    };
+  body.innerHTML = (backgroundFilter === "saved" ? `<label class="search memory-search">${icon("search")}<input id="search-memory" type="search" aria-label="\u641C\u7D22\u957F\u671F\u80CC\u666F" placeholder="\u641C\u7D22\u957F\u671F\u80CC\u666F" value="${esc(query)}"></label>` : "") + `<div class="row-list" id="memory-list">${rows()}</div>`;
+  if ($("#search-memory")) $("#search-memory").oninput = (e) => {
+    query = e.target.value;
+    $("#memory-list").innerHTML = rows();
     wireRows();
-  }
+  };
+  wireRows();
   hydrate(actions);
   hydrate(body);
 }

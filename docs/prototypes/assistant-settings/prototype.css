@@ -1932,3 +1932,68 @@ body[data-phone=true] .entry-dialog {
     margin-top: 20px;
   }
 }
+#settings-content.prompt-page {
+  display: flex;
+  flex-direction: column;
+}
+#settings-content.prompt-page .prompt-document {
+  flex: 1;
+  min-height: 260px;
+}
+#settings-content.prompt-page .prompt-reading {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+#settings-content.prompt-page .prompt-document.is-editing #prompt-markdown {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  margin: 16px 0;
+}
+#settings-content.prompt-page > .capability-disclosure {
+  flex-shrink: 0;
+  margin-top: 12px;
+}
+.background-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.background-toolbar .segment-wrap {
+  width: auto;
+  max-width: 100%;
+  padding-block: 4px;
+  margin-block: -4px;
+}
+.background-toolbar .lg-segmented button {
+  font-size: 14px;
+  min-height: 44px;
+  padding: 0 14px;
+}
+#background-segments {
+  width: max-content;
+}
+.background-toolbar #memory-actions {
+  margin-left: auto;
+}
+body > svg[width="0"][height="0"] {
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden;
+  pointer-events: none;
+}
+@media (max-width: 700px) {
+  #settings-content.prompt-page .prompt-document {
+    min-height: 230px;
+  }
+  .background-toolbar {
+    gap: 12px;
+  }
+  .background-toolbar .lg-segmented button {
+    padding: 0 12px;
+  }
+}
