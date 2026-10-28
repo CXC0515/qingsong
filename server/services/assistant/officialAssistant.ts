@@ -21,6 +21,12 @@ import { startOfficialRuntime } from '../../../agent/official-runtime.mjs';
 import { allowOfficialCall } from '../../../agent/official-policy.mjs';
 import { relayOfficialSocket } from '../../../agent/official-relay.mjs';
 import {loadGenerationPolicy,generationFingerprint} from './generationPolicy';
+
+import { Transform } from 'node:stream';
+import { AssistantMaterialError, assistantMaterialTool, materialSessionId, officialMaterialHome, registerMessageMaterials, selectPoolMaterials } from './officialAttachments';
+import { RESOURCE_UPLOAD_LIMIT_BYTES } from '../../../src/domain/uploadPolicy';
+import { reserveMaterialStorage, releaseMaterialStorage } from './officialMaterialQuota';
+import { AssistantMaterialReadError } from './materialReader';
 export const officialPrefix = '/api/assistant/official';
 const instances = new Map<string, Instance>();
 const starting = new Map<string, Promise<Instance>>();
@@ -136,6 +142,26 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
           try { await officialBudget.acquire(lease, controller.signal); await authorizeInstance(instance); res.end('{}'); }
           catch (error) { clearTimeout(instance.leaseTimers.get(lease)); instance.leaseTimers.delete(lease); controller.abort(); leases.delete(lease); officialBudget.release(lease); throw error; }
         } else if (body.kind === 'authorize') res.end('{}');
+        else if (body.kind === 'material-images-saved') {
+          releaseMaterialStorage(officialMaterialHome(context), body.reservationId); res.end('{}');
+        }
+        else if (body.kind === 'materials-context' || body.kind === 'material') {
+          if (!materialSessionId(body.sessionId)) throw new AssistantMaterialError('INVALID_SESSION');
+          const controller = new AbortController();
+          req.once('aborted', () => controller.abort());
+          res.once('close', () => { if (!res.writableFinished) controller.abort(); });
+          const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(90000)]);
+          const reservationId = body.kind === 'material' && body.input?.action !== 'list'
+            ? await reserveMaterialStorage(officialMaterialHome(context), 30 * 1024 * 1024) : undefined;
+          try {
+            const result = body.kind === 'materials-context'
+              ? await registerMessageMaterials(context, body.sessionId, body.attachments, body.poolIds)
+              : await assistantMaterialTool(context, body.sessionId, body.input, signal);
+            await authorizeInstance(instance);
+            if ('images' in result && result.images?.length && reservationId) res.end(JSON.stringify({ ...result, reservationId }));
+            else { if (reservationId) releaseMaterialStorage(officialMaterialHome(context), reservationId); res.end(JSON.stringify(result)); }
+          } catch (error) { if (reservationId) releaseMaterialStorage(officialMaterialHome(context), reservationId); throw error; }
+        }
         else if (body.kind === 'personal-context' || body.kind === 'personal-tool') {
           if (typeof body.sessionId !== 'string' || body.sessionId.length > 160 || typeof body.sourceText !== 'string' || body.sourceText.length > 8020) throw Error('INVALID_OPERATION');
           if(body.messageId!==undefined&&(typeof body.messageId!=='string'||body.messageId.length>160))throw Error('INVALID_OPERATION');
@@ -154,7 +180,7 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
         } else throw Error('INVALID_OPERATION');
       } catch (error) {
         if (!res.headersSent) res.writeHead(400);
-        const failure = error instanceof PersonalContextError ? {code:error.code,message:error.message} : teachingFailure(error);
+        const failure = error instanceof PersonalContextError || error instanceof AssistantMaterialError || error instanceof AssistantMaterialReadError ? {code:error.code,message:error.message} : (error as Error).message === 'MATERIAL_STORAGE_LIMIT' ? { code: 'MATERIAL_STORAGE_LIMIT', message: '附件与解析缓存已达到当前用户512MB限制，原件和对话仍保留，请减少材料或联系管理员。' } : teachingFailure(error);
         logEvent('warn', 'assistant_tool_failed', {code: failure.code});
         res.end(JSON.stringify(failure));
       }
@@ -187,6 +213,58 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
   })();
   starting.set(key, start);
   try { return await start; } finally { starting.delete(key); }
+}
+const uploadQueues = new Map<string, { tail: Promise<void>; count: number }>();
+/** A bounded carrier for DSH's native upload; it never exposes the native owner cookie. */
+async function proxyOfficialUpload(req: Request, res: Response, target: URL) {
+  const context = getWorkspaceContext(), key = scope(context);
+  const queue = uploadQueues.get(key) ?? { tail: Promise.resolve(), count: 0 };
+  if (queue.count >= 20) { res.status(429).json({ message: '待上传附件较多，已有文件保留，请等当前批次完成后重试。' }); return; }
+  const previous = queue.tail; let unlock!: () => void;
+  queue.tail = new Promise<void>(resolve => { unlock = resolve; }); queue.count++; uploadQueues.set(key, queue);
+  const abort = new AbortController();
+  const cancelled = () => abort.abort();
+  req.once('aborted', cancelled); res.once('close', cancelled);
+  let reservationId: string | undefined;
+  try {
+    await previous;
+    if (req.destroyed || res.destroyed || abort.signal.aborted) return;
+    const sessionId = target.searchParams.get('sessionId'), name = target.searchParams.get('name');
+    if (!materialSessionId(sessionId) || !name || name.length > 255 || /[\\/\x00-\x1f]/.test(name) || [...target.searchParams.keys()].some(k => !['sessionId', 'name'].includes(k)) || req.headers['content-type']?.split(';')[0] !== 'application/octet-stream') throw new AssistantMaterialError('INVALID_UPLOAD');
+    const instance = await ensureInstance(context, () => checkIdentity(req.headers, context), createHash('sha256').update(req.headers.cookie ?? '').digest('hex'));
+    if (!await nativeWorkspaceCall(instance.runtime, instance.cookie, 'session/projections', { sessionId })) throw new AssistantMaterialError('INVALID_SESSION');
+    if (req.destroyed || res.destroyed || abort.signal.aborted) return;
+    const declared = Number(req.headers['content-length'] ?? RESOURCE_UPLOAD_LIMIT_BYTES);
+    const limit = RESOURCE_UPLOAD_LIMIT_BYTES;
+    if (!Number.isSafeInteger(declared) || declared < 0 || declared > limit) throw new AssistantMaterialError('UPLOAD_LIMIT', '附件超过单文件80MB或当前用户512MB存储限制，本次文件未确认保存。已有文件保留，请缩小文件或从材料池引用。');
+    reservationId = await reserveMaterialStorage(officialMaterialHome(context), declared);
+    if (req.destroyed || res.destroyed || abort.signal.aborted) return;
+    await new Promise<void>((resolve, reject) => {
+      let size = 0, settled = false;
+      const finish = (error?: Error) => {
+        if (settled) return; settled = true; clearInterval(guard); req.unpipe(limiter); limiter.destroy();
+        if (error) { upstream.destroy(); reject(error); } else resolve();
+      };
+      const limiter = new Transform({ transform(chunk, _encoding, callback) { size += chunk.length; callback(size > limit ? new AssistantMaterialError('UPLOAD_LIMIT', '上传超过大小限制，未确认保存。已有对话保留，请缩小文件后重试。') : null, chunk); } });
+      const upstream = httpRequest({ hostname: '127.0.0.1', port: instance.runtime.port, path: target.pathname + target.search, method: 'POST', headers: { host: new URL(runtimeConfig.appUrl).host, cookie: instance.cookie, 'content-type': 'application/octet-stream' } }, incoming => {
+        res.status(incoming.statusCode ?? 502); res.setHeader('content-type', 'application/json'); res.setHeader('Cache-Control', 'no-store');
+        incoming.pipe(res); incoming.once('end', () => finish()); incoming.once('error', error => finish(error));
+      });
+      const guard = setInterval(() => { void checkIdentity(req.headers, context).catch(error => finish(error)); }, 15000); guard.unref();
+      upstream.setTimeout(60000, () => finish(new Error('UPLOAD_TIMEOUT')));
+      upstream.once('error', error => finish(error)); limiter.once('error', error => finish(error));
+      req.once('aborted', () => finish(new Error('UPLOAD_CANCELLED')));
+      res.once('close', () => { if (!res.writableFinished) finish(new Error('UPLOAD_CANCELLED')); });
+      req.pipe(limiter).pipe(upstream);
+    });
+  } catch (error) {
+    if (!res.headersSent) res.status(error instanceof AssistantMaterialError && error.code === 'UPLOAD_LIMIT' ? 413 : 400).json({ message: error instanceof AssistantMaterialError ? error.message : (error as Error).message === 'MATERIAL_STORAGE_LIMIT' ? '附件与缓存已达当前用户512MB限制，原件和对话保留。请从材料池引用或联系管理员。' : '附件上传未能确认完成，原有文件与对话保留。请查看附件状态后重试。' });
+    else res.end();
+  } finally {
+    if (reservationId) releaseMaterialStorage(officialMaterialHome(context), reservationId);
+    req.off('aborted', cancelled); res.off('close', cancelled);
+    queue.count--; unlock(); if (!queue.count && uploadQueues.get(key) === queue) uploadQueues.delete(key);
+  }
 }
 function allowedPath(pathname: string, req: Request) {
   if (pathname.startsWith('/api/')) {
@@ -222,11 +300,36 @@ export async function officialAssistantProxy(req: Request, res: Response) {
     } catch { res.status(409).json({message: '工作区未能确认新增，可能名称重复或连接中断。已有会话保留，请刷新查看后重试。'}); }
     return;
   }
+  if (target.pathname === '/api/qingsong/materials/references' && req.method === 'POST') {
+    try {
+      const body = req.body;
+      if (!body || Object.keys(body).some(key => !['sessionId', 'requestId', 'itemIds'].includes(key)) || !materialSessionId(body.sessionId)) throw new AssistantMaterialError('INVALID_SESSION');
+      const context = getWorkspaceContext();
+      const instance = await ensureInstance(context, () => checkIdentity(req.headers, context), createHash('sha256').update(req.headers.cookie ?? '').digest('hex'));
+      if (!await nativeWorkspaceCall(instance.runtime, instance.cookie, 'session/projections', { sessionId: body.sessionId })) throw new AssistantMaterialError('INVALID_SESSION');
+      res.json(await selectPoolMaterials(context, body.sessionId, body.requestId, body.itemIds));
+    } catch (error) {
+      res.status(400).json({ code: error instanceof AssistantMaterialError ? error.code : 'MATERIAL_SELECTION_FAILED', message: error instanceof AssistantMaterialError ? error.message : '材料引用未能确认加入，原件与对话保留，请重新打开材料选择重试。' });
+    }
+    return;
+  }
+  if (target.pathname === '/api/session/uploadFileBinary' && req.method === 'POST') {
+    await proxyOfficialUpload(req, res, target);
+    return;
+  }
   if (!allowedPath(target.pathname, req) || target.searchParams.has('token') || target.searchParams.has('auth')) { res.status(403).json({message: '此功能尚未开放，教学数据未修改，请返回教学对话。'}); return; }
+  let imageReservation: string | undefined;
+  const materialHome = officialMaterialHome(getWorkspaceContext());
+  const releaseImages = () => { if (imageReservation) { releaseMaterialStorage(materialHome, imageReservation); imageReservation = undefined; } };
+  res.once('close', releaseImages);
   try {
     const context = getWorkspaceContext();
+    const parts = target.pathname === '/api/session/prompt' ? req.body?.payload?.args?.request?.content : target.pathname === '/api/session/updateQueue' ? req.body?.payload?.args?.request?.action?.content : [];
+    const imageBytes = Array.isArray(parts) ? parts.filter(part => part.type === 'image').reduce((sum, part) => sum + Math.ceil(part.data.length * 3 / 4), 0) : 0;
+    if (imageBytes) imageReservation = await reserveMaterialStorage(materialHome, imageBytes + 5 * 4 * 1024 * 1024);
+    if (res.destroyed) { releaseImages(); return; }
     const instance = await ensureInstance(context, () => checkIdentity(req.headers, context), createHash('sha256').update(req.headers.cookie ?? '').digest('hex'));
-    if(res.destroyed)return;
+    if(res.destroyed){releaseImages();return;}
     const instanceMs = performance.now() - requestStarted;
     if (target.pathname === '/api/session/prompt') {
       const request = req.body?.payload?.args?.request;
@@ -234,7 +337,7 @@ export async function officialAssistantProxy(req: Request, res: Response) {
         res.status(409).json({message:'管理员已更新生成配置，请等待当前一轮结束后重新发送。本条消息尚未提交。'}); return;
       }
       if (typeof request?.sessionId === 'string') {
-        const text = request.content.map((part: {text:string}) => part.text).join('\n');
+        const text = request.content.filter((part: {type:string}) => part.type === 'text').map((part: {text:string}) => part.text).join('\n');
         if (explicitPersonalCommand(text)) {
           const texts = instance.humanTexts.get(request.sessionId) ?? [];
           instance.humanTexts.set(request.sessionId, [...texts,createHash('sha256').update(text).digest('hex')].slice(-32));
@@ -296,7 +399,12 @@ export async function officialAssistantProxy(req: Request, res: Response) {
     upstream.setTimeout(60000, () => upstream.destroy(Error('NATIVE_TIMEOUT')));
     upstream.on('error', () => { if (!res.headersSent) res.status(502).json({message: '助手连接中断，已有对话保留，教学数据未修改，请刷新重试。'}); else res.end(); });
     res.on('close', () => upstream.destroy()); upstream.end(body);
-  } catch {logEvent('warn','assistant_official_request',{endpoint:target.pathname,method:req.method,status:503,outcome:'startup_failed',totalMs:Math.round(performance.now()-requestStarted)});if (!res.headersSent&&!res.destroyed) res.status(503).json({message: '助手暂时未能启动，已有对话保留，教学数据未修改，请稍后重试。'}); }
+  } catch (error) {
+    releaseImages();
+    const quota = (error as Error).message === 'MATERIAL_STORAGE_LIMIT';
+    logEvent('warn','assistant_official_request',{endpoint:target.pathname,method:req.method,status:quota?413:503,outcome:quota?'material_storage_limit':'startup_failed',totalMs:Math.round(performance.now()-requestStarted)});
+    if (!res.headersSent&&!res.destroyed) res.status(quota?413:503).json({message: quota ? '附件与缓存已达到当前用户512MB限制，本条消息未确认发送。已有对话和文件保留，请从材料池引用或联系管理员。' : '助手暂时未能启动，已有对话保留，教学数据未修改，请稍后重试。'});
+  }
 }
 export async function officialAssistantUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer) {
   const started=performance.now();

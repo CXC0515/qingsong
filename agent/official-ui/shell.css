@@ -53,3 +53,13 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 [data-sidebar-collapsed] .qs-sidebar-resize{display:none}
 @media(max-width:480px){.qs-sidebar-resize{display:none}}
 .qs-sidebar-settings{width:44px;min-height:44px;border:0;border-radius:12px;background:transparent;display:grid;place-items:center;color:var(--dsw-alias-label-secondary);cursor:pointer}.qs-sidebar-settings:hover{background:var(--dsw-alias-interactive-bg-hover)}.pI_x6G_frame[data-sidebar-collapsed] .qs-sidebar-settings{display:none}.qs-sidebar-settings:focus-visible{outline:2px solid currentColor;outline-offset:-3px}
+
+/* The native plus launches commands, so the scoped attachment menu replaces it. */
+.qs-materials-menu{position:relative;display:flex;align-items:center}
+.qs-materials-button{display:grid;place-items:center;min-width:44px;min-height:44px;border:0;border-radius:14px;background:var(--dsw-specific-selector);color:var(--dsw-alias-label-primary);cursor:pointer}
+.qs-materials-button:disabled{opacity:.5;cursor:default}
+.qs-materials-options{position:absolute;bottom:calc(100% + 8px);left:0;z-index:40;min-width:190px;padding:6px;border:1px solid var(--dsw-alias-border-l2);border-radius:16px;background:var(--dsw-alias-bg-layer-1,#f8fbf8);box-shadow:0 3px 8px -5px #18342730}
+.qs-materials-options button{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:8px 12px;border:0;border-radius:10px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;cursor:pointer}
+.qs-materials-options button:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.qs-materials-error{position:absolute;bottom:calc(100% + 8px);left:0;z-index:40;width:min(280px,70vw);padding:10px;border-radius:12px;background:#fff5f2;color:#9b3131;font-size:13px;line-height:1.5}
+.qs-materials-button:focus-visible,.qs-materials-options button:focus-visible{outline:2px solid #426b56;outline-offset:2px}

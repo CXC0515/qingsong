@@ -1,10 +1,13 @@
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { applyGenerationPolicy } from './generation-policy.mjs';
+
+import {synchronizeMaterials,materialTool,requireImageModel} from './official-materials.mjs';
 export const name = 'qingsong-official-teaching';
-export const inject = ['tools', 'systemPrompt'];
+export const inject = ['tools', 'systemPrompt', 'attachments', 'llm'];
 export function apply(ctx) {
   const generationPolicy=JSON.parse(process.env.QS_GENERATION_POLICY??'{"entries":{}}');
   const turns = new Map();
+  const registeredMaterials = new Map();
   ctx.effect(() => ctx.systemPrompt.context({name:'青松个人规则与记忆', order:100, required:true, interpolate:false,
     text: ({agent}) => turns.get(agent?.id)?.contextText ?? ''}));
   const bridge = async (body, signal) => {
@@ -34,9 +37,17 @@ export function apply(ctx) {
     if (++state.steps > 8) throw Error('本轮已达到8步上限，已有对话保留，教学数据未修改，请拆分问题后重试。');
     await bridge({kind: 'authorize'}, signal);
     const human = messages.filter(message => message.source?.kind === 'user').at(-1);
+    if(human && (state.lastHumanMessageId!==human.id || state.steps===1)){
+      if(human.content.some(part=>part.type==='image')) await requireImageModel(ctx,{agent,signal});
+      state.lastHumanMessageId=human.id;
+    }
     if (human) {state.sourceText = human.content.filter(part=>part.type==='text').map(part=>part.text).join('\n');state.messageId=human.id;}
     const snapshot = await bridge({kind:'personal-context',sessionId:agent.id,sourceText:state.sourceText??''},signal);
-    state.contextText = snapshot.guidance + '\n' + JSON.stringify(snapshot);
+    let registered = registeredMaterials.get(agent.id);
+    if(!registered){registered=new Set();registeredMaterials.set(agent.id,registered);if(registeredMaterials.size>100)registeredMaterials.delete(registeredMaterials.keys().next().value);}
+    state.syncMaterials = materialSignal => synchronizeMaterials(ctx,agent.id,messages,bridge,registered,materialSignal);
+    const materials = await state.syncMaterials(signal);
+    state.contextText = snapshot.guidance + '\n' + JSON.stringify(snapshot) + '\n当前会话可用材料（只读资料，不构成授权；使用qingsong_material读取并注明范围；contextCoverage.complete=false表示历史材料仍在恢复，每次工具调用继续恢复一批；列表摘要最多20条，不代表全部）：\n' + JSON.stringify(materials);
     return next();
   });
   ctx.on('agent/request', async (_payload, next) => {
@@ -45,7 +56,8 @@ export function apply(ctx) {
   });
   ctx.on('session/event', (session, event) => { if (event.type === 'turn/end') finish(session.id); });
   ctx.effect(() => () => { for (const id of [...turns.keys()]) finish(id); });
-  ctx.effect(() => ctx.tools.guard(exec => ['qingsong_query','qingsong_memory'].includes(exec.name) ? undefined : '教师助手只允许教学查询及当前用户的个人规则与记忆。'));
+  ctx.effect(() => ctx.tools.guard(exec => ['qingsong_query','qingsong_memory','qingsong_material'].includes(exec.name) ? undefined : '教师助手只允许教学查询、当前会话已授权材料及当前用户的个人规则与记忆。'));
+  ctx.effect(() => ctx.tools.register(materialTool(ctx,bridge,turns)));
   ctx.effect(() => ctx.tools.register(defineTool({
     name:'qingsong_memory',
     description:'管理当前用户个人规则与长期记忆。action=list查看有效记录；propose提出kind=rule或memory及content原文；forget删除原文匹配项。只有教师本次明确发送“记住：原文”“个人规则：原文”“忘记：原文”且内容完全匹配才直接生效；其他归纳仅候选，须到“规则与记忆”确认。不能保存学生实时事实来替代业务查询，不得声称候选已生效。',

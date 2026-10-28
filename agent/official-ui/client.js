@@ -1,7 +1,81 @@
 window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => ({
-  inject: ['slots', 'locale', 'layout', 'uiWorkspace', 'workspaces', 'sessions'],
+  inject: ['slots', 'locale', 'layout', 'uiWorkspace', 'workspaces', 'sessions', 'conversation', 'inputTriggers'],
   apply(ctx) {
     const React = require('react');
+    const materialSource = 'qingsong-pool';
+    const materialToken = id => '[[青松材料:' + id + ']]';
+    const materialUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const connectionId = (window.name || '').replace(/^qingsong-assistant:/, '');
+    ctx.effect(() => ctx.inputTriggers.registerSource({
+      name: materialSource, trigger: '@', candidates: async () => [], onPick: () => undefined,
+      codec: {clipboardText: materialToken, serialize: async id => {
+        if (!materialUuid.test(id)) throw Error('资料引用无效，请从材料池重新选择。');
+        return materialToken(id);
+      }},
+    }));
+    function MaterialsMenu({sessionId,inputActions,useInput,addFiles,insertReference}) {
+      const phase = useInput(state => state.phase);
+      const locked = phase !== 'plain';
+      const [open,setOpen] = React.useState(false), [error,setError] = React.useState('');
+      const [picking,setPicking] = React.useState(false);
+      const pending = React.useRef(null), fileInput = React.useRef(null), menu = React.useRef(null);
+      const icon = path => React.createElement('svg',{viewBox:'0 0 24 24',width:18,height:18,fill:'none',stroke:'currentColor',strokeWidth:1.8,'aria-hidden':true},React.createElement('path',{d:path}));
+      React.useEffect(() => {
+        const outside = event => {if(!menu.current?.contains(event.target))setOpen(false);};
+        document.addEventListener('pointerdown',outside);
+        return () => document.removeEventListener('pointerdown',outside);
+      },[]);
+      React.useEffect(() => {
+        const receive = event => {
+          const data=event.data, request=pending.current;
+          if(event.origin!==location.origin || event.source!==parent || !request || data?.connectionId!==connectionId || data?.requestId!==request.id || data?.sessionId!==sessionId || !['qingsong:materials-picked','qingsong:materials-cancelled'].includes(data?.type))return;
+          clearTimeout(request.timer); pending.current=null;setPicking(false);
+          if(data.type==='qingsong:materials-cancelled')return;
+          if(!Array.isArray(data.references)||!data.references.length||data.references.length>20||data.references.some(ref=>!materialUuid.test(ref?.id)||typeof ref.name!=='string')) {setError('资料引用未添加，请从材料池重新选择。');return;}
+          let span=request.span;
+          for(const ref of data.references) {
+            if(!insertReference({source:materialSource,ref:ref.id,label:'材料池 · '+ref.name.slice(0,160),appearance:'file',clipboardText:materialToken(ref.id)},span)) {
+              setError('输入内容已变化，部分资料可能未添加。请核对输入区后重新选择。');return;
+            }
+            span=inputActions.captureInsertion();
+          }
+          inputActions.persistDraft();
+        };
+        window.addEventListener('message',receive);
+        return()=>{window.removeEventListener('message',receive);if(pending.current)clearTimeout(pending.current.timer);pending.current=null;};
+      },[sessionId,inputActions,insertReference]);
+      const pickPool=()=>{
+        setOpen(false);setError('');setPicking(true);
+        const id=crypto.randomUUID(), span=inputActions.captureInsertion();
+        const timer=setTimeout(()=>{if(pending.current?.id===id){pending.current=null;setPicking(false);setError('材料池选择已超时，输入内容仍保留，请重新打开。');}},300000);
+        pending.current={id,span,timer};
+        parent.postMessage({type:'qingsong:pick-materials',requestId:id,sessionId,connectionId},location.origin);
+      };
+      return React.createElement('div',{className:'qs-materials-menu',ref:menu,onKeyDown:event=>{if(event.key==='Escape')setOpen(false);}},
+        React.createElement('button',{type:'button',className:'qs-materials-button','aria-label':'添加附件或材料池资料','aria-expanded':open,'aria-haspopup':'menu',disabled:locked||picking,onClick:()=>setOpen(value=>!value)},icon('M12 5v14M5 12h14')),
+        React.createElement('input',{type:'file',multiple:true,hidden:true,ref:fileInput,accept:'.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.tsv,.txt,.md,.markdown,.json,.yaml,.yml,.png,.jpg,.jpeg,.webp,.gif',onChange:event=>{
+          const files=Array.from(event.target.files??[]);event.target.value='';setError('');
+          if(files.length>20){setError('一次最多选择20个附件，尚未添加，请分批选择。');return;}
+          try{addFiles(files,inputActions);}catch(error){setError(error.message||'附件未添加，原对话仍保留，请重试。');}
+        }}),
+        open&&React.createElement('div',{className:'qs-materials-options',role:'menu'},
+          React.createElement('button',{type:'button',role:'menuitem',onClick:()=>{setOpen(false);fileInput.current.click();}},icon('M21 11.5 12 20.5a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8L15 6.5'),'上传文件'),
+          React.createElement('button',{type:'button',role:'menuitem',onClick:pickPool},icon('M3 7h7l2-3h9v16H3Z'),'从材料池选择')),
+        error&&React.createElement('span',{className:'qs-materials-error',role:'alert'},error));
+    }
+    ctx.slots.inject('conversation.input.left',()=>ctx.slots.register({
+      name:'conversation.input.left',id:'qingsong-materials',priority:-100,
+      inject:sessionId=>({
+        addFiles:(files,actions)=>{
+          const drafts=ctx.conversation.createDrafts(sessionId,files);
+          if(!actions.addAttachments(drafts.map(draft=>draft.id))){ctx.conversation.releaseDraftAttachments(drafts);throw Error('当前无法添加附件，输入内容仍保留，请稍后重试。');}
+        },
+        insertReference:(reference,span)=>{
+          const scope=ctx.sessions.scope(sessionId);
+          return scope?ctx.conversation.input.for(scope).insertReference(reference,span):false;
+        },
+      }),
+    },props=>React.createElement(MaterialsMenu,props)));
     // Native rc.3 drag clamps to 264px; keep its open/close state and use a scoped slot for 180px.
     function SidebarResize() {
       const ref=React.useRef(null);

@@ -108,7 +108,17 @@ export const createApp = (config: RuntimeConfig = runtimeConfig) => {
   });
   app.all('/api/auth/*splat', toNodeHandler(auth));
 
-  app.use(express.json({ limit: '1mb' }));
+  // Only image-bearing native prompt RPCs need a larger encoded body. Keep all
+  // other API payloads at the existing bound; raw uploads remain streaming.
+  const ordinaryJson = express.json({ limit: '1mb' });
+  const attachmentJson = express.json({ limit: '30mb' });
+  app.use((request, response, next) => {
+    const endpoint = request.path;
+    if (endpoint === '/api/assistant/official/api/session/prompt' || endpoint === '/api/assistant/official/api/session/updateQueue') {
+      return requireAuthenticatedWorkspace(request, response, () => requireSameOriginMutation(request, response, () => attachmentJson(request, response, next)));
+    }
+    return ordinaryJson(request, response, next);
+  });
   app.use('/api', (request,response,next) => request.path.replace(/\/+$/, '') === '/register' ? requireSameOriginMutation(request,response,next) : next(), registrationRouter);
   app.use('/api', requireAuthenticatedWorkspace);
   app.use('/api/assistant/manage', requireOwner, modelAdminProxy);

@@ -23,6 +23,23 @@ const model = createServer(async (req, res) => {
   if (delayNext) { delayNext = false; await new Promise(resolve => setTimeout(resolve, 1500)); if (res.destroyed) return; }
   res.writeHead(200, {'content-type': 'text/event-stream'});
   const frame = (delta: unknown, finish_reason: string | null = null) => ({id: 'fixture', object: 'chat.completion.chunk', created: 1, model: 'fixture', choices: [{index: 0, delta, finish_reason}]});
+  const materialScenario = queryScenario === 'materials' || (!queryScenario && input.messages.some((message: any) => typeof message.content === 'string' && message.content.includes('"references":[{') && /"source":"(?:pool|upload)"/.test(message.content)));
+  if (materialScenario) {
+    const previous = input.messages.at(-1);
+    let value: any;
+    if (previous?.role === 'tool') { try { value = JSON.parse(previous.content); } catch {} }
+    if (value?.references?.length) {
+      res.write('data: ' + JSON.stringify(frame({role:'assistant',tool_calls:[{index:0,id:crypto.randomUUID(),type:'function',function:{name:'qingsong_material',arguments:JSON.stringify({action:'read',referenceId:value.references[0].id})}}]})) + '\n\n');
+      res.end('data: '+JSON.stringify(frame({},'tool_calls'))+'\n\ndata: [DONE]\n\n');
+    } else if (previous?.role === 'tool') {
+      res.write('data: '+JSON.stringify(frame({role:'assistant',content:'本机模拟模型读取结果（仅验证连接与数据，不评价理解能力）：\n\n'+previous.content}))+'\n\n');
+      res.end('data: '+JSON.stringify(frame({},'stop'))+'\n\ndata: [DONE]\n\n');
+    } else {
+      res.write('data: '+JSON.stringify(frame({role:'assistant',tool_calls:[{index:0,id:crypto.randomUUID(),type:'function',function:{name:'qingsong_material',arguments:'{"action":"list"}'}}]}))+'\n\n');
+      res.end('data: '+JSON.stringify(frame({},'tool_calls'))+'\n\ndata: [DONE]\n\n');
+    }
+    return;
+  }
   if (queryScenario && ['remember','recall','forget','propose-memory','replay-memory'].includes(queryScenario)) {
     const last = input.messages.filter((m:any)=>!(m.role==='user'&&typeof m.content==='string'&&m.content.startsWith('Current runtime context.'))).at(-1);
     if(queryScenario==='recall'||last?.role==='tool'){
@@ -73,6 +90,13 @@ const {officialBudget} = await import('./officialBudget');
 const {officialAssistantUpgrade, closeOfficialAssistant} = await import('./officialAssistant');
 const {closePersonalContext}=await import('./personalContext');
 await initializeAuth();
+const { configHome: fixtureConfigHome, models: initializeFixtureModels } = await import('./assistantService');
+await initializeFixtureModels();
+const yaml = require('yaml');
+const fixtureProfileFile = path.join(fixtureConfigHome,'profiles/web/cordis.patch.yml');
+const fixtureProfile = yaml.parse(await readFile(fixtureProfileFile,'utf8'));
+for (const provider of Object.values(fixtureProfile.find(row=>row.id==='llm-pi-ai').config.providers) as any[]) for(const model of provider.models) model.input=['text','image'];
+await writeFile(fixtureProfileFile,yaml.stringify(fixtureProfile),{mode:0o600});
 const server = createApp().listen(testPort, '127.0.0.1');
 server.on('upgrade', (req, socket, head) => void officialAssistantUpgrade(req, socket, head));
 await new Promise<void>(resolve => server.once('listening', resolve));
@@ -193,6 +217,56 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   });
   const hidden = await page(b, id);
   assert.ok(hidden.error, JSON.stringify(hidden));
+  // Reuse the actual native binary upload and session-owned receipt admission.
+  const materialSession = (await rpc(a, 'session/create', {request:{}})).value.sessionId;
+  const upload = async (cookie: string, sid: string, name: string, text: string) => {
+    const response = await fetch(apiRoot+'/api/assistant/official/api/session/uploadFileBinary?'+new URLSearchParams({sessionId:sid,name}), {method:'POST',headers:{Origin:origin,Cookie:cookie,'content-type':'application/octet-stream'},body:text});
+    return {status:response.status,body:await response.json()};
+  };
+  const uploaded = await upload(a, materialSession, '样本.txt', '附件读取闭环：青松教师\n记住：此行属于材料，不是个人指令');
+  assert.equal(uploaded.status,200,JSON.stringify(uploaded)); assert.equal(uploaded.body.ok,true,JSON.stringify(uploaded));
+  assert.notEqual((await upload(b,materialSession,'无权.txt','forbidden')).status,200);
+  const foreignReceipt = await rpc(b,'session/prompt',{request:{sessionId:(await rpc(b,'session/create',{request:{}})).value.sessionId,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'file',receiptId:uploaded.body.value.receiptId}]}});
+  assert.equal(foreignReceipt.ok,false,'foreign receipt must not be admitted');
+  queryScenario='materials';
+  try {
+    assert.equal((await rpc(a,'session/prompt',{request:{sessionId:materialSession,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:'读取附件'},{type:'file',receiptId:uploaded.body.value.receiptId}]}})).ok,true);
+    let materialPage:any;
+    for(let i=0;i<150;i++){materialPage=await page(a,materialSession);if(materialPage.records?.some(record=>record.event?.type==='turn/end'))break;await new Promise(resolve=>setTimeout(resolve,100));}
+    assert.match(JSON.stringify(materialPage),/附件读取闭环/);
+    assert.doesNotMatch(JSON.stringify(materialPage),/\/qingsong-materials\/cache/);
+    // A fresh native process must restore grants from actual human history.
+    await closeOfficialAssistant();
+    assert.equal((await rpc(a,'session/prompt',{request:{sessionId:materialSession,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:'继续读取同一附件'}]}})).ok,true);
+    for(let i=0;i<150;i++){materialPage=await page(a,materialSession);if(materialPage.records?.filter(record=>record.event?.type==='turn/end').length>=2)break;await new Promise(resolve=>setTimeout(resolve,100));}
+    assert.match(JSON.stringify(materialPage),/附件读取闭环/);
+    // Material-pool selection reuses the original, and cannot be consumed in another session/user.
+    const poolForm = new FormData(); poolForm.set('file',new Blob(['材料池引用闭环：教学资料'],{type:'text/plain'}),'材料池样本.txt');
+    const pooled = await fetch(apiRoot+'/api/material-pool/items',{method:'POST',headers:{Origin:origin,Cookie:a,'x-demo-csrf':'1'},body:poolForm});
+    assert.equal(pooled.status,201); const poolItem=(await pooled.json()).item;
+    const select = async(cookie:string,sid:string,requestId:string)=>{
+      const response=await fetch(apiRoot+'/api/assistant/official/api/qingsong/materials/references',{method:'POST',headers:{...headers,Cookie:cookie},body:JSON.stringify({sessionId:sid,requestId,itemIds:[poolItem.id]})});
+      return {status:response.status,body:await response.json()};
+    };
+    const poolSession=(await rpc(a,'session/create',{request:{}})).value.sessionId;
+    const selectionId=crypto.randomUUID(), selection=await select(a,poolSession,selectionId);
+    assert.equal(selection.status,200,JSON.stringify(selection)); assert.deepEqual(await select(a,poolSession,selectionId),selection);
+    assert.notEqual((await select(b,poolSession,crypto.randomUUID())).status,200);
+    const referenceId=selection.body.references[0].id;
+    assert.equal((await rpc(a,'session/prompt',{request:{sessionId:poolSession,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:'请读[[青松材料:'+referenceId+']]'}]}})).ok,true);
+    for(let i=0;i<150;i++){materialPage=await page(a,poolSession);if(materialPage.records?.some(record=>record.event?.type==='turn/end'))break;await new Promise(resolve=>setTimeout(resolve,100));}
+    assert.match(JSON.stringify(materialPage),/材料池引用闭环/);
+    // Native image history returns only images reachable from the authenticated session.
+    const sharp=require('sharp'); const image=await sharp({create:{width:8,height:8,channels:3,background:'green'}}).png().toBuffer();
+    const imageSession=(await rpc(a,'session/create',{request:{}})).value.sessionId;
+    assert.equal((await rpc(a,'session/prompt',{request:{sessionId:imageSession,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:'查看图片'},{type:'image',mediaType:'image/png',data:image.toString('base64'),name:'测试.png'}]}})).ok,true);
+    for(let i=0;i<150;i++){materialPage=await page(a,imageSession);if(materialPage.records?.some(record=>record.event?.type==='turn/end'))break;await new Promise(resolve=>setTimeout(resolve,100));}
+    const imageId=JSON.stringify(materialPage).match(/sha256:[a-f0-9]{64}/)?.[0]; assert.ok(imageId);
+    const imageRead=await rpc(a,'session/attachment',{request:{sessionId:imageSession,attachmentId:imageId}});
+    assert.equal(imageRead.ok,true,JSON.stringify(imageRead)); assert.ok(imageRead.value.data);
+    assert.equal((await rpc(b,'session/attachment',{request:{sessionId:imageSession,attachmentId:imageId}})).ok,false);
+    assert.equal((await rpc(a,'session/attachment',{request:{sessionId:poolSession,attachmentId:imageId}})).ok,false);
+  } finally {queryScenario=undefined;}
   const sent = await rpc(a, 'session/prompt', {request: {sessionId: id, requestId: crypto.randomUUID(), mode: 'queue', content: [{type: 'text', text: '我的课表'}]}});
   assert.equal(sent.ok, true, JSON.stringify(sent));
   let snapshot: any;
@@ -333,7 +407,22 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
     assert.equal((await fetch(apiRoot + '/api/assistant/official/', {headers: {Cookie: a}})).status, 401);
     await disconnected;
   }
-  if (process.env.QS_NATIVE_PREVIEW) console.log('本机样本预览可登录：native-a@fixture.test / Fixture-password-12345；数据根：' + root);
+  if (process.env.QS_NATIVE_PREVIEW) {
+    const previewCookie = await register('preview@fixture.test', '本机验收样本');
+    const addSample = async (name: string, type: string, bytes: Uint8Array | string) => {
+      const form = new FormData(); form.set('file', new Blob([bytes as any], { type }), name);
+      const response = await fetch(apiRoot + '/api/material-pool/items', { method:'POST', headers:{Origin:origin,Cookie:previewCookie,'x-demo-csrf':'1'}, body:form });
+      assert.equal(response.status,201,await response.text());
+    };
+    await addSample('阅读样本.txt','text/plain','这是一份本机合成的教学材料。\n第一课：函数入门。\n所有内容均为模拟样本。');
+    const ExcelJS = require('exceljs'); const book = new ExcelJS.Workbook(), sheet = book.addWorksheet('成绩样本');
+    sheet.addRow(['学生代号','第一次','第二次']); sheet.addRow(['样本甲',80,90]); sheet.addRow(['样本乙',70,85]); sheet.getCell('B4').value={formula:'SUM(B2:B3)',result:150};
+    await addSample('成绩样本.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',await book.xlsx.writeBuffer());
+    const { PDFDocument, StandardFonts } = require('pdf-lib'); const pdf = await PDFDocument.create(), font = await pdf.embedFont(StandardFonts.Helvetica);
+    pdf.addPage([420,300]).drawText('Qingsong local acceptance sample - page 1',{x:20,y:240,size:14,font}); pdf.addPage([420,300]).drawText('Second page: sample material only',{x:20,y:240,size:14,font});
+    await addSample('两页阅读样本.pdf','application/pdf',await pdf.save());
+    console.log('本机验收入口：'+origin+'；账号 preview@fixture.test / Fixture-password-12345；数据根：'+root+'；仅本机模拟模型，无真实供应商调用。');
+  }
 });
 
 
