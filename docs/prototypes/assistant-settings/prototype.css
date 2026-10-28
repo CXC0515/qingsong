@@ -1997,3 +1997,64 @@ body > svg[width="0"][height="0"] {
     padding: 0 12px;
   }
 }
+.memory-toolbar {
+  justify-content: space-between;
+  gap: 8px;
+}
+.memory-toolbar > .compact-status {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: #e9ede580;
+}
+.memory-toolbar .compact-status .lg-segmented button {
+  font-size: 12px;
+  min-height: 44px;
+  padding: 0 9px;
+  white-space: nowrap;
+}
+.memory-toolbar .compact-status .lg-segmented {
+  gap: 0;
+  padding: 3px;
+}
+.background-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 14px;
+}
+.background-actions:has(#memory-actions:empty) {
+  display: none;
+}
+.compact-status #background-segments {
+  width: max-content;
+}
+#preview.phone .memory-toolbar > .compact-status {
+  width: auto;
+  margin-left: auto;
+}
+#preview.phone .memory-toolbar > #memory-segments {
+  max-width: 100%;
+}
+@media (max-width: 700px) {
+  .memory-toolbar {
+    gap: 8px;
+  }
+  .memory-toolbar .lg-segmented button {
+    padding: 0 11px;
+  }
+  .memory-toolbar > .compact-status {
+    width: auto;
+    margin-left: auto;
+  }
+  .memory-toolbar .compact-status .lg-segmented button {
+    font-size: 12px;
+    padding: 0 8px;
+  }
+}
+@media (max-width: 700px) {
+  .memory-toolbar .lg-segmented button {
+    padding: 0 8px;
+  }
+  .memory-toolbar .compact-status .lg-segmented button {
+    padding: 0 6px;
+  }
+}

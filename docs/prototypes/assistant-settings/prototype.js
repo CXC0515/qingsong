@@ -1679,8 +1679,8 @@ function toast(text) {
 function pendingMemoryCount() {
   return records.filter((r) => r.kind === "memory" && r.status === "candidate").length;
 }
-function attachSegments(host, value, onChange) {
-  const api = mountSegmented(host, { value, trackRim: false, liftPx: 2, glass: { theme: "light", lightAngle: 225, reflection: 1 }, onChange });
+function attachSegments(host, value, onChange, { compact = false } = {}) {
+  const api = mountSegmented(host, { value, trackRim: false, liftPx: 2, ...compact ? { stretch: 0.098, bulge: 0.238, liftPx: 1.4 } : {}, glass: { theme: "light", lightAngle: 225, reflection: 1 }, onChange });
   materials.set(host, api);
   return api;
 }
@@ -1770,29 +1770,30 @@ function renderPrompt() {
   };
 }
 function renderMemory() {
-  content.innerHTML = `<div class="memory-toolbar"><div class="segment-wrap"><div id="memory-segments"><button data-value="work">\u534F\u4F5C\u4E8B\u9879</button><button data-value="saved">\u957F\u671F\u80CC\u666F</button></div></div></div><div id="memory-body"></div>`;
+  content.innerHTML = `<div class="memory-toolbar"><div class="segment-wrap"><div id="memory-segments"><button data-value="work">\u534F\u4F5C\u4E8B\u9879</button><button data-value="saved">\u957F\u671F\u80CC\u666F</button></div></div><div id="background-status-tools" class="segment-wrap compact-status"><div id="background-segments" aria-label="\u957F\u671F\u80CC\u666F\u72B6\u6001"><button data-value="saved">\u5DF2\u4FDD\u5B58</button><button data-value="pending">\u5F85\u786E\u8BA4${pendingMemoryCount() ? ` \xB7 ${pendingMemoryCount()}` : ""}</button></div></div></div><div id="memory-body"></div>`;
   attachSegments($("#memory-segments"), memoryFilter, (value) => {
     memoryFilter = value;
     query = "";
     selectedWork = null;
     renderMemoryBody();
   });
+  attachSegments($("#background-segments"), backgroundFilter, (value) => {
+    backgroundFilter = value;
+    query = "";
+    renderBackgroundBody();
+  }, { compact: true });
   renderMemoryBody();
 }
 function renderMemoryBody() {
   const body = $("#memory-body");
   disposeWithin(body);
+  $("#background-status-tools").hidden = memoryFilter !== "saved";
   if (memoryFilter === "work") {
     renderWork();
     hydrate(body);
     return;
   }
-  body.innerHTML = `<div class="background-toolbar"><div class="segment-wrap"><div id="background-segments"><button data-value="saved">\u5DF2\u4FDD\u5B58</button><button data-value="pending">\u5F85\u786E\u8BA4${pendingMemoryCount() ? ` \xB7 ${pendingMemoryCount()}` : ""}</button></div></div><div id="memory-actions"></div></div><div id="background-body"></div>`;
-  attachSegments($("#background-segments"), backgroundFilter, (value) => {
-    backgroundFilter = value;
-    query = "";
-    renderBackgroundBody();
-  });
+  body.innerHTML = `<div class="background-actions"><div id="memory-actions"></div></div><div id="background-body"></div>`;
   renderBackgroundBody();
 }
 function renderBackgroundBody() {
