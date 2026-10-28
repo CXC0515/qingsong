@@ -1,6 +1,6 @@
 # 助手设置与手机入口收敛方案
 
-版本：1.1 · 2026-10-28 · 状态：本地代码完成，待用户网页/手机验收；未部署。
+版本：1.2 · 2026-10-28 · 状态：PR #93已合并并部署，待用户网页/手机验收。
 
 ## 本次概要与授权
 
@@ -63,3 +63,20 @@
 ## 追加发布授权（2026-10-28）
 
 用户指出未推送部署无法在正式站验收，要求交付可验收实例。本聊天据此追加功能分支推送、PR、合并、母文件夹同步打包及备份部署授权。先核对生产与活动任务，用服务器固定Node24.22.1补齐验证；停写在线恢复点校验后原子切换，核对健康、资源和匿名权限。网页与真实模型验收仍由用户负责。保留旧发布和恢复点，本轮不清理备份或数据，不修改模型配置。
+
+## 生产发布记录（2026-10-28）
+
+- PR #93合并为 `db56430dfbc99dba8efc83a2f065a3b017177b8c`。母文件夹main同步后打包，SHA256 `f8b796c7e845442a0215c88ea1de8bf6904cba88d7c171ff6fc2218513d77881`，服务器回读一致。
+- 新release在服务器Node24.22.1下分别完成根/agent原锁文件npm ci、类型检查、构建、JS语法及5项个人上下文/来源、2项原生运行、1项完整双教师HTTP集成，全部通过。补齐本机Node版本不一致的验证缺口，真实供应商调用0。
+- 构建与切换使用独立transient systemd任务：`qs-settings-build-db56430`、`qs-settings-switch-db56430`；两者Result=success、ExecMainStatus=0，有明确完成标记。旧服务在构建期间保持运行。
+- 切换前业务SQLite未发现queued/running/processing等活动状态；原生3个会话、13次turn/start与13次turn/end，无未结束生成。停写后在线恢复点 `/var/lib/teacher-dashboard/backups/manual/product-2026-10-28-pre-settings-db56430` 创建并验证：1311文件、8SQLite。保留既有备份和旧release，不扩大清理范围。
+- 13:06（北京时间）current切至完整SHA新release，服务active/running，MainPID1718433、NRestarts0，备份timer恢复active。回环live/ready正常，8库完整性ok、外键错误0；切换前后原有库schema无变化、业务库计数/内容哈希一致，没有业务迁移或数据恢复。
+- 开始核验时曾以普通SSH用户访问受保护release而被拒，改为sudo只读核验；公网大JS首次读取发生IncompleteRead，按完整重新读取校验，不接受部分文件哈希作为证据。
+- 网页、手机、软键盘与真实模型行为仍由用户验收；服务及静态资源核对不替代产品验收。用户应在正式站刷新后查看本次功能。
+
+- 1.2 / 2026-10-28：按用户追加授权完成PR合并、Node24.22.1服务器检查、在线备份与生产切换。
+
+公网最终核验：live/ready均200且ok=true；未登录account、personal-context、official均401。以下公网完整文件SHA256与服务器dist一致：
+
+- `/assets/index-B9WyJUvr.js`：`cdaae5eea6fed177293522707e0acf8585103e309f2de801f5f784d081e8e601`。
+- `/assets/index-DEYK_mV1.css`：`3c651606f5cdc73707663ebf4d0c87219b251e3f5e8738e2932f3312660414e9`。
