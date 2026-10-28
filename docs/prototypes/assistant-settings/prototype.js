@@ -1677,7 +1677,6 @@ function pendingMemoryCount() {
 function renderLinks() {
   const data = settingsArea === "general" ? [["metrics", "sliders", "OCR \u4E0E\u8BC4\u5206"]] : [["rules", "rules", "\u4E2A\u4EBA\u6307\u4EE4"], ["memory", "memory", "\u8BB0\u5FC6\u4E0E\u4E8B\u9879"], ["capabilities", "sliders", "\u52A9\u624B\u80FD\u529B"]];
   $(".settings-nav h1").textContent = settingsArea === "general" ? "\u4E3B\u8BBE\u7F6E" : "\u4F1A\u8BDD\u8BBE\u7F6E";
-  $(".settings-nav>.nav-caption").textContent = settingsArea === "general" ? "\u9752\u677E\u6559\u5E08" : "AI \u52A9\u624B";
   $(".nav-note").hidden = true;
   const pending = pendingMemoryCount();
   $("#settings-links").innerHTML = data.map(([id, i, label]) => `<button class="settings-link" data-section="${id}" ${section === id ? 'aria-current="page"' : ""}>${icon(i)}<span>${label}</span>${id === "memory" && pending ? `<span class="nav-count" aria-label="${pending}\u6761\u5F85\u786E\u8BA4">${pending}</span>` : ""}</button>`).join("");
