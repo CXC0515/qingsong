@@ -19,3 +19,13 @@ export const requireSameOriginMutation = (request: Request, response: Response, 
   if (request.header('x-demo-csrf') !== '1') return response.status(403).json({ code: 'CSRF_CHECK_FAILED' });
   next();
 };
+
+// DSH sends same-origin JSON RPCs without our business application's CSRF header.
+export const requireNativeSameOriginMutation = (request: Request, response: Response, next: NextFunction) => {
+  if (safeMethods.has(request.method)) return next();
+  const site=request.header('sec-fetch-site');
+  if(request.header('origin')!==expectedOrigin||(site&&site!=='same-origin')||!request.is('application/json')) {
+    return response.status(403).json({code:'CSRF_CHECK_FAILED',message:'助手请求来源或格式不符，本条消息未发送。请从青松工作台重新打开助手后重试。'});
+  }
+  next();
+};
