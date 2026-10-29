@@ -5,6 +5,7 @@ import ResponsiveChoiceDialog from '../../components/ResponsiveChoiceDialog';
 import ResponsiveDialog from '../../components/ResponsiveDialog';
 import {apiFetch} from '../../services/apiClient';
 import {generationFields,generationKey,type GenerationAdminState,type GenerationValues,type GenerationField} from '../../domain/generationPolicy';
+import TemperatureControl from './TemperatureControl';
 
 const effortLabels:Record<string,string>={minimal:'极低',low:'低',medium:'中',high:'高',xhigh:'更高',max:'最高'};
 const labels:Record<GenerationField,{label:string;hint:string}>={
@@ -48,9 +49,9 @@ export default function GenerationSettingsPanel({onDirtyChange}:{onDirtyChange:(
       <div className="qs-admin-parameter-list">{generationFields.map(field=>{
         const capability=model.capabilities[field],value=draft[field],copy=labels[field];
         return <div className="qs-admin-parameter" key={field}><label htmlFor={'generation-'+field}><strong>{copy.label}</strong><span>{copy.hint}</span>{!capability.supported&&<small>{capability.reason}</small>}</label><div className="qs-admin-value">
-          {field==='reasoningEffort'?<GlassButton id={'generation-'+field} disabled={saving||!capability.supported} onClick={()=>setPicker('reasoning')} className="qs-admin-choice" aria-haspopup="dialog"><span>{(effortLabels[String(value)]??value)??'模型默认值'}</span><ChevronDown className="h-4 w-4 shrink-0" /></GlassButton>:<input id={'generation-'+field} aria-label={copy.label} className="qs-field-input" type="number" inputMode={capability.limits?.step===1?'numeric':'decimal'} min={capability.limits?.min} max={capability.limits?.max} step={capability.limits?.step??'any'} placeholder={capability.supported?'模型默认值':'当前不可配置'} value={value??''} disabled={saving||!capability.supported} onChange={event=>{const text=event.target.value;setDraft(previous=>previous?{...previous,[field]:text===''?null:Number(text)}:previous);setNotice('');}} />}
+          {field==='temperature'?<TemperatureControl value={draft.temperature} disabled={saving||!capability.supported} onChange={temperature=>{setDraft(previous=>previous?{...previous,temperature}:previous);setNotice('');}}/>:field==='reasoningEffort'?<GlassButton id={'generation-'+field} disabled={saving||!capability.supported} onClick={()=>setPicker('reasoning')} className="qs-admin-choice" aria-haspopup="dialog"><span>{(effortLabels[String(value)]??value)??'模型默认值'}</span><ChevronDown className="h-4 w-4 shrink-0" /></GlassButton>:<input id={'generation-'+field} aria-label={copy.label} className="qs-field-input" type="number" inputMode={capability.limits?.step===1?'numeric':'decimal'} min={capability.limits?.min} max={capability.limits?.max} step={capability.limits?.step??'any'} placeholder={capability.supported?'模型默认值':'当前不可配置'} value={value??''} disabled={saving||!capability.supported} onChange={event=>{const text=event.target.value;setDraft(previous=>previous?{...previous,[field]:text===''?null:Number(text)}:previous);setNotice('');}} />}
           {!capability.supported&&value!==null&&<GlassButton disabled={saving} onClick={()=>setDraft(previous=>previous?{...previous,[field]:null}:previous)}>恢复模型默认值</GlassButton>}
-          {capability.limits&&<small>{capability.limits.min} — {capability.limits.max}</small>}
+          {field!=='temperature'&&capability.limits&&<small>{capability.limits.min} — {capability.limits.max}</small>}
         </div></div>;
       })}</div>
     </section>}
