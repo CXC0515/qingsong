@@ -66,7 +66,7 @@ export async function prepareOfficialRuntime({home, configHome}) {
 教师没听懂时，换成具体例子解释，不重复堆砌概念。
 出现错误时直接承认并纠正，不争辩、不推责。
 不刻意奉承，不用过度热情或幼稚化的表达。`;
-  const disabled = [...disabledTools, 'llm-deepseek', 'preset-standard', 'preset-minimal', 'preset-ptc', 'preset-cordis', 'session-title-llm', 'session-title-first-prompt-llm', 'session-title-all-prompts-llm', 'workspace-files', 'terminal-controller', 'directory-picker', 'cordis-host-runner', 'cordis-client-runner', 'plugin-manager', 'tool-plugin-manager', 'ui-plugin-manager', 'entry-customization', 'ui-settings-plugins', 'ui-sidebar-files', 'ui-sidebar-terminal', 'ui-sidebar-documentpreview', 'ui-open-in-app', 'open-in-app', 'schedule', 'file-reference-local', 'ui-cordis', 'ui-settings-models', 'ui-settings-account', 'ui-settings-plugin-inventory', 'ui-schedule', 'ui-settings-shell', 'ui-settings-agent-loop', 'ui-settings-subagent', 'ui-settings-web-search', 'harness-dev-context', 'ui-permission', 'ui-plan'];
+  const disabled = [...disabledTools, 'skill-filesystem', 'skill-office', 'experimental-badge-skill-bundle', 'skill-badge', 'llm-deepseek', 'preset-standard', 'preset-minimal', 'preset-ptc', 'preset-cordis', 'session-title-llm', 'session-title-first-prompt-llm', 'session-title-all-prompts-llm', 'workspace-files', 'terminal-controller', 'directory-picker', 'cordis-host-runner', 'cordis-client-runner', 'plugin-manager', 'tool-plugin-manager', 'ui-plugin-manager', 'entry-customization', 'ui-settings-plugins', 'ui-sidebar-files', 'ui-sidebar-terminal', 'ui-sidebar-documentpreview', 'ui-open-in-app', 'open-in-app', 'schedule', 'file-reference-local', 'ui-cordis', 'ui-settings-models', 'ui-settings-account', 'ui-settings-plugin-inventory', 'ui-schedule', 'ui-settings-shell', 'ui-settings-agent-loop', 'ui-settings-subagent', 'ui-settings-web-search', 'harness-dev-context', 'ui-permission', 'ui-plan'];
   return [
     ...disabled.map(id => ({id, disabled: true})),
     {id: 'locale', config: {preference: 'zh-CN-x-qingsong'}},
@@ -78,6 +78,8 @@ export async function prepareOfficialRuntime({home, configHome}) {
       {id: 'llm-pi-ai', name: '@deepseek-ai/dsh-llm-pi-ai', config: {providers}},
       ...(first ? [{id: 'agent-default-model', name: '@deepseek-ai/dsh-agent-default-model', config: {provider: first[0], model: first[1].models[0].id}}] : []),
       {id: 'qingsong-preset', name: '@deepseek-ai/dsh-agent-preset', config: {id: 'qingsong', name: '教学助手', order: -1, plugins: []}},
+      {id:'qingsong-skill-tool',name:'@deepseek-ai/dsh-tool-skill'},
+      {id:'qingsong-business-skills', name:path.join(agentDirectory,'official-skills.mjs')},
       {id: 'qingsong-teaching', name: path.join(agentDirectory, 'official-teaching.mjs')},
       {id: 'qingsong-ui', name: path.join(agentDirectory, 'official-ui/index.mjs')},
     ]},

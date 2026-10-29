@@ -1,3 +1,4 @@
+import {assistantObjects} from '../../domain/assistantCapabilities';
 import {useEffect,useRef,useState} from 'react';
 import {ChevronRight,Plus,Settings} from 'lucide-react';
 import ResponsiveDialog from '../../components/ResponsiveDialog';
@@ -41,7 +42,7 @@ export default function PersonalContextPanel({active,onClose,onDirtyChange,onBus
           <div>{records.length?records.map(e=><button className="qs-context-row" key={e.id} onClick={()=>edit(e)}><span>{e.content}<small>{labels[e.status]} · {new Date(e.updatedAt).toLocaleDateString('zh-CN')}</small></span><ChevronRight size={16}/></button>):<p className="qs-context-empty">{filter==='pending'?'暂无待确认背景。':'暂无匹配的长期背景。'}</p>}</div>
         </>}
       </>}
-      <details className="qs-context-disclosure"><summary>能力与权限</summary><p>查询已开放的名单、课表、课堂任务、座位、提醒和部分学生记录。学生主体由教师手动维护；业务写入、资料检索及批改查询尚未开放。个人指令与背景按本人跨会话生效，不扩大权限。</p><p>指令合计最多3000字；有期限的规则单独保留。记忆停用、到期或删除后不再召回，历史对话与备份仍保留。</p><GlassButton disabled={store.busy} onClick={()=>void store.refresh().catch(e=>store.setError(String(e)))}>刷新记录</GlassButton></details>
+      <details className="qs-context-disclosure"><summary>能力与权限</summary><p>可查找并读取{Object.values(assistantObjects).map(object=>object.label.split('（')[0]).join('、')}，也可读取已保存的座位安排。内容限当前账号有权访问的已有记录；会话附件及材料池资料仍需上传或明确选用。学生主体由教师手动维护，业务写入尚未开放。个人指令与背景按本人跨会话生效，不扩大权限。</p><p>指令合计最多3000字；有期限的规则单独保留。记忆停用、到期或删除后不再召回，历史对话与备份仍保留。</p><GlassButton disabled={store.busy} onClick={()=>void store.refresh().catch(e=>store.setError(String(e)))}>刷新记录</GlassButton></details>
     </main>
     {active&&dialog&&<ResponsiveDialog title={entry?.kind==='rule'?'个人规则':entry?.status==='candidate'?'确认长期背景':entry?'编辑长期背景':'新增长期背景'} onClose={()=>{if(!store.busy){if(dirty)setConfirm('discard');else closeEntry();}}}>
       <div className="space-y-4"><label className="block">内容<textarea className="qs-field-input mt-2 min-h-40 w-full text-base" value={text} maxLength={600} disabled={store.busy||Boolean(entry?.kind==='rule'&&entry.content.length>600)} onChange={e=>setText(e.target.value)}/></label><label className="block">有效至<input type="date" className="qs-field-input mt-2 w-full" value={expiry} disabled={store.busy} onChange={e=>setExpiry(e.target.value)}/></label>

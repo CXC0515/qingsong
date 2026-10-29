@@ -1,3 +1,5 @@
+import {retrieveTeachingContext} from '../services/resources/resourceRetrievalService';
+import { WorkspaceDataReadError } from '../repositories/workspaceFileStore';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -578,76 +580,7 @@ router.post("/resource-retrieval/teaching-context", (request, response) => {
     preferredResourceIds = [],
     limit,
   } = parsed.data;
-  const resources = resourceRepository.listResources();
-  const allowedResource = (resourceId: string) => {
-    const resource = resources.find((item) => item.id === resourceId);
-    return (
-      resource &&
-      (!resourceKinds?.length || resourceKinds.includes(resource.kind))
-    );
-  };
-  const nodes = resourceRepository.searchNodes(query, subject, limit);
-  const nodeIds = new Set(nodes.map((node) => node.id));
-  const graphLinks = resourceRepository
-    .listSourceLinks()
-    .filter(
-      (link) => nodeIds.has(link.nodeId) && allowedResource(link.resourceId),
-    );
-  const graphChunks = resourceRepository.getChunksByIds(
-    graphLinks.map((link) => link.chunkId),
-  );
-  const fallbackChunks = graphLinks.length
-    ? []
-    : resourceRepository
-        .searchChunks(query, limit * 2)
-        .filter((chunk) => allowedResource(chunk.resourceId));
-  const chunks = (graphChunks.length ? graphChunks : fallbackChunks)
-    .sort((first, second) => {
-      const firstResource = resources.find(
-        (item) => item.id === first.resourceId,
-      );
-      const secondResource = resources.find(
-        (item) => item.id === second.resourceId,
-      );
-      const priority = (resource?: typeof firstResource) =>
-        preferredResourceIds.includes(resource?.id ?? "")
-          ? 3
-          : resource?.isPrimary
-            ? 2
-            : resource?.kind === "textbook"
-              ? 1
-              : 0;
-      return (
-        priority(secondResource) - priority(firstResource) ||
-        first.order - second.order
-      );
-    })
-    .slice(0, limit);
-  response.json({
-    mode: graphLinks.length ? "knowledge-graph" : "content-fallback",
-    matchedNodes: nodes,
-    relations: resourceRepository
-      .listRelations()
-      .filter(
-        (relation) =>
-          nodeIds.has(relation.sourceNodeId) ||
-          nodeIds.has(relation.targetNodeId),
-      ),
-    citations: chunks.map((chunk) => {
-      const resource = resources.find((item) => item.id === chunk.resourceId)!;
-      return {
-        resourceId: resource.id,
-        resourceTitle: resource.title,
-        resourceKind: resource.kind,
-        chunkId: chunk.id,
-        pageStart: chunk.pageStart,
-        pageEnd: chunk.pageEnd,
-        quote: chunk.text,
-        sourceUrl: `${resource.publicUrl}#page=${chunk.pageStart}`,
-        isPrimary: resource.isPrimary,
-      };
-    }),
-  });
+  response.json(retrieveTeachingContext({query,subject,resourceKinds,preferredResourceIds,limit}));
 });
 
 router.post("/knowledge/nodes", (request, response) => {
@@ -818,6 +751,11 @@ router.post("/knowledge/suggestions/batch-review", (request, response) => {
     return result ? [result] : [];
   });
   response.json({ suggestions });
+});
+
+router.use((error: unknown, _request: import('express').Request, response: import('express').Response, next: import('express').NextFunction) => {
+  if (error instanceof WorkspaceDataReadError) {response.status(503).json({code:error.code,message:error.message,saved:false});return;}
+  next(error);
 });
 
 export default router;

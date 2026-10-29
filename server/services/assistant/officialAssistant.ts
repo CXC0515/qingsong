@@ -1,3 +1,5 @@
+import { assistantCapability, CapabilityError } from './capabilities';
+import { WorkspaceDataReadError } from '../../repositories/workspaceFileStore';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer, request as httpRequest, type IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
@@ -11,7 +13,6 @@ import { runtimeConfig } from '../../config/runtimeConfig';
 import { getModelConfig } from '../../config/modelConfig';
 import { getWorkspaceContext, createWorkspaceContext, runWithWorkspace, type WorkspaceContext } from '../../context/workspaceContext';
 import { configHome, models } from './assistantService';
-import { teachingQuery } from './teachingQueries';
 import {recallPersonalContext, personalTool, explicitPersonalCommand, PersonalContextError} from './personalContext';
 import { officialBudget } from './officialBudget';
 import {teachingFailure, officialAssetCache} from './officialResponses';
@@ -172,15 +173,20 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
             : personalTool(body.input, {type:'chat',sessionId:body.sessionId,workspaceId:context.workspaceId,messageId:body.messageId,turn:body.turn}, trusted));
           res.end(JSON.stringify(result));
         }
-        else if (body.kind === 'query') {
-          const value = runWithWorkspace(context, () => teachingQuery(body.input));
-          // Absolute app links stay in the teacher workspace and never resolve beneath the iframe mount.
-          value.sources = value.sources.map(source => ({...source, url: new URL(source.url, runtimeConfig.appUrl).href}));
+        else if (body.kind === 'capability') {
+          const controller = new AbortController();
+          req.once('aborted', () => controller.abort());
+          res.once('close', () => {if(!res.writableFinished)controller.abort();});
+          const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(90000)]);
+          const value = await runWithWorkspace(context, () => assistantCapability(body.action, body.input,signal));
+          await authorizeInstance(instance);
+          value.sources = value.sources.map(source => ({...source, url:new URL(source.url,runtimeConfig.appUrl).href}));
           res.end(JSON.stringify(value));
-        } else throw Error('INVALID_OPERATION');
+        }
+        else throw Error('INVALID_OPERATION');
       } catch (error) {
         if (!res.headersSent) res.writeHead(400);
-        const failure = error instanceof PersonalContextError || error instanceof AssistantMaterialError || error instanceof AssistantMaterialReadError ? {code:error.code,message:error.message} : (error as Error).message === 'MATERIAL_STORAGE_LIMIT' ? { code: 'MATERIAL_STORAGE_LIMIT', message: '附件与解析缓存已达到当前用户512MB限制，原件和对话仍保留，请减少材料或联系管理员。' } : teachingFailure(error);
+        const failure = error instanceof CapabilityError || error instanceof WorkspaceDataReadError || error instanceof PersonalContextError || error instanceof AssistantMaterialError || error instanceof AssistantMaterialReadError ? {code:error.code,message:error.message} : (error as Error).message === 'MATERIAL_STORAGE_LIMIT' ? { code: 'MATERIAL_STORAGE_LIMIT', message: '附件与解析缓存已达到当前用户512MB限制，原件和对话仍保留，请减少材料或联系管理员。' } : teachingFailure(error);
         logEvent('warn', 'assistant_tool_failed', {code: failure.code});
         res.end(JSON.stringify(failure));
       }

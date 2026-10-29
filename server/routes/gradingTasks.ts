@@ -1,3 +1,4 @@
+import { WorkspaceDataReadError } from '../repositories/workspaceFileStore';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -1134,6 +1135,11 @@ router.post('/:taskId/analysis', async (request, response) => {
     const failure = classifyQuestionAnalysisError(message);
     response.status(failure.statusCode).json({ code: failure.code });
   }
+});
+
+router.use((error: unknown, _request: import('express').Request, response: import('express').Response, next: import('express').NextFunction) => {
+  if (error instanceof WorkspaceDataReadError) {response.status(503).json({code:error.code,message:error.message,saved:false});return;}
+  next(error);
 });
 
 export default router;

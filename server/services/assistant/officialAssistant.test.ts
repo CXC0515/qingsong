@@ -54,24 +54,33 @@ const model = createServer(async (req, res) => {
     return;
   }
   if (queryScenario) {
-    const previous = input.messages?.at(-1);
-    const result = previous?.role === 'tool' && queryScenario === 'committee' ? JSON.parse(previous.content) : undefined;
-    if (previous?.role !== 'tool' || (queryScenario === 'committee' && result.data?.classes)) {
-      const args = queryScenario === 'capabilities' ? {kind: 'capabilities'} : queryScenario === 'unsupported' ? {kind: 'grading'} : queryScenario === 'committee' && result ? {kind: 'roster', classId: result.data.classes[0].id} : ['committee','classes'].includes(queryScenario) ? {kind: 'classes'} : {kind: 'roster', classId: '甲教师专属班'};
-      res.write('data: ' + JSON.stringify(frame({role: 'assistant', tool_calls: [{index: 0, id: crypto.randomUUID(), type: 'function', function: {name: 'qingsong_query', arguments: JSON.stringify(args)}}]})) + '\n\n');
-      res.end('data: ' + JSON.stringify(frame({}, 'tool_calls')) + '\n\ndata: [DONE]\n\n');
-    } else {
-      res.write('data: ' + JSON.stringify(frame({role: 'assistant', content: input.messages.at(-1).content})) + '\n\n');
-      res.end('data: ' + JSON.stringify(frame({}, 'stop')) + '\n\ndata: [DONE]\n\n');
+    const previous=input.messages?.at(-1);
+    const result=previous?.role==='tool'&&['committee','resource-read','grading-read'].includes(queryScenario)?JSON.parse(previous.content):undefined;
+    if(previous?.role!=='tool'||(result?.data?.items?.[0]?.ref&&result.data.items[0].ref.type===({committee:'class','resource-read':'resource','grading-read':'grading'}[queryScenario]))){
+      let name='qingsong_search',args:any={type:'class'};
+      if(queryScenario==='capabilities'){name='qingsong_discover';args={};}
+      else if(queryScenario==='unsupported'){args={type:'arbitrary-table'};}
+      else if(queryScenario==='invalid-class'){name='qingsong_read';args={ref:{type:'class',id:'甲教师专属班'}};}
+      else if(['resource-read','grading-read'].includes(queryScenario)){
+        if(result){name='qingsong_read';args={ref:result.data.items[0].ref,section:queryScenario==='resource-read'?'chunks':'trial'};}
+        else args={type:queryScenario==='resource-read'?'resource':'grading',query:queryScenario==='resource-read'?'fixture-native-resource':'fixture-native-grading'};
+      }
+      else if(queryScenario==='committee'&&result){name='qingsong_read';args={ref:result.data.items[0].ref,section:'students'};}
+      else if(queryScenario==='skill'){name='skill';args={name:'system-data'};}
+      res.write('data: '+JSON.stringify(frame({role:'assistant',tool_calls:[{index:0,id:crypto.randomUUID(),type:'function',function:{name,arguments:JSON.stringify(args)}}]}))+'\n\n');
+      res.end('data: '+JSON.stringify(frame({},'tool_calls'))+'\n\ndata: [DONE]\n\n');
+    }else{
+      res.write('data: '+JSON.stringify(frame({role:'assistant',content:previous.content}))+'\n\n');
+      res.end('data: '+JSON.stringify(frame({},'stop'))+'\n\ndata: [DONE]\n\n');
     }
     return;
   }
   if (input.messages?.at(-1)?.role !== 'tool') {
-    res.write('data: ' + JSON.stringify(frame({role: 'assistant', tool_calls: [{index: 0, id: crypto.randomUUID(), type: 'function', function: {name: 'qingsong_query', arguments: '{"kind":"schedule"}'}}]})) + '\n\n');
+    res.write('data: ' + JSON.stringify(frame({role: 'assistant', tool_calls: [{index: 0, id: crypto.randomUUID(), type: 'function', function: {name: 'qingsong_search', arguments: '{"type":"class"}'}}]})) + '\n\n');
     res.end('data: ' + JSON.stringify(frame({}, 'tool_calls')) + '\n\ndata: [DONE]\n\n');
   } else {
     const result = JSON.parse(input.messages.at(-1).content);
-    const answer = '样本查询结果：\n\n| 班级 | 年级 | 学生数 |\n| --- | --- | --- |\n' + result.data.classes.map(c => '| ' + c.name + ' | ' + c.grade + ' | ' + c.studentCount + ' |').join('\n') + '\n\n今天暂无课程。\n\n[查看课表与班级](' + result.sources[0].url + ')\n\n*这是本机假模型样本，只验证界面与工具连接。*';
+    const answer = '样本查询结果：\n\n| 班级 | 年级 | 学生数 |\n| --- | --- | --- |\n' + result.data.items.map(c => '| ' + c.name + ' | ' + c.grade + ' | ' + c.studentCount + ' |').join('\n') + '\n\n今天暂无课程。\n\n[查看课表与班级](' + result.sources[0].url + ')\n\n*这是本机假模型样本，只验证界面与工具连接。*';
     res.write('data: ' + JSON.stringify(frame({role: 'assistant', content: answer})) + '\n\n');
     res.end('data: ' + JSON.stringify(frame({}, 'stop')) + '\n\ndata: [DONE]\n\n');
   }
@@ -84,6 +93,9 @@ const {getAuthDatabase, closeAuthDatabase} = await import('../../database/authDa
 const {closeRosterDatabase} = await import('../../database/rosterDatabase');
 const {closeResourceDatabase} = await import('../../database/resourceDatabase');
 const {createWorkspaceContext, runWithWorkspace} = await import('../../context/workspaceContext');
+const {resourceRepository}=await import('../../repositories/resourceRepository');
+const {saveGradingTask}=await import('../../repositories/gradingTaskRepository');
+const {saveTrialGradingResult}=await import('../../repositories/trialGradingRepository');
 const {createClass,createStudent,listCommitteeRoles} = await import('../../repositories/rosterRepository');
 const {createApp} = await import('../../app');
 const {officialBudget} = await import('./officialBudget');
@@ -119,6 +131,11 @@ async function register(email: string, className: string, role:'teacher'|'owner'
   runWithWorkspace(createWorkspaceContext(row.user_id, row.workspace_id, row.role), () => {
     const c = createClass({name: className, grade: '七年级', term: '2026秋', headTeacher: className, status: 'active'});
     createStudent({classId: c.id, name: className + '班长', studentNo: '1', gender: 'female', committeeRoleIds: [listCommitteeRoles().find(role => role.name === '班长')!.id]});
+    const rid=crypto.randomUUID();
+    resourceRepository.createResource({id:rid,title:'fixture-native-resource',fileName:'fixture.pdf',mimeType:'application/pdf',kind:'textbook',subject:'语文',grade:'七年级',publisher:'样本',edition:'样本',isPrimary:true,diskPath:'unused-fixture-only',publicUrl:'/api/resources/'+rid+'/content',pageCount:1});
+    resourceRepository.replaceChunks(rid,[{id:rid+':chunk',resourceId:rid,level:'content',contentType:'paragraph',title:'样本',summary:'',text:className+'教材正文闭环',tags:[],pageStart:1,pageEnd:1,order:0}]);
+    saveGradingTask({id:'native-grading',name:'fixture-native-grading',classId:c.id,className,node:'grading',nodeName:'批改',deadline:'',createdAt:'2026-10-30',collectionDeadlineAt:'',status:'running'});
+    saveTrialGradingResult({taskId:'native-grading',model:'fixture',createdAt:'2026-10-30',samples:[{id:'sample',studentName:className+'批改结果闭环',needsTeacherReview:true,aiScore:3,teacherScore:null}]} as any);
   });
   return login.headers.getSetCookie()[0].split(';')[0];
 }
@@ -287,7 +304,7 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   }
   const encoded = JSON.stringify(snapshot);
   assert.match(encoded, /甲教师专属班/); assert.doesNotMatch(encoded, /乙教师专属班/);
-  for (const scenario of ['classes', 'invalid-class', 'committee', 'capabilities', 'unsupported']) {
+  for (const scenario of ['classes', 'invalid-class', 'committee', 'capabilities', 'unsupported', 'skill', 'resource-read', 'grading-read']) {
     queryScenario = scenario;
     try {
       const sid = (await rpc(a, 'session/create', {request: {}})).value.sessionId;
@@ -300,13 +317,18 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       const serialized = JSON.stringify(result);
-      const expected: Record<string, RegExp> = {classes: /甲教师专属班/, 'invalid-class': /当前可访问班级中没有此编号/, committee: /甲教师专属班班长/, capabilities: /未开放的查询/, unsupported: /不能据此判断没有记录/};
-      assert.match(serialized, expected[scenario]);
+      const expected: Record<string, RegExp> = {classes: /甲教师专属班/, 'invalid-class': /找不到当前账号可访问的对象/, committee: /甲教师专属班班长/, capabilities: /qingsong-read-v1/, unsupported: /查询参数格式不正确/, skill: /SHA256/, 'resource-read':/甲教师专属班教材正文闭环/, 'grading-read':/甲教师专属班批改结果闭环/};
+      assert.match(serialized, expected[scenario], JSON.stringify(result.records?.filter(r=>['tool/result','turn/end','error'].includes(r.event?.type))));
       if (scenario === 'committee') assert.match(serialized, /committeeRoles/);
       assert.doesNotMatch(serialized, /请重新登录/);
       assert.doesNotMatch(serialized, /乙教师专属班/);
     } finally { queryScenario = undefined; }
   }
+  const toolNames=capturedRequests.flatMap(input=>(input.tools??[]).map(tool=>tool.function?.name));
+  for(const name of ['skill','qingsong_discover','qingsong_search','qingsong_read','qingsong_material','qingsong_memory'])assert.ok(toolNames.includes(name),'missing real model tool schema: '+name);
+  assert.ok(!toolNames.includes('qingsong_query'));
+  const skills=await rpc(a,'skills/list',{request:{sessionId:id}});assert.equal(skills.ok,true,JSON.stringify(skills));
+  assert.match(JSON.stringify(skills),/system-data/);assert.doesNotMatch(JSON.stringify(skills),/office|filesystem/);
   // Real HTTP and DSH contracts for user-owned memory; all supplier responses are local fixtures.
   const personal=async(cookie:string,method='GET',suffix='',body?:unknown)=>{
     const r=await fetch(apiRoot+'/api/assistant/personal-context'+suffix,{method,headers:{...headers,Cookie:cookie},...(body?{body:JSON.stringify(body)}:{})});
@@ -509,4 +531,18 @@ test('owner generation settings: permissions, durable revision, native payload a
    console.log('统一管理员预览：admin-preview@fixture.test / Fixture-password-12345；数据根：'+root);
  }
 
+});
+
+test('corrupt grading storage returns a recoverable HTTP error without overwriting the file',async()=>{
+ const cookie=await register('storage-c@fixture.test','存储验证班');
+ const row=getAuthDatabase().prepare('SELECT user_id,workspace_id,role FROM app_workspace_members WHERE user_id=(SELECT id FROM user WHERE email=?)').get('storage-c@fixture.test') as any;
+ const context=createWorkspaceContext(row.user_id,row.workspace_id,row.role);
+ const file=path.join(context.dataDirectory,'grading-tasks.json');const original=await readFile(file,'utf8');
+ const {clearWorkspaceFileStoreCaches}=await import('../../repositories/workspaceFileStore');
+ try{
+  clearWorkspaceFileStoreCaches();await writeFile(file,'{broken');
+  const response=await fetch(apiRoot+'/api/grading-task-list',{headers:{Cookie:cookie}});
+  assert.equal(response.status,503);const body=await response.json();assert.equal(body.code,'DATA_CORRUPT');assert.equal(body.saved,false);assert.match(body.message,/不能当作没有记录/);
+  assert.equal(await readFile(file,'utf8'),'{broken');
+ }finally{await writeFile(file,original);clearWorkspaceFileStoreCaches();}
 });
