@@ -1,6 +1,6 @@
 import {useEffect,useState} from 'react';
 import {ChevronDown,RotateCcw,Save,X} from 'lucide-react';
-import {GlassButton} from '../../components/glass/Glass';
+import {GlassButton,GlassSurface} from '../../components/glass/Glass';
 import ResponsiveChoiceDialog from '../../components/ResponsiveChoiceDialog';
 import ResponsiveDialog from '../../components/ResponsiveDialog';
 import {apiFetch} from '../../services/apiClient';
@@ -55,7 +55,7 @@ export default function GenerationSettingsPanel({onDirtyChange}:{onDirtyChange:(
         </div></div>;
       })}</div>
     </section>}
-    <div className="qs-admin-save"><span role="status" className="qs-muted">{dirty?'有未保存修改':state?.policy.updatedAt?'上次更新：'+new Date(state.policy.updatedAt).toLocaleString():''}</span><GlassButton disabled={saving||loading} onClick={()=>{if(dirty)setPendingModel('__reload');else void load();}}><RotateCcw className="h-4 w-4" />重新载入</GlassButton><GlassButton disabled={!dirty||saving||loading} onClick={()=>void save()}><Save className="h-4 w-4" />{saving?'正在保存…':'保存设置'}</GlassButton></div>
+    <GlassSurface className="qs-admin-save-surface"><div className="qs-admin-save"><span role="status" aria-live="polite" className="qs-muted">{saving?'正在保存…':error?'设置未确认，请查看页面提示':dirty?'有未保存修改':notice?'已保存并确认':state?.policy.updatedAt?'上次更新：'+new Date(state.policy.updatedAt).toLocaleString():''}</span><GlassButton disabled={saving||loading} onClick={()=>{if(dirty)setPendingModel('__reload');else void load();}}><RotateCcw className="h-4 w-4" />重新载入</GlassButton><GlassButton variant="primary" disabled={!dirty||saving||loading} onClick={()=>void save()}><Save className="h-4 w-4" />{saving?'正在保存…':'保存设置'}</GlassButton></div></GlassSurface>
     <p className="qs-muted">本页只影响教学助手，不改变 OCR 或作业评分。空值表示使用模型默认值。正在生成时更新配置，请等当前轮结束后再发送新消息。</p>
     {picker==='model'&&<ResponsiveChoiceDialog title="选择模型" value={selected} options={(state?.models??[]).map(item=>({value:generationKey(item.provider,item.id),label:item.name,description:item.provider}))} onClose={()=>setPicker(null)} onChange={key=>{setPicker(null);if(dirty&&key!==selected)setPendingModel(key);else choose(key);}} />}
     {picker==='reasoning'&&model&&<ResponsiveChoiceDialog title="推理强度" value={String(draft?.reasoningEffort??'')} options={[{value:'',label:'模型默认值'},...(model.capabilities.reasoningEffort.options??[]).map(value=>({value,label:effortLabels[value]??value}))]} onClose={()=>setPicker(null)} onChange={value=>{setPicker(null);setDraft(previous=>previous?{...previous,reasoningEffort:value||null}:previous);setNotice('');}} />}

@@ -4,7 +4,7 @@ import {readReviewPreferences,saveReviewPreferences,type ReviewPreferences} from
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import AppLayout from './app/AppLayout';
 import { createNavGroups, PageId } from './app/navigation';
 
@@ -39,6 +39,8 @@ import ClassManagement from './features/classes/ClassManagement';
 import StudentManagement from './features/students/StudentManagement';
 import ScheduleReminder from './features/schedule/ScheduleReminder';
 import SystemSettings from './features/settings/SystemSettingsPanel';
+import {useAppearance} from './features/settings/useAppearance';
+import {applyTheme} from './domain/appearance';
 import AdminConsole from './features/admin/AdminConsole';
 import KnowledgeLibrary from './features/knowledge/KnowledgeLibrary';
 import MaterialPool from './features/knowledge/MaterialPool';
@@ -94,6 +96,8 @@ const readLessonRoute = (userId:string):LessonRoute|null => {
 
 export default function App() {
   const authState = useAuth();
+  const [appearance] = useAppearance(authState.user.id);
+  useLayoutEffect(()=>applyTheme(appearance),[appearance]);
   const [adminRoute, setAdminRoute] = useState(() => window.location.pathname.startsWith('/admin'));
   const teacherReturnPage = useRef<PageId>('workbench');
   // Navigation & View State
