@@ -4,11 +4,17 @@
 .qs-glass.lg-surface{color:var(--qs-ink,var(--text-main));box-shadow:var(--qs-shadow,0 3px 8px -5px #18342730,0 1px 3px -2px #18342720)}
 .qs-glass[data-lg-profile=control]{--lg-tint:color-mix(in srgb,var(--palette-4) 34%,transparent)}
 .qs-glass .lg-indicator{--lg-selection-tint:color-mix(in srgb,var(--palette-3) 52%,transparent);box-shadow:var(--qs-shadow)}
-/* Local palette-order trial: shortcut buttons and segmented controls only.
-   Keep the existing opacity and optical material at each layer. */
-.qs-workbench-tile.qs-glass[data-lg-profile=control],.qs-segments.qs-glass[data-lg-profile=control]{--lg-tint:color-mix(in srgb,var(--palette-3) 34%,transparent)}
-.qs-workbench-tile.qs-glass[data-lg-theme=dark][data-lg-profile=control],.qs-segments.qs-glass[data-lg-theme=dark][data-lg-profile=control]{--lg-tint:color-mix(in srgb,var(--palette-3) 14%,transparent)}
+/* Match the approved study-check hierarchy: deeper base, lighter raised or
+   selected controls. Preserve optical parameters and opacity per layer. */
+.qs-workbench-quick.qs-glass[data-lg-profile=control],.qs-segments.qs-glass[data-lg-profile=control]{--lg-tint:color-mix(in srgb,var(--palette-3) 34%,transparent)}
+.qs-workbench-quick.qs-glass[data-lg-theme=dark][data-lg-profile=control],.qs-segments.qs-glass[data-lg-theme=dark][data-lg-profile=control]{--lg-tint:color-mix(in srgb,var(--palette-3) 14%,transparent)}
+.qs-workbench-tile.qs-glass[data-lg-profile=control]{--lg-tint:color-mix(in srgb,var(--palette-4) 34%,transparent)}
+.qs-workbench-tile.qs-glass[data-lg-theme=dark][data-lg-profile=control]{--lg-tint:color-mix(in srgb,var(--palette-4) 14%,transparent)}
 .qs-segments .lg-indicator{--lg-selection-tint:color-mix(in srgb,var(--palette-4) 52%,transparent)}
+.qs-button-host[data-lg-profile=control]:has(> .lg-content > button[aria-pressed=false]){--lg-tint:color-mix(in srgb,var(--palette-3) 34%,transparent)}
+.qs-button-host[data-lg-profile=control]:has(> .lg-content > button[aria-pressed=true]){--lg-tint:color-mix(in srgb,var(--palette-4) 48%,transparent);color:var(--theme-primary)}
+.qs-button-host[data-lg-theme=dark][data-lg-profile=control]:has(> .lg-content > button[aria-pressed=false]){--lg-tint:color-mix(in srgb,var(--palette-3) 14%,transparent)}
+.qs-button-host[data-lg-theme=dark][data-lg-profile=control]:has(> .lg-content > button[aria-pressed=true]){--lg-tint:color-mix(in srgb,var(--palette-4) 24%,transparent);color:var(--qs-ink)}
 .qs-button-host{display:inline-grid;flex-shrink:0;vertical-align:middle}.qs-button-host>.lg-content{height:100%}
 .qs-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;width:100%;padding:8px 13px;border:0;border-radius:inherit;background:transparent;color:inherit;font-size:14px;line-height:1.4}
 .qs-button:disabled{opacity:.45;cursor:not-allowed}.qs-button-host:has(button:disabled){opacity:.7}
@@ -43,7 +49,7 @@
 .qs-round-trigger{display:inline-flex;align-items:center;gap:5px;min-height:44px;padding:0 2px 0 12px;border:0;border-left:1px solid var(--qs-line);background:transparent;color:var(--qs-muted);font-size:12px;white-space:nowrap}.qs-round-trigger:disabled{opacity:.55}
 .qs-record-tabs{display:flex;gap:2px;margin-left:auto}.qs-record-tab{position:relative;min-height:44px;padding:0 10px;color:var(--qs-muted);font-size:13px}.qs-record-tab[aria-pressed=true]{color:var(--qs-ink);font-weight:600}.qs-record-tab[aria-pressed=true]:after{content:'';position:absolute;bottom:5px;left:10px;right:10px;height:2px;border-radius:2px;background:var(--theme-primary)}
 .qs-project-row{display:flex;align-items:center;gap:12px;min-width:0}.qs-project-list{display:flex;flex:1;min-width:0;gap:8px;align-items:center;overflow-x:auto;padding:5px 3px 9px;scrollbar-width:thin}.qs-project-actions{display:flex;flex-shrink:0;align-items:center;padding-bottom:4px}.qs-project-list .qs-button{white-space:nowrap}.qs-project-rename{font-size:12px;white-space:nowrap;color:var(--qs-muted)}
-.qs-project-list .qs-button-host:has([aria-pressed=true]){--lg-tint:color-mix(in srgb,var(--palette-3) 48%,transparent);font-weight:650;color:var(--theme-primary)}
+.qs-project-list .qs-button-host:has([aria-pressed=true]){font-weight:650;color:var(--theme-primary)}
 .qs-record-meta{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:12px 0}.qs-record-meta>span{font-size:12px}
 .qs-search-field,.qs-note-field{display:flex;align-items:center;gap:8px;min-height:44px;border:1px solid var(--qs-line);border-radius:12px;background:#ffffff80;padding:0 12px;color:var(--qs-muted)}
 .qs-search-field{flex:0 0 148px;width:148px;min-width:96px}.qs-note-field{flex:1 1 200px;min-width:180px}.qs-note-field>span{flex-shrink:0;font-size:12px;white-space:nowrap}
