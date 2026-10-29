@@ -162,10 +162,11 @@
 .qs-app .qs-main-brand{background:transparent}
 .qs-assistant-dialog{position:relative;inset:auto;margin:0;padding:0;border:0;background:transparent;color:inherit;width:auto;max-width:none;max-height:none;overflow:hidden}
 .qs-assistant-dialog[open]{display:flex;flex-direction:column}.qs-assistant-dialog:not([open]){display:none}
-.qs-mobile-ai-launch,.qs-mobile-ai-header{display:none}
+.qs-mobile-ai-launch.qs-button-host,.qs-mobile-ai-header{display:none}
 @media(max-width:899px){
  .qs-main{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
- .qs-mobile-ai-launch{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:30;display:flex;align-items:center;gap:8px;min-height:48px;padding:10px 18px;border:1px solid #ffffffa0;border-radius:24px;background:var(--theme-primary);color:white;box-shadow:0 3px 8px -5px #18342730}
+ .qs-app .qs-mobile-ai-launch.qs-button-host{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:30;display:inline-grid;min-height:48px;border-radius:24px}
+ .qs-app .qs-mobile-ai-launch .qs-mobile-ai-launch-button{min-height:48px;padding:10px 18px;gap:8px}
 
 }
 
