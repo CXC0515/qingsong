@@ -35,7 +35,7 @@ import assistantRouter from './routes/assistant';
 import generationPolicyRouter from './routes/generationPolicy';
 import { modelAdminProxy } from './services/assistant/modelAdmin';
 import { requireOwner, requireAuthenticatedWorkspace } from './middleware/authenticated';
-import { requireSameOriginMutation } from './middleware/csrf';
+import { requireSameOriginMutation, requireNativeSameOriginMutation } from './middleware/csrf';
 import { securityHeaders } from './middleware/security';
 
 const readiness = (config: RuntimeConfig) => {
@@ -115,7 +115,7 @@ export const createApp = (config: RuntimeConfig = runtimeConfig) => {
   app.use((request, response, next) => {
     const endpoint = request.path;
     if (endpoint === '/api/assistant/official/api/session/prompt' || endpoint === '/api/assistant/official/api/session/updateQueue') {
-      return requireAuthenticatedWorkspace(request, response, () => requireSameOriginMutation(request, response, () => attachmentJson(request, response, next)));
+      return requireAuthenticatedWorkspace(request, response, () => requireNativeSameOriginMutation(request, response, () => attachmentJson(request, response, next)));
     }
     return ordinaryJson(request, response, next);
   });

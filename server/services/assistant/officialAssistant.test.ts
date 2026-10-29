@@ -123,7 +123,7 @@ async function register(email: string, className: string, role:'teacher'|'owner'
   return login.headers.getSetCookie()[0].split(';')[0];
 }
 async function rpc(cookie: string, method: string, args: unknown) {
-  const response = await fetch(apiRoot + '/api/assistant/official/api/' + method, {method: 'POST', headers: {...headers, Cookie: cookie}, body: JSON.stringify({type: 'client-request', rpcId: crypto.randomUUID(), method, payload: {args}})});
+  const response = await fetch(apiRoot + '/api/assistant/official/api/' + method, {method: 'POST', headers: {Origin:origin,'content-type':'application/json','sec-fetch-site':'same-origin',Cookie:cookie}, body: JSON.stringify({type: 'client-request', rpcId: crypto.randomUUID(), method, payload: {args}})});
   const text = await response.text(); assert.equal(response.status, 200, text);
   return JSON.parse(text).result;
 }
@@ -204,6 +204,15 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   assert.equal(grouped.ok, true, JSON.stringify(grouped));
   const made = await rpc(a, 'session/create', {request: {}}); assert.equal(made.ok, true, JSON.stringify(made));
   const id = made.value.sessionId;
+  // Native browser RPCs have no x-demo-csrf header. Refuse foreign/anonymous
+  // requests before admission, while keeping business CSRF requirements intact.
+  for(const endpoint of ['session/prompt','session/updateQueue']){
+    const body=JSON.stringify({type:'client-request',method:endpoint,payload:{args:{request:{sessionId:id,mode:'queue',content:[{type:'text',text:'你好'}]}}}});
+    for(const [originHeader,site,cookie,expected] of [['https://foreign.invalid','cross-site',a,403],[origin,'cross-site',a,403],['','same-origin',a,403],[origin,'same-origin','',401]] as const){
+      const response=await fetch(apiRoot+'/api/assistant/official/api/'+endpoint,{method:'POST',headers:{Origin:originHeader,'sec-fetch-site':site,'content-type':'application/json',Cookie:cookie},body});assert.equal(response.status,expected);
+    }
+  }
+
   await new Promise<void>((resolve, reject) => {
     const ws = new WebSocket(apiRoot.replace('http:', 'ws:') + '/api/assistant/official/api/remote.mux', {headers: {Origin: origin, Cookie: a}});
     let received = false;
