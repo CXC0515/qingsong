@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import { CommitteeAssignment, CommitteeRole, EnrollmentStatus, RosterSnapshot, RosterStudent, SchoolClass, Student } from '../../src/domain/types';
+import { WorkspaceDataReadError } from './workspaceFileStore';
 import { getRosterDatabase } from '../database/rosterDatabase';
 
 type StudentDetails = Omit<Student, 'id' | 'name' | 'studentNo' | 'classId' | 'className' | 'gender' | 'committeeRoleIds' | 'status'>;
@@ -98,9 +99,13 @@ const defaultDetails = (): StudentDetails => ({
 
 const parseDetails = (json: string): StudentDetails => {
   try {
-    return { ...defaultDetails(), ...(JSON.parse(json) as Partial<StudentDetails>) };
+    const details = JSON.parse(json);
+    if (!details || typeof details !== 'object' || Array.isArray(details)) throw Error('shape');
+    for (const key of ['behaviorTags','observationHistory','strongKnowledge','weakKnowledge','recentHomeworkTrend','homeworkHistory','weaknessEvidence'])
+      if (details[key] !== undefined && !Array.isArray(details[key])) throw Error('shape');
+    return { ...defaultDetails(), ...details };
   } catch {
-    return defaultDetails();
+    throw new WorkspaceDataReadError('DATA_CORRUPT');
   }
 };
 
@@ -137,13 +142,14 @@ const studentSelect = `
   JOIN classes c ON c.id = m.class_id
 `;
 
-const listJoinedStudents = (classId?: string, includeInactive = false) => {
+const listJoinedStudents = (classId?: string, includeInactive = false, studentId?:string, summaryOnly=false) => {
   const conditions: string[] = [];
   const parameters: string[] = [];
   if (classId) {
     conditions.push('m.class_id = ?');
     parameters.push(classId);
   }
+  if(studentId){conditions.push('s.id = ?');parameters.push(studentId);}
   if (!includeInactive) conditions.push("m.status IN ('active', 'suspended')");
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const rows = database.prepare(`${studentSelect} ${where} ORDER BY m.joined_at DESC, m.rowid DESC`).all(...parameters) as StudentRow[];
@@ -157,7 +163,7 @@ const listJoinedStudents = (classId?: string, includeInactive = false) => {
     const key = `${item.classId}:${item.studentId}`;
     rolesByMembership.set(key, [...(rolesByMembership.get(key) ?? []), item.roleId]);
   });
-  return rows.map(row => toRosterStudent(row, rolesByMembership.get(`${row.class_id}:${row.student_id}`) ?? []));
+  return rows.map(row => toRosterStudent(summaryOnly?{...row,profile_json:'{}'}:row, rolesByMembership.get(`${row.class_id}:${row.student_id}`) ?? []));
 };
 
 const createDetails = (input: StudentWriteInput): StudentDetails => ({
@@ -367,7 +373,11 @@ export const toggleClassArchive = (classId: string) => {
   return toClassView(getClassRow(classId)!);
 };
 
-export const listStudents = (classId?: string) => listJoinedStudents(classId);
+export const listStudents = (classId?: string, includeInactive = false) => listJoinedStudents(classId, includeInactive);
+
+/** Summary reads must not parse every profile: one corrupt profile cannot block finding other students. */
+export const listStudentSummaries = (classId?:string) => listJoinedStudents(classId,true,undefined,true).map(({id,name,studentNo,classId,className,gender,status,enrollmentStatus,committeeRoleIds})=>({id,name,studentNo,classId,className,gender,status,enrollmentStatus,committeeRoleIds}));
+export const findStoredStudent = (studentId:string,classId?:string) => listJoinedStudents(classId,true,studentId)[0]??null;
 
 export const createStudent = (input: StudentWriteInput) => {
   assertClassExists(input.classId);

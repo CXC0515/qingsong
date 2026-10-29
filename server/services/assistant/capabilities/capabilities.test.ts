@@ -1,0 +1,105 @@
+import test,{after} from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync,rmSync,mkdirSync,writeFileSync,readFileSync} from 'node:fs';
+import {randomUUID} from 'node:crypto';
+import os from 'node:os';import path from 'node:path';
+const root=mkdtempSync(path.join(os.tmpdir(),'qs-capabilities-'));process.env.APP_DATA_ROOT=root;
+const {createWorkspaceContext,runWithWorkspace}=await import('../../../context/workspaceContext');
+const {assistantSearch:search,assistantRead:read,assistantDiscover:discover}=await import('./index');
+const {createClass,createStudent}=await import('../../../repositories/rosterRepository');
+const {getRosterDatabase,closeRosterDatabase}=await import('../../../database/rosterDatabase');
+const {closeResourceDatabase}=await import('../../../database/resourceDatabase');
+const {resourceRepository:repo}=await import('../../../repositories/resourceRepository');
+const {saveGradingTask}=await import('../../../repositories/gradingTaskRepository');
+const {saveTrialGradingResult}=await import('../../../repositories/trialGradingRepository');
+const {saveVisionValidationResult,NON_CHOICE_RECOGNITION_VERSION}=await import('../../../repositories/visionValidationRepository');
+const {appendMaterials}=await import('../../../repositories/materialRepository');
+const {clearWorkspaceFileStoreCaches}=await import('../../../repositories/workspaceFileStore');
+const {PDFDocument,StandardFonts}=await import('pdf-lib');
+const a=createWorkspaceContext('teacher-a','workspace-a','teacher'),b=createWorkspaceContext('teacher-b','workspace-b','teacher');
+after(()=>{closeRosterDatabase();closeResourceDatabase();rmSync(root,{recursive:true,force:true});});
+test('find and read real student fields, ambiguity, pagination, and isolation',async()=>{
+ await runWithWorkspace(a,async()=>{
+  const c=createClass({name:'三班',grade:'七年级',term:'2026秋',headTeacher:'样本',status:'active'});
+  const s=createStudent({classId:c.id,name:'同名学生',studentNo:'1',behaviorTags:['专注'],parent:{name:'合成家长',phone:'000',relation:'样本',remark:'合成数据'},weakKnowledge:['推理'],observationHistory:[{id:'o1',date:'2026-10-29',content:'合成观察'}] as any});
+  createStudent({classId:c.id,name:'同名学生',studentNo:'2'});
+  const first=search({type:'student',query:'同名',limit:1});assert.equal(first.data.items.length,1);assert.equal(first.page?.total,2);assert.equal(first.completeness,'partial');assert.equal(first.page?.nextOffset,1);
+  const r=await read({ref:{type:'student',id:s.id,parentId:c.id}});assert.equal(r.data.parent.name,'合成家长');assert.deepEqual(r.data.weakKnowledge,['推理']);assert.equal(r.data.observationHistory,undefined);
+  const observations=await read({ref:{type:'student',id:s.id,parentId:c.id},section:'observations'});assert.equal(observations.data.items.length,1);
+  await assert.rejects(runWithWorkspace(b,()=>read({ref:{type:'student',id:s.id,parentId:c.id}})),/找不到/);
+  assert.equal(runWithWorkspace(b,()=>search({type:'student'})).page?.total,0);
+  assert.throws(()=>search({type:'student',filters:{workspaceId:b.workspaceId}}));
+  assert.throws(()=>search({type:'resource',filters:{classId:c.id}}),/不支持筛选/);
+  await assert.rejects(read({ref:{type:'student',id:s.id},section:'arbitrarySQL'}),/不支持/);
+  assert.throws(()=>search({type:'behavior',filters:{from:'2026-02-30',to:'2026-03-01'}}));
+  getRosterDatabase().prepare('UPDATE students SET profile_json=? WHERE id=?').run('{broken',s.id);
+  await assert.rejects(read({ref:{type:'student',id:s.id}}),/格式损坏/);
+  const stillFound=search({type:'student',query:'同名'});assert.equal(stillFound.page!.total,2);
+  const other=stillFound.data.items.find(item=>item.ref.id!==s.id);assert.equal((await read({ref:other.ref})).data.studentNo,'2');
+ });
+});
+test('resource body search, parsed source pages, original PDF and knowledge links are readable but not cross-workspace',async()=>{
+ await runWithWorkspace(a,async()=>{
+  mkdirSync(a.uploadDirectory,{recursive:true});const pdf=await PDFDocument.create();const page=pdf.addPage();page.drawText('Original teaching evidence',{font:await pdf.embedFont(StandardFonts.Helvetica)});const file=path.join(a.uploadDirectory,'fixture.pdf');writeFileSync(file,await pdf.save());
+  const id=randomUUID();repo.createResource({id,title:'样本教材',fileName:'fixture.pdf',mimeType:'application/pdf',kind:'textbook',subject:'语文',grade:'七年级',publisher:'样本',edition:'样本',isPrimary:true,pageCount:1,diskPath:file,publicUrl:'/api/resources/'+id+'/content'});
+  repo.replaceChunks(id,[{id:'chunk',resourceId:id,level:'content',contentType:'paragraph',title:'内容',summary:'',text:'正文中的独特关键词',tags:[],pageStart:1,pageEnd:1,order:0}]);
+  const hit=search({type:'resource',query:'独特关键词'});assert.equal(hit.data.items[0].ref.id,id);
+  const detail=await read({ref:hit.data.items[0].ref});assert.equal(detail.data.diskPath,undefined);
+  const chunks=await read({ref:hit.data.items[0].ref,section:'chunks'});assert.match(chunks.data.items[0].text,/独特关键词/);
+  repo.replaceChunks(id,[{id:'long-chunk',resourceId:id,level:'content',contentType:'paragraph',title:'长文本',summary:'',text:'A'.repeat(8000)+'末尾证据',tags:[],pageStart:1,pageEnd:1,order:0}]);
+  const long=await read({ref:hit.data.items[0].ref,section:'chunks'});assert.equal(long.textWindow!.nextTextOffset,8000);assert.equal(long.truncated,true);
+  const tail=await read({ref:hit.data.items[0].ref,section:'chunks',textOffset:8000});assert.equal(tail.data.items[0].text,'末尾证据');assert.equal(tail.textWindow!.nextTextOffset,null);
+  const original=await read({ref:hit.data.items[0].ref,section:'original',limit:1});assert.match(JSON.stringify(original),/Original teaching evidence/);
+  await assert.rejects(runWithWorkspace(b,()=>read({ref:{type:'resource',id}})),/找不到/);
+  const nodes=search({type:'knowledge',limit:1});assert.ok(nodes.page!.total>0);const node=await read({ref:nodes.data.items[0].ref});assert.ok(node.data.id);
+  const sources=await read({ref:nodes.data.items[0].ref,section:'sources'});assert.ok(Array.isArray(sources.data.items));
+ });
+});
+test('grading task to result/material reads preserve state, missing results and corruption never become empty records',async()=>{
+ await runWithWorkspace(a,async()=>{
+  saveGradingTask({id:'grading-fixture',name:'样本作业',classId:'sample-class',className:'三班',node:'grading',nodeName:'批改',deadline:'',createdAt:'2026-10-30',collectionDeadlineAt:'',status:'running'});
+  saveTrialGradingResult({taskId:'grading-fixture',createdAt:'2026-10-30',samples:[{id:'sample',studentId:'s1',studentName:'样本',questionId:'q1',aiScore:3,teacherScore:null,needsTeacherReview:true,resultSource:'ai-confirmed'}]} as any);
+  appendMaterials('grading-fixture',[{id:'asset',taskId:'grading-fixture',kind:'assignment',fileName:'作业.pdf',mimeType:'application/pdf',status:'ready',diskPath:'/not-exposed',publicUrl:'/api/fixture',normalizedDocument:{assetId:'asset',sourceFormat:'pdf',markdown:'样本原文',blocks:[{id:'block',order:0,type:'paragraph',text:'样本原文',pageNumber:1}],resources:[],warnings:[],parsedAt:'2026-10-30'}}]);
+  saveVisionValidationResult({taskId:'grading-fixture',assetId:'asset',items:[{pipelineVersion:NON_CHOICE_RECOGNITION_VERSION,displayNo:'1',paddleText:'合成识别依据'},{pipelineVersion:0,displayNo:'旧项'}]} as any);
+  const found=search({type:'grading',query:'样本作业'}).data.items[0];const trial=await read({ref:found.ref,section:'trial'});assert.equal(trial.data.items[0].needsTeacherReview,true);
+  const materials=await read({ref:found.ref,section:'materials'});const blocks=await read({ref:materials.data.items[0].ref,section:'blocks'});assert.match(blocks.data.items[0].text,/样本原文/);
+  const validation=await read({ref:materials.data.items[0].ref,section:'validation'});assert.equal(validation.data.items.length,1);assert.match(validation.data.items[0].paddleText,/合成识别依据/);assert.doesNotMatch(JSON.stringify(materials),/not-exposed/);
+  await assert.rejects(read({ref:found.ref,section:'batch'}),/尚未找到/);
+  await assert.rejects(read({ref:found.ref,section:'diagnosis'}),/没有独立保存/);
+  await assert.rejects(runWithWorkspace(b,()=>read({ref:found.ref})),/找不到/);
+  clearWorkspaceFileStoreCaches();const file=path.join(a.dataDirectory,'trial-grading-results.json');writeFileSync(file,'{broken');
+  await assert.rejects(read({ref:found.ref,section:'trial'}),/格式损坏/);assert.equal(readFileSync(file,'utf8'),'{broken');
+  writeFileSync(file,'[]');assert.equal((await read({ref:found.ref})).data.id,'grading-fixture');
+ });
+});
+test('capability directory contains only implemented object contracts and requires workspace context',()=>{
+ assert.throws(()=>discover({}),/WORKSPACE_CONTEXT_REQUIRED/);
+ runWithWorkspace(a,()=>{const result=discover({type:'resource'});assert.equal(result.data.objects.length,1);assert.ok(result.data.objects[0].sections.includes('original'));});
+});
+test('classroom results/events, saved seating and schedule/reminder reads keep object boundaries',async()=>{
+ const tasks=await import('../../classroom/classroomTaskService');
+ const {saveClassroomLayout}=await import('../../../repositories/classroomRepository');
+ const {saveReminder,saveScheduleItem}=await import('../../../repositories/scheduleRepository');
+ const {recordBehavior}=await import('../../classroom/classroomBehaviorService');
+ await runWithWorkspace(b,async()=>{
+  const c=createClass({name:'课堂验证班',grade:'七年级',term:'2026秋',headTeacher:'样本',status:'active'});
+  const s=createStudent({classId:c.id,name:'学生样本',studentNo:'1'});
+  const input={classId:c.id,name:'课堂任务样本',mode:'completion' as const,checkDate:'2026-10-29'};
+  const t=tasks.createClassroomTask({...input,operationId:randomUUID(),previewToken:tasks.previewTaskCreation(input).previewToken});
+  tasks.applyClassroomOperation(t.task.id,{operationId:randomUUID(),kind:'initial',participantId:t.participants[0].id,expectedVersion:0,result:'negative'});
+  const found=search({type:'classroomTask',query:'课堂任务',filters:{classId:c.id}});assert.equal(found.page!.total,1);
+  const people=await read({ref:found.data.items[0].ref,section:'participants'});assert.equal(people.data.items[0].result,'negative');
+  const history=await read({ref:found.data.items[0].ref,section:'events'});assert.ok(history.page!.total>0);
+  await assert.rejects(read({ref:{...found.data.items[0].ref,parentId:'wrong'}}),/找不到/);
+  saveClassroomLayout(c.id,{rowCount:2,columnCount:2,seats:[{studentId:s.id,seatIndex:0}]});
+  const seat=await read({ref:{type:'class',id:c.id},section:'seating'});assert.equal(seat.data.saved,true);assert.equal(seat.data.layout.seats[0].name,'学生样本');
+  const reminder=saveReminder({name:'日程样本',classId:c.id,className:c.name,time:'',repeatRule:'none',status:'active',dueAt:'2026-10-29T12:00:00+08:00'} as any);
+  const reminders=search({type:'reminder',query:'日程样本',filters:{classId:c.id,from:'2026-10-29',to:'2026-10-29'}});assert.equal(reminders.page!.total,1);assert.equal((await read({ref:reminders.data.items[0].ref})).data.id,reminder.id);
+  const schedule=saveScheduleItem({day:1,period:1,title:'语文',time:'08:00',type:'class',classId:c.id,className:c.name,scope:'teacher'} as any);
+  const courses=search({type:'schedule',filters:{classId:c.id}});assert.equal((await read({ref:courses.data.items[0].ref})).data.id,schedule.id);
+  const event=recordBehavior({operationId:randomUUID(),studentId:s.id,classId:c.id,kind:'participation',note:'样本发言',occurredDate:'2026-10-29'});
+  const events=search({type:'behavior',filters:{classId:c.id,from:'2026-10-29',to:'2026-10-29'}});assert.equal(events.page!.total,1);
+  assert.equal((await read({ref:{type:'behavior',id:event.id},filters:{from:'2026-10-29',to:'2026-10-29'}})).data.note,'样本发言');
+  assert.throws(()=>search({type:'classroomTask',filters:{lifecycle:'made-up'}}),/不受支持/);
+ });
+});

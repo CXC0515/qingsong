@@ -1,3 +1,4 @@
+import {skillManifest} from './official-skills.mjs';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { applyGenerationPolicy } from './generation-policy.mjs';
 
@@ -56,7 +57,31 @@ export function apply(ctx) {
   });
   ctx.on('session/event', (session, event) => { if (event.type === 'turn/end') finish(session.id); });
   ctx.effect(() => () => { for (const id of [...turns.keys()]) finish(id); });
-  ctx.effect(() => ctx.tools.guard(exec => ['qingsong_query','qingsong_memory','qingsong_material'].includes(exec.name) ? undefined : '教师助手只允许教学查询、当前会话已授权材料及当前用户的个人规则与记忆。'));
+  function guardTool(exec){
+    if(exec.name==='skill'){
+      if(exec.arguments?.name!==skillManifest.name)return '此Skill不在青松发布目录中，不能加载。';
+      const state=turns.get(exec.agent?.id);
+      if(!state||++state.queries>12)return '本轮读取额度已用完，已有对话保留，请拆分问题后重试。';
+      return undefined;
+    }
+    return ['qingsong_discover','qingsong_search','qingsong_read','qingsong_memory','qingsong_material'].includes(exec.name)?undefined:'教师助手仅开放业务读取、受控Skill、已选材料与个人上下文。';
+  }
+  for(const action of ['discover','search','read']){
+    const parameters=action==='discover'?{type:{type:'string'}}:action==='search'?{
+      type:{type:'string',required:true},query:{type:'string'},filters:{type:'object',additionalProperties:false,properties:Object.fromEntries(['classId','studentId','taskId','from','to','status','enrollmentStatus','lifecycle','subject','kind','grade'].map(key=>[key,{type:'string'}]).concat([['negativeOnly',{type:'boolean'}]]))},offset:{type:'number'},limit:{type:'number'},
+    }:{textOffset:{type:'number'},ref:{type:'object',required:true,additionalProperties:false,properties:{type:{type:'string'},id:{type:'string'},parentId:{type:'string'}}},section:{type:'string'},filters:{type:'object',additionalProperties:false,properties:Object.fromEntries(['classId','studentId','taskId','from','to','status','enrollmentStatus','lifecycle','subject','kind','grade'].map(key=>[key,{type:'string'}]).concat([['negativeOnly',{type:'boolean'}]]))},offset:{type:'number'},limit:{type:'number'}};
+    ctx.effect(()=>ctx.tools.register(defineTool({
+      name:'qingsong_'+action,
+      description:action==='discover'?'查看当前已开放业务对象、筛选及section。首次查某类数据先查看，不猜编号、字段或权限。':action==='search'?'查找业务对象。type和filters以discover为准；query搜索名称或正文，返回ref用于read。offset从0开始，limit最多50。':'读取search返回的ref；section以discover为准，长记录分页。日期在filters传from/to。返回textWindow.nextTextOffset时保持同一页并传textOffset续读长文本。来源、完整性及失败状态必须保留，partial不能当成全量。',
+      parameters,output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
+      async execute(args,exec){
+        const state=turns.get(exec.agent?.id);
+        if(!state||++state.queries>12)throw Error('本轮读取额度已用完，数据未修改，请拆分问题后重试。');
+        return JSON.stringify(await bridge({kind:'capability',action,input:args},AbortSignal.any([exec.signal,AbortSignal.timeout(90000)])));
+      },
+    })));
+  }
+  ctx.effect(() => ctx.tools.guard(exec => guardTool(exec)));
   ctx.effect(() => ctx.tools.register(materialTool(ctx,bridge,turns)));
   ctx.effect(() => ctx.tools.register(defineTool({
     name:'qingsong_memory',
@@ -67,17 +92,6 @@ export function apply(ctx) {
       const state=turns.get(exec.agent?.id);
       if(!state||++state.queries>12)throw Error('本轮额度已用完，个人记录未修改，请稍后重试。');
       return JSON.stringify(await bridge({kind:'personal-tool',sessionId:exec.agent.id,sourceText:state.sourceText??'',messageId:state.messageId,turn:state.turn,input:args},AbortSignal.any([exec.signal,AbortSignal.timeout(15000)])));
-    },
-  })));
-  ctx.effect(() => ctx.tools.register(defineTool({
-    name: 'qingsong_query',
-    description: '统一查询教学数据：capabilities能力范围、classes班级编号、schedule课表、roster名单/性别/在籍/班委实际任职、classroom课堂摘要、seating座位、reminders提醒、task任务逐人明细/纠错历史、student课堂记录与观察依据。先用classes取得classId，不把班名当编号。roster/seating需要classId；classroom需要classId/from/to；task需要classId/taskId；student需要classId/studentId/from/to。日期YYYY-MM-DD，最多31天；task/student/reminders用offset/limit分页，partial不是完整统计。班长以学生committeeRoles为准；无座位保存记录不等于已排座位。未支持/失败/缺字段不能回答成没有记录。返回事实与来源才能作为依据。',
-    parameters: {kind: {type: 'string', required: true}, classId: {type: 'string'}, from: {type: 'string'}, to: {type: 'string'},studentId:{type:'string'},taskId:{type:'string'},offset:{type:'number'},limit:{type:'number'}},
-    output: {schema: {type: 'string'}, render: (_args, value) => [{type: 'text', text: value}]},
-    async execute(args, exec) {
-      const state = turns.get(exec.agent?.id);
-      if (!state || ++state.queries > 12) throw Error('本轮查询额度已用完，教学数据未修改，请拆分问题后重试。');
-      return JSON.stringify(await bridge({kind: 'query', input: args}, AbortSignal.any([exec.signal, AbortSignal.timeout(15000)])));
     },
   })));
 }

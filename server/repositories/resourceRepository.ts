@@ -868,6 +868,19 @@ export class ResourceRepository {
     ).map(toChunk);
   }
 
+  /** Find matching resources without loading all document text into the request heap. */
+  matchResourceContents(query: string): Array<{resourceId:string;matches:number}> {
+    const pattern = `%${query.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
+    return this.database.prepare(`
+      SELECT chunk.resource_id AS resourceId, COUNT(*) AS matches FROM resource_chunks chunk
+      WHERE chunk.level = 'content' AND NOT EXISTS (
+        SELECT 1 FROM resource_pages page WHERE page.resource_id=chunk.resource_id
+        AND page.included=0 AND page.page_number BETWEEN chunk.page_start AND chunk.page_end
+      ) AND (chunk.title LIKE ? ESCAPE '\\' OR chunk.text LIKE ? ESCAPE '\\')
+      GROUP BY chunk.resource_id
+    `).all(pattern,pattern) as Array<{resourceId:string;matches:number}>;
+  }
+
   searchChunks(query: string, limit = 20) {
     const pattern = `%${query.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
     return (

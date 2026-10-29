@@ -1,3 +1,4 @@
+import { WorkspaceDataReadError } from '../repositories/workspaceFileStore';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -78,6 +79,7 @@ const submissionMatchSchema = z.object({
 });
 
 const sendRepositoryError = (response: Parameters<Parameters<typeof router.post>[1]>[1], error: unknown) => {
+  if(error instanceof WorkspaceDataReadError){response.status(503).json({code:error.code,message:error.message,saved:false});return;}
   const code = error instanceof Error ? error.message : 'ROSTER_WRITE_FAILED';
   const status = ['CLASS_NOT_FOUND', 'STUDENT_NOT_FOUND', 'COMMITTEE_ROLE_NOT_FOUND'].includes(code)
     ? 404
@@ -261,6 +263,11 @@ router.delete('/students/:studentId', (request, response) => {
     return;
   }
   response.status(204).end();
+});
+
+router.use((error: unknown, _request: import('express').Request, response: import('express').Response, next: import('express').NextFunction) => {
+  if (error instanceof WorkspaceDataReadError) {response.status(503).json({code:error.code,message:error.message,saved:false});return;}
+  next(error);
 });
 
 export default router;
