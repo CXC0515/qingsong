@@ -1,10 +1,10 @@
 # 助手附件与材料池引用
 
-版本：1.2 · 2026-10-29 · 状态：本机实现与代码review完成，检查通过；按用户首轮反馈修正选择器，未部署，待继续验收。
+版本：1.3 · 2026-10-29 · 状态：随PR #101已部署；正式站网页、手机和真实模型理解由用户验收。
 
 ## 本次概要与授权
 
-教师需要把常见教学文件交给助手，并明确引用材料池已有资料。用户批准代码和本文档范围，要求使用新worktree、Git提交、本机预览，网页与手机自行验收；不调用真实模型，不单项立即部署。管理员生成参数是独立后续专项。本批不含push、PR、合并、部署授权。
+教师需要把常见教学文件交给助手，并明确引用材料池已有资料。用户批准代码和本文档范围，要求使用新worktree、Git提交、本机预览，网页与手机自行验收；不调用真实模型，不单项立即部署。管理员生成参数是独立后续专项。本机阶段原不含发布授权；后续用户已明确授权PR、合并及部署，应用75cd981已上线，发布记录见PROJECT_HANDOFF.md。
 
 新worktree `/Users/cxc/.codex/worktrees/assistant-materials/qingsong`，分支 `codex/assistant-materials`，最新基线 `origin/main@d09f61d`。旧assistant-settings专项 `codex/connection-release-record@3cec778` 经核对PR #100已合并且无新变化，依赖移入新目录后移除旧worktree和该已合并本地分支。其他会话目录及母文件夹原3项未跟踪内容保留。
 
@@ -73,7 +73,9 @@ Word/PPT所需Python通过 `QS_ASSISTANT_PYTHON`，或现有 `PADDLEOCR_PYTHON/p
 - Review已修复：实际附件ID的sha256前缀、配额多入口一致性、冷启动取消、多选上传排队、选择变更重试幂等键、缓存版本/格式及同键串行、私有路径泄露、长历史批次、个别不可用材料隔离。
 - 原始本机日志：`/tmp/qingsong-materials-reader-final.log`、`/tmp/qingsong-materials-regression.log`、`/tmp/qingsong-materials-native-check.log`、`/tmp/qingsong-materials-http-check.log`、`/tmp/qingsong-materials-build.log`。
 
-### 用户本机验收入口
+### 正式发布与本机对照入口
+
+正式站 https://td.unreached.top/ 已包含本专项；Linux隔离Office Python、Kit/WASM与合成读取/渲染检查通过，真实模型/OCR调用0。运行时配置见WEB_OPERATIONS_RUNBOOK.md，现有生产恢复点未新增或删除。以下本机实例仅供合成数据对照。
 
 当前统一入口已迁至 `http://localhost:4482/`，API4477，管理员样本账号 `admin-preview@fixture.test` / `Fixture-password-12345`，同账号包含管理员设置与材料池合成资料。统一版状态和检查见 `PROJECT_HANDOFF.md`；下述4480是保留的独立专项预览。
 
@@ -83,6 +85,8 @@ Word/PPT所需Python通过 `QS_ASSISTANT_PYTHON`，或现有 `PADDLEOCR_PYTHON/p
 - API复现：在Node24.22.1下设置 `QS_ASSISTANT_PYTHON` 为含docx/pptx的本机解释器，执行 `QS_NATIVE_PREVIEW=1 QS_TEST_PORT=4475 QS_PREVIEW_ORIGIN=http://localhost:4480 node --import tsx --test server/services/assistant/officialAssistant.test.ts`；Web执行 `API_PROXY_TARGET=http://127.0.0.1:4475 node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4480 --strictPort`。端口占用时先确认归属，不覆盖其他专项进程。
 
 ## 修改历史
+
+- v1.3：同步PR #101及正式发布状态，保留本机验证证据和真实供应商/网页验收边界。
 
 - v1.2：两个材料提交已整合至管理员本机分支，最终前端样式保留。统一4482样本管理员可同时验收附件/材料引用与生成参数，新增联合模拟调用场景；无真实模型调用、推送或部署。
 

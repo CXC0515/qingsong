@@ -152,3 +152,11 @@ systemctl list-timers --all | grep certbot
 - 删除前列明确完整目录清单，核对current与回滚目标、Git main可恢复性、目标没有生产数据库/上传资料，采用完整白名单路径；不使用前缀通配或删除未知目录。当前版本改变时停止清理。
 - 更老代码由Git与锁文件重新构建；生产数据在/var/lib/teacher-dashboard下，备份独立按恢复原则管理。不得把本规则应用到手工恢复点或用户数据。
 - 2026-10-28已按单独确认清理23个旧发布，释放约19.9GB；完整记录见ASSISTANT_CONNECTION_RECOVERY.md和服务器审计文件。后续清理继续记录实际删除、保留目标和健康结果。
+
+
+## 2026-10-29 材料/管理员参数整合发布补充
+
+- 应用PR #101，生产75cd981；完整证据以PROJECT_HANDOFF.md当前记录为准。当前生产实际9个SQLite，旧手工恢复点为1317文件/8库。不能继续把历史8库数量写死为现库校验条件；先核对原库无缺失，再以停写时实际集合比较完整性、外键、schema和计数。
+- 助手Office读取使用独立 `/opt/teacher-dashboard/runtimes/assistant-office-py-v1/bin/python`，python-docx1.2.0/python-pptx1.0.2；由环境变量QS_ASSISTANT_PYTHON指定。PADDLEOCR_PYTHON不随本次改变。新服务器应先准备相应解释器/库并验证Kit/WASM、字体；不依赖Codex本机目录。
+- 配置回切记录仅含QS_ASSISTANT_PYTHON此前的非秘密值，存于root受限运维目录；不复制或打印完整环境文件和凭据。代码回切不等于恢复数据库，也不保证撤回新版本运行后用户产生的新数据。
+- 本次未改Nginx，未新增数据备份，未清理release；新75cd981和原三份release暂存，后续删除需另列清单获批。正式站网页及真实模型效果仍由用户验收。
