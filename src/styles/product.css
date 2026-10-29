@@ -4,6 +4,11 @@
 .qs-glass.lg-surface{color:var(--qs-ink,var(--text-main));box-shadow:var(--qs-shadow,0 3px 8px -5px #18342730,0 1px 3px -2px #18342720)}
 .qs-glass[data-lg-profile=control]{--lg-tint:color-mix(in srgb,var(--palette-4) 34%,transparent)}
 .qs-glass .lg-indicator{--lg-selection-tint:color-mix(in srgb,var(--palette-3) 52%,transparent);box-shadow:var(--qs-shadow)}
+/* Local palette-order trial: shortcut buttons and segmented controls only.
+   Keep the existing opacity and optical material at each layer. */
+.qs-workbench-tile.qs-glass[data-lg-profile=control],.qs-segments.qs-glass[data-lg-profile=control]{--lg-tint:color-mix(in srgb,var(--palette-3) 34%,transparent)}
+.qs-workbench-tile.qs-glass[data-lg-theme=dark][data-lg-profile=control],.qs-segments.qs-glass[data-lg-theme=dark][data-lg-profile=control]{--lg-tint:color-mix(in srgb,var(--palette-3) 14%,transparent)}
+.qs-segments .lg-indicator{--lg-selection-tint:color-mix(in srgb,var(--palette-4) 52%,transparent)}
 .qs-button-host{display:inline-grid;flex-shrink:0;vertical-align:middle}.qs-button-host>.lg-content{height:100%}
 .qs-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;width:100%;padding:8px 13px;border:0;border-radius:inherit;background:transparent;color:inherit;font-size:14px;line-height:1.4}
 .qs-button:disabled{opacity:.45;cursor:not-allowed}.qs-button-host:has(button:disabled){opacity:.7}
