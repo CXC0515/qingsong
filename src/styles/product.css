@@ -173,6 +173,9 @@
 .qs-admin-header-row { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; }
 .qs-admin-header h1 { font-size:20px; font-weight:600; }
 .qs-admin-navigation { padding:22px 0; }
+/* Keep label metrics stable: selection weight changes trigger the segment
+   ResizeObserver's immediate alignment, interrupting the moving indicator. */
+.qs-admin .qs-admin-navigation .qs-segments [data-value] { font-weight:600; }
 .qs-admin-section { border:1px solid var(--qs-line); border-radius:20px; padding:22px 24px; background:var(--qs-surface); }
 .qs-admin-settings { display:flex; flex-direction:column; gap:18px; }
 .qs-admin-toolbar { display:flex; flex-wrap:wrap; gap:16px; align-items:center; }
