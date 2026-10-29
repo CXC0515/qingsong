@@ -1,6 +1,7 @@
 import qingsongLogo from '../assets/qingsong-logo.png';
 import ClassPicker from '../components/ClassPicker';
 import ResponsiveDialog from '../components/ResponsiveDialog';
+import {GlassButton} from '../components/glass/Glass';
 import { Bell, Boxes, CalendarDays, ChevronDown, HelpCircle, LogOut, Menu, MoreHorizontal, Network, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { SchoolClass, TeacherProfile } from '../domain/types';
@@ -124,7 +125,7 @@ export default function AppLayout({
         </header>
         <main className={'app-shell-main qs-main '+(isImmersiveWorkspace?'flex min-h-0 flex-col overflow-hidden':activePage==='workbench'?'overflow-y-auto min-[900px]:flex min-[900px]:min-h-0 min-[900px]:flex-col min-[900px]:overflow-hidden':'overflow-y-auto')}>{children}</main>
       </div>
-      <button id="mobile-ai-launch" className="qs-mobile-ai-launch" type="button" onClick={onOpenAssistant} aria-haspopup="dialog"><Sparkles size={20}/>AI 助手</button>
+      <GlassButton id="mobile-ai-launch" containerClassName="qs-mobile-ai-launch" className="qs-mobile-ai-launch-button" variant="primary" onClick={onOpenAssistant} aria-haspopup="dialog"><Sparkles size={20}/>AI 助手</GlassButton>
       {accountMenuOpen&&<ResponsiveDialog title="账号菜单" onClose={()=>setAccountMenuOpen(false)}><p className="break-all text-sm text-slate-500">{accountEmail}</p>{isOwner&&<button type="button" className="qs-account-action" onClick={()=>{setAccountMenuOpen(false);onEnterAdmin();}}><ShieldCheck className="h-4 w-4"/>进入管理后台</button>}<button type="button" className="qs-account-action" onClick={()=>{setAccountMenuOpen(false);onSignOut();}}><LogOut className="h-4 w-4"/>退出登录</button></ResponsiveDialog>}
       {showToast&&<div role="status" className="fixed right-4 top-4 z-50 flex items-center gap-2 rounded-2xl bg-slate-900/90 px-5 py-3 text-sm text-white shadow-lg"><Sparkles className="h-5 w-5"/>{toastMessage}</div>}
     </div>

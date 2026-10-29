@@ -66,10 +66,11 @@ export async function prepareOfficialRuntime({home, configHome}) {
 教师没听懂时，换成具体例子解释，不重复堆砌概念。
 出现错误时直接承认并纠正，不争辩、不推责。
 不刻意奉承，不用过度热情或幼稚化的表达。`;
-  const disabled = [...disabledTools, 'llm-deepseek', 'preset-standard', 'preset-minimal', 'preset-ptc', 'preset-cordis', 'session-title-llm', 'session-title-first-prompt-llm', 'session-title-all-prompts-llm', 'workspace-files', 'terminal-controller', 'directory-picker', 'cordis-host-runner', 'cordis-client-runner', 'plugin-manager', 'tool-plugin-manager', 'ui-plugin-manager', 'entry-customization', 'ui-settings-plugins', 'ui-sidebar-files', 'ui-sidebar-terminal', 'ui-sidebar-documentpreview', 'ui-open-in-app', 'open-in-app', 'schedule', 'file-reference-local', 'ui-cordis', 'ui-settings-models', 'ui-settings-account', 'ui-settings-plugin-inventory', 'ui-attachment', 'ui-schedule', 'ui-settings-shell', 'ui-settings-agent-loop', 'ui-settings-subagent', 'ui-settings-web-search', 'harness-dev-context', 'ui-permission', 'ui-plan'];
+  const disabled = [...disabledTools, 'llm-deepseek', 'preset-standard', 'preset-minimal', 'preset-ptc', 'preset-cordis', 'session-title-llm', 'session-title-first-prompt-llm', 'session-title-all-prompts-llm', 'workspace-files', 'terminal-controller', 'directory-picker', 'cordis-host-runner', 'cordis-client-runner', 'plugin-manager', 'tool-plugin-manager', 'ui-plugin-manager', 'entry-customization', 'ui-settings-plugins', 'ui-sidebar-files', 'ui-sidebar-terminal', 'ui-sidebar-documentpreview', 'ui-open-in-app', 'open-in-app', 'schedule', 'file-reference-local', 'ui-cordis', 'ui-settings-models', 'ui-settings-account', 'ui-settings-plugin-inventory', 'ui-schedule', 'ui-settings-shell', 'ui-settings-agent-loop', 'ui-settings-subagent', 'ui-settings-web-search', 'harness-dev-context', 'ui-permission', 'ui-plan'];
   return [
     ...disabled.map(id => ({id, disabled: true})),
     {id: 'locale', config: {preference: 'zh-CN-x-qingsong'}},
+    {id: 'attachment-local', config: {maxImageBytes:10*1024*1024,maxImagesPerMessage:5,maxMessageImageBytes:20*1024*1024,imageCompressionConcurrency:1}},
     {id: 'system-prompt', config: {includeHarnessIdentity: false, includeRuntimeContext: false, personaPrefix: persona}},
     {id: 'agent-preset-registry', config: {default: 'qingsong'}},
     {id: 'workspace-controller', config: {documentsDirectory: path.join(home, 'empty-workspace')}},
@@ -84,5 +85,5 @@ export async function prepareOfficialRuntime({home, configHome}) {
 }
 export async function startOfficialRuntime(options) {
   const patchRows = await prepareOfficialRuntime(options);
-  return startWebRuntime({...options, patchRows, environment: {QS_TOOL_ENDPOINT: options.endpoint, QS_TOOL_TOKEN: options.token}});
+  return startWebRuntime({...options, patchRows, environment: {QS_TOOL_ENDPOINT: options.endpoint, QS_TOOL_TOKEN: options.token, QS_GENERATION_POLICY:JSON.stringify(options.generationPolicy??{entries:{}})}});
 }

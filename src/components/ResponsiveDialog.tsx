@@ -7,14 +7,25 @@ let openDialogs = 0;
 let originalBodyOverflow = '';
 
 /** Native modal provides focus containment, Escape and focus restoration. */
-export default function ResponsiveDialog({ children, title, subtitle, onClose, busy = false, sideOnMedium = false, wide = false, compactFull = false, footer, confirmDiscard = false, closeRef, header }: {
-  children: ReactNode; title: string; subtitle?: ReactNode; onClose: () => void; busy?: boolean; sideOnMedium?: boolean; wide?:boolean; compactFull?:boolean; footer?:ReactNode; confirmDiscard?:boolean; closeRef?:Ref<()=>void>;header?:ReactNode;
+export default function ResponsiveDialog({ children, title, subtitle, onClose, busy = false, sideOnMedium = false, wide = false, compactFull = false, mobileSnap = false, footer, confirmDiscard = false, closeRef, header }: {
+  children: ReactNode; title: string; subtitle?: ReactNode; onClose: () => void; busy?: boolean; sideOnMedium?: boolean; wide?:boolean; compactFull?:boolean; mobileSnap?:boolean; footer?:ReactNode; confirmDiscard?:boolean; closeRef?:Ref<()=>void>;header?:ReactNode;
 }) {
+  const stops = [30, 60, 80];
+  const [snap,setSnap]=useState(1);
+  const [dragHeight,setDragHeight]=useState<number|null>(null);
+  const startHeight=useRef(60);
   const [discardOpen,setDiscardOpen]=useState(false);
   const requestClose=()=>{if(busy)return;if(confirmDiscard)setDiscardOpen(true);else onClose();};
   useImperativeHandle(closeRef,()=>requestClose);
   const ref = useRef<HTMLDialogElement>(null);
   const dragStart = useRef<number | null>(null);
+  useEffect(()=>{
+    if(!mobileSnap)return;
+    const viewport=window.visualViewport;
+    const resize=()=>ref.current?.style.setProperty('--qs-sheet-viewport',`${viewport?.height??window.innerHeight}px`);
+    resize();viewport?.addEventListener('resize',resize);window.addEventListener('resize',resize);
+    return()=>{viewport?.removeEventListener('resize',resize);window.removeEventListener('resize',resize);};
+  },[mobileSnap]);
   useEffect(() => {
     const dialog = ref.current!;
     const previousFocus = document.activeElement as HTMLElement | null;
@@ -30,7 +41,8 @@ export default function ResponsiveDialog({ children, title, subtitle, onClose, b
     };
   }, []);
   return createPortal(
-    <><dialog ref={ref} aria-label={title} aria-busy={busy} data-responsive-dialog data-side-on-medium={sideOnMedium || undefined}
+    <><dialog ref={ref} aria-label={title} aria-busy={busy} data-responsive-dialog data-side-on-medium={sideOnMedium || undefined} data-mobile-snap={mobileSnap||undefined} data-sheet-state={mobileSnap?['peak','half','full'][snap]:undefined} data-sheet-dragging={dragHeight!==null||undefined}
+      style={mobileSnap?{'--qs-sheet-fraction':(dragHeight??stops[snap])/100} as any:undefined}
       onCancel={event => { event.preventDefault(); requestClose(); }}
       onClick={event => { if (event.target === event.currentTarget) {
         const bounds=event.currentTarget.getBoundingClientRect();
@@ -38,10 +50,12 @@ export default function ResponsiveDialog({ children, title, subtitle, onClose, b
       } }}
       className={`qs-dialog m-0 mt-auto max-h-[92dvh] w-full max-w-none overflow-hidden rounded-t-3xl border-0 bg-transparent p-0 text-slate-900 shadow-none backdrop:bg-black/40 sm:m-auto ${wide?'sm:max-w-5xl':'sm:max-w-lg'} sm:rounded-2xl dark:bg-zinc-900 dark:text-slate-100 ${compactFull?'qs-dialog-full':''} ${sideOnMedium ? 'sm:ml-auto sm:mr-0 sm:my-0 sm:h-dvh sm:max-h-dvh sm:rounded-none' : ''}`}>
       <GlassSurface className="qs-dialog-surface"><div className="qs-dialog-frame">
-        <div className="flex shrink-0 touch-none justify-center sm:hidden"
-          onPointerDown={event => { dragStart.current = event.clientY; event.currentTarget.setPointerCapture(event.pointerId); }}
-          onPointerUp={event => { if (dragStart.current !== null && event.clientY - dragStart.current > 70) requestClose(); dragStart.current = null; }}
-          onPointerCancel={() => { dragStart.current = null; }}>
+        <div className={`flex ${mobileSnap?'min-h-11 items-center':''} shrink-0 touch-none justify-center sm:hidden`} role={mobileSnap?'slider':undefined} tabIndex={mobileSnap?0:undefined} aria-orientation={mobileSnap?'vertical':undefined} aria-label={mobileSnap?'调整面板高度':undefined} aria-valuemin={mobileSnap?30:undefined} aria-valuemax={mobileSnap?80:undefined} aria-valuenow={mobileSnap?stops[snap]:undefined} aria-valuetext={mobileSnap?`${['peak','half','full'][snap]} ${stops[snap]}%`:undefined}
+          onKeyDown={event=>{if(!mobileSnap)return;if(['ArrowUp','ArrowDown','Home','End'].includes(event.key)){event.preventDefault();setSnap(value=>event.key==='Home'?0:event.key==='End'?2:Math.max(0,Math.min(2,value+(event.key==='ArrowUp'?1:-1))));}}}
+          onPointerDown={event => { if(busy)return;dragStart.current = event.clientY;startHeight.current=stops[snap]; event.currentTarget.setPointerCapture(event.pointerId); }}
+          onPointerMove={event=>{if(mobileSnap&&dragStart.current!==null)setDragHeight(Math.max(30,Math.min(80,startHeight.current+(dragStart.current-event.clientY)/(window.visualViewport?.height??window.innerHeight)*100)));}}
+          onPointerUp={event => { if(mobileSnap&&dragStart.current!==null){const height=Math.max(30,Math.min(80,startHeight.current+(dragStart.current-event.clientY)/(window.visualViewport?.height??window.innerHeight)*100));setSnap(stops.reduce((best,value,index)=>Math.abs(value-height)<Math.abs(stops[best]-height)?index:best,0));setDragHeight(null);}else if (dragStart.current !== null && event.clientY - dragStart.current > 70) requestClose(); dragStart.current = null; }}
+          onPointerCancel={() => { dragStart.current = null;setDragHeight(null); }}>
           <span className="my-3 h-1 w-10 rounded-full bg-slate-300" />
         </div>
         {header!==undefined?header:<header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-2 dark:border-zinc-800">

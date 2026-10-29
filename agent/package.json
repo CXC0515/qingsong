@@ -10,7 +10,8 @@
     "@deepseek-ai/dsh": "0.2.1-rc.3",
     "@deepseek-ai/dsh-sdk-client": "0.2.1-rc.3",
     "ws": "8.22.0",
-    "yaml": "2.9.1"
+    "yaml": "2.9.1",
+    "@deepseek-ai/libreoffice-kit": "0.1.5"
   },
   "scripts": {
     "probe": "node probe.mjs"

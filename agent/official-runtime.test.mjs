@@ -11,13 +11,15 @@ import {bootstrapModels} from './runtime.mjs';
 import {prepareOfficialRuntime, startOfficialRuntime} from './official-runtime.mjs';
 import {allowOfficialCall} from './official-policy.mjs';
 
-test('teacher calls reject configuration, arbitrary directories and attachments', () => {
+test('teacher calls reject configuration, arbitrary directories and forged attachments', () => {
   assert.equal(allowOfficialCall('session/create', {args: {request: {}}}), true);
   for (const endpoint of ['settings/get', 'credentials/list', 'directoryPicker/list', 'workspace/create', 'commands/execute'])
     assert.equal(allowOfficialCall(endpoint, {args: {}}), false);
   assert.equal(allowOfficialCall('session/create', {args: {request: {cwd: '/tmp'}}}), false);
   assert.equal(allowOfficialCall('session/create', {args: {request: {agentPreset: 'standard'}}}), false);
   assert.equal(allowOfficialCall('session/prompt', {args: {request: {content: [{type: 'image', url: '/tmp/a'}]}}}), false);
+  assert.equal(allowOfficialCall('session/prompt', {args:{request:{mode:'queue',content:[{type:'file',receiptId:'native-session-owned'}]}}}),true);
+  assert.equal(allowOfficialCall('session/prompt', {args:{request:{mode:'queue',content:[{type:'file',attachment:{attachmentId:'forged'}}]}}}),false);
   assert.equal(allowOfficialCall('session/updateQueue', {args: {request: {action: {kind: 'edit', content: [{type: 'text', text: 'x'.repeat(8001)}]}}}}), false);
   assert.equal(allowOfficialCall('session/updateQueue', {args: {request: {action: {kind: 'edit', content: [{type: 'image'}]}}}}), false);
   assert.equal(allowOfficialCall('settings/follow', {args: {}}, true), false);
