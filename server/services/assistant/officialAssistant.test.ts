@@ -472,8 +472,32 @@ test('owner generation settings: permissions, durable revision, native payload a
  const next=capturedRequests.length;assert.equal((await send()).ok,true);
  await until(()=>capturedRequests.length>next);assert.equal(capturedRequests[next].temperature,.8);assert.equal(capturedRequests[next].max_tokens??capturedRequests[next].max_completion_tokens,512);assert.equal(capturedRequests[next].reasoning_effort,'high');
  await until(()=>officialBudget.size.active===0);
+ // A material tool round must use the same saved native generation policy.
+ const poolForm=new FormData();poolForm.set('file',new Blob(['参数与材料联合闭环：这是合成教学样本。'],{type:'text/plain'}),'联合检查.txt');
+ const pooled=await fetch(apiRoot+'/api/material-pool/items',{method:'POST',headers:{Origin:origin,Cookie:teacher,'x-demo-csrf':'1'},body:poolForm});
+ assert.equal(pooled.status,201);const item=(await pooled.json()).item;
+ const selection=await fetch(apiRoot+'/api/assistant/official/api/qingsong/materials/references',{method:'POST',headers:{...headers,Cookie:teacher},body:JSON.stringify({sessionId:id,requestId:crypto.randomUUID(),itemIds:[item.id]})});
+ assert.equal(selection.status,200);const reference=(await selection.json()).references[0];
+ const materialOffset=capturedRequests.length;
+ assert.equal((await rpc(teacher,'session/prompt',{request:{sessionId:id,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:'请读取[[青松材料:'+reference.id+']]'}]}})).ok,true);
+ await until(async()=>JSON.stringify(await page(teacher,id)).includes('参数与材料联合闭环'));
+ await until(()=>officialBudget.size.active===0);
+ assert.ok(capturedRequests.length>=materialOffset+2,'material tool continuation must reach the native provider');
+ for(const wire of capturedRequests.slice(materialOffset)){assert.equal(wire.temperature,.8);assert.equal(wire.max_tokens??wire.max_completion_tokens,512);assert.equal(wire.reasoning_effort,'high');}
  const {generationPolicyPath,loadGenerationPolicy}=await import('./generationPolicy');
  assert.equal(JSON.parse(await readFile(generationPolicyPath+'.previous','utf8')).revision,2);
  if(!process.env.QS_NATIVE_PREVIEW){const durable=await readFile(generationPolicyPath,'utf8');await writeFile(generationPolicyPath,'broken');await assert.rejects(loadGenerationPolicy,/无法读取/);await writeFile(generationPolicyPath,durable);}
- if(process.env.QS_NATIVE_PREVIEW)console.log('管理员预览：admin-preview@fixture.test / Fixture-password-12345');
+ if(process.env.QS_NATIVE_PREVIEW){
+   const add=async(name:string,type:string,bytes:any)=>{const form=new FormData();form.set('file',new Blob([bytes],{type}),name);const response=await fetch(apiRoot+'/api/material-pool/items',{method:'POST',headers:{Origin:origin,Cookie:admin,'x-demo-csrf':'1'},body:form});assert.equal(response.status,201,await response.text());};
+   await add('阅读样本.txt','text/plain','统一验收样本：函数入门。全部内容均为合成材料。');
+   const ExcelJS=require('exceljs'),book=new ExcelJS.Workbook(),sheet=book.addWorksheet('成绩样本');sheet.addRow(['学生代号','成绩']);sheet.addRow(['样本甲',80]);sheet.addRow(['样本乙',90]);
+   await add('成绩样本.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',await book.xlsx.writeBuffer());
+   const {PDFDocument,StandardFonts}=require('pdf-lib'),pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica);pdf.addPage([420,300]).drawText('Unified local acceptance sample',{x:20,y:240,size:14,font});
+   await add('阅读样本.pdf','application/pdf',await pdf.save());
+   const {spawnSync}=await import('node:child_process');const ppt=path.join(root,'preview-slides.pptx');
+   const made=spawnSync(process.env.QS_ASSISTANT_PYTHON??'python3',['-c','from pptx import Presentation; import sys; r=Presentation(); s=r.slides.add_slide(r.slide_layouts[1]); s.shapes.title.text="Local lesson sample"; s.notes_slide.notes_text_frame.text="Teacher notes: synthetic material"; r.save(sys.argv[1])',ppt],{encoding:'utf8'});
+   assert.equal(made.status,0,made.stderr);await add('课件样本.pptx','application/vnd.openxmlformats-officedocument.presentationml.presentation',await readFile(ppt));
+   console.log('统一管理员预览：admin-preview@fixture.test / Fixture-password-12345；数据根：'+root);
+ }
+
 });

@@ -1,6 +1,6 @@
 # 助手附件与材料池引用
 
-版本：1.1 · 2026-10-29 · 状态：本机实现与代码review完成，检查通过；按用户首轮反馈修正选择器，未部署，待继续验收。
+版本：1.2 · 2026-10-29 · 状态：本机实现与代码review完成，检查通过；按用户首轮反馈修正选择器，未部署，待继续验收。
 
 ## 本次概要与授权
 
@@ -75,12 +75,16 @@ Word/PPT所需Python通过 `QS_ASSISTANT_PYTHON`，或现有 `PADDLEOCR_PYTHON/p
 
 ### 用户本机验收入口
 
+当前统一入口已迁至 `http://localhost:4482/`，API4477，管理员样本账号 `admin-preview@fixture.test` / `Fixture-password-12345`，同账号包含管理员设置与材料池合成资料。统一版状态和检查见 `PROJECT_HANDOFF.md`；下述4480是保留的独立专项预览。
+
 - Web `http://localhost:4480/`，API `127.0.0.1:4475`；使用当前worktree源码与独立临时数据，不连接正式数据。
 - 合成账号 `preview@fixture.test`，密码 `Fixture-password-12345`（仅本机公开样本凭据）。材料池预置TXT、XLSX、两页PDF；也可自行上传合成Word/PPT/图片。
 - 模型是确定性本机fixture，能够回显材料工具结果，不能代表真实模型理解、按意图选工具或复杂推理质量。测试页面/手机流程由用户完成，未作代理浏览器验收。
 - API复现：在Node24.22.1下设置 `QS_ASSISTANT_PYTHON` 为含docx/pptx的本机解释器，执行 `QS_NATIVE_PREVIEW=1 QS_TEST_PORT=4475 QS_PREVIEW_ORIGIN=http://localhost:4480 node --import tsx --test server/services/assistant/officialAssistant.test.ts`；Web执行 `API_PROXY_TARGET=http://127.0.0.1:4475 node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4480 --strictPort`。端口占用时先确认归属，不覆盖其他专项进程。
 
 ## 修改历史
+
+- v1.2：两个材料提交已整合至管理员本机分支，最终前端样式保留。统一4482样本管理员可同时验收附件/材料引用与生成参数，新增联合模拟调用场景；无真实模型调用、推送或部署。
 
 - v1.0：记录获批范围、复用方法、引用权限、读取合同、本机验证及发布前限制。
 - v1.1：用户批准本机修正：共享ResponsiveDialog增加可选peak 30% / half 60% / full 80%三态，默认half，拖动把手/键盘切档，适配visualViewport变化；仅材料选择启用，移除compactFull。文件夹筛选复用GlassButton/ResponsiveChoiceDialog，固定箭头位置；去掉重复已选/移除区，列表点击切换、底部数量及跨筛选保留选择。等待用户选择不计时，仅10秒打开握手与30秒实际提交计时；跨窗口打开/取消同步、旧回执隔离，错误支持关闭。13项原生/桥接检查、类型与构建通过，未做网页或手机验收。
