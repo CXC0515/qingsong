@@ -10,7 +10,7 @@ export function teachingFailure(error: unknown) {
     TASK_NOT_FOUND:'找不到这项课堂任务，教学数据未修改。请核对当前可访问任务列表。',
     TASK_CLASS_MISMATCH:'任务不属于指定班级，教学数据未修改。请核对班级与任务编号。',
     TASK_PARTICIPANT_NOT_FOUND:'指定学生不在这项任务的参与名单中，教学数据未修改。请核对任务参与者，不能据此判断学生未完成。',
-    INVALID_QUERY: '查询参数格式不正确，教学数据未修改。请按工具参数重新查询；日期使用YYYY-MM-DD。',
+    INVALID_QUERY: '查询参数格式不正确，教学数据未修改。请核对工具要求的字段、类型和取值后重新查询。',
     CLASS_REQUIRED: '查询缺少班级编号，教学数据未修改。请先用classes查询班级列表，再用返回的真实classId查询。',
     CLASS_NOT_FOUND: '当前可访问班级中没有此编号，教学数据未修改。请先用classes查询班级列表，不要把班名当作classId。',
     DATE_RANGE_REQUIRED: '课堂查询需要有效起止日期，跨度最多31天，教学数据未修改。请补全from/to后重试。',
@@ -21,7 +21,7 @@ export function teachingFailure(error: unknown) {
     CLOSING: '助手连接正在更新，已有对话保留，教学数据未修改。请稍后重试。',
     TURN_CANCELLED: '本轮请求已取消，已有对话保留，教学数据未修改。需要时可重新提问。',
   };
-  return {code: messages[code] ? code : 'INTERNAL_ERROR', message: messages[code] ?? '查询服务暂时未能完成，已有对话保留，教学数据未修改。请稍后重试。'};
+  return {recovery:['AUTH_EXPIRED','ACCESS_DENIED','CLOSING','TURN_CANCELLED'].includes(code)?'stop':['TASK_NOT_FOUND','CLASS_NOT_FOUND','STUDENT_NOT_FOUND','TASK_PARTICIPANT_NOT_FOUND'].includes(code)?'clarify':!messages[code]||code==='QUEUE_FULL'?'retry_once':'correct_arguments',code: messages[code] ? code : 'INTERNAL_ERROR', message: messages[code] ?? '查询服务暂时未能完成，已有对话保留，教学数据未修改。请稍后重试。'};
 }
 
 export function officialAssetCache(pathname: string, contentType: string) {
