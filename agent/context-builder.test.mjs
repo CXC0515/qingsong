@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {refreshContext,buildContext,recallQuery,contextGuidance} from './context-builder.mjs';
+import {refreshContext,buildContext,recallQuery,contextGuidance,businessRuntimeContext} from './context-builder.mjs';
+test('business context uses Shanghai date across UTC midnight and keeps relationship guidance',()=>{
+ const context=JSON.parse(businessRuntimeContext({classes:[{ref:{type:'class',id:'actual-id'},name:'初一（10）班'}],complete:true},new Date('2026-10-30T17:00:00Z')));
+ assert.equal(context.date,'2026-10-31');assert.equal(context.weekday,'星期六');assert.equal(context.timeZone,'Asia/Shanghai');assert.equal(context.business.classes[0].ref.id,'actual-id');assert.match(context.method,/相关记录取得classId/);
+});
 const human=(id,text)=>({id,source:{kind:'user'},content:[{type:'text',text}]});
 test('same question retains snapshot; next human question refreshes with bounded human-only context',async()=>{
   const state={},messages=[human('a','我带初二语文'),{source:{kind:'assistant'},content:[{type:'text',text:'不要把此建议当事实'}]},human('b','按我的背景写')];

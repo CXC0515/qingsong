@@ -25,6 +25,16 @@ const model = createServer(async (req, res) => {
   if (delayNext) { delayNext = false; await new Promise(resolve => setTimeout(resolve, 1500)); if (res.destroyed) return; }
   res.writeHead(200, {'content-type': 'text/event-stream'});
   const frame = (delta: unknown, finish_reason: string | null = null) => ({id: 'fixture', object: 'chat.completion.chunk', created: 1, model: 'fixture', choices: [{index: 0, delta, finish_reason}]});
+  if(queryScenario==='schedule-committee'){
+    const previous=input.messages.filter((m:any)=>m.role==='tool').at(-1);let value:any;
+    if(previous){try{value=JSON.parse(previous.content);}catch{}}
+    let name:string|undefined,args:any;
+    if(!previous){name='qingsong_search';args={type:'schedule',filters:{onDate:'2026-10-31',scope:'teacher'}};}
+    else if(value?.data?.items?.[0]?.ref?.type==='schedule'){name='qingsong_read';args={ref:{type:'class',id:value.data.items[0].classId},section:'committee'};}
+    if(name){res.write('data: '+JSON.stringify(frame({role:'assistant',tool_calls:[{index:0,id:crypto.randomUUID(),type:'function',function:{name,arguments:JSON.stringify(args)}}]}))+'\n\n');res.end('data: '+JSON.stringify(frame({},'tool_calls'))+'\n\ndata: [DONE]\n\n');}
+    else{res.write('data: '+JSON.stringify(frame({role:'assistant',content:previous?.content??'NO_RESULT'}))+'\n\n');res.end('data: '+JSON.stringify(frame({},'stop'))+'\n\ndata: [DONE]\n\n');}
+    return;
+  }
   const materialScenario = queryScenario === 'materials' || (!queryScenario && input.messages.some((message: any) => typeof message.content === 'string' && message.content.includes('"references":[{') && /"source":"(?:pool|upload)"/.test(message.content)));
   if (materialScenario) {
     const previous = input.messages.at(-1);
@@ -112,7 +122,7 @@ const {getAuthDatabase, closeAuthDatabase} = await import('../../database/authDa
 const {closeRosterDatabase} = await import('../../database/rosterDatabase');
 const {closeResourceDatabase} = await import('../../database/resourceDatabase');
 const {createWorkspaceContext, runWithWorkspace} = await import('../../context/workspaceContext');
-const {saveReminder}=await import('../../repositories/scheduleRepository');
+const {saveReminder,saveScheduleItem}=await import('../../repositories/scheduleRepository');
 const {resourceRepository}=await import('../../repositories/resourceRepository');
 const {saveGradingTask}=await import('../../repositories/gradingTaskRepository');
 const {saveTrialGradingResult}=await import('../../repositories/trialGradingRepository');
@@ -152,6 +162,7 @@ async function register(email: string, className: string, role:'teacher'|'owner'
     const c = createClass({name: className, grade: '七年级', term: '2026秋', headTeacher: className, status: 'active'});
     createStudent({classId: c.id, name: className + '班长', studentNo: '1', gender: 'female', committeeRoleIds: [listCommitteeRoles().find(role => role.name === '班长')!.id]});
     saveReminder({id:crypto.randomUUID(),name:'样本学生去样本办公室找样本老师',classId:c.id,className,time:'时间待定',repeatRule:'一次性',status:'active',timeKind:'none'});
+    saveScheduleItem({id:crypto.randomUUID(),day:6,period:1,title:'合成语文',classId:c.id,className:c.name,type:'class',time:'08:00',scope:'teacher'});
     const rid=crypto.randomUUID();
     resourceRepository.createResource({id:rid,title:'fixture-native-resource',fileName:'fixture.pdf',mimeType:'application/pdf',kind:'textbook',subject:'语文',grade:'七年级',publisher:'样本',edition:'样本',isPrimary:true,diskPath:'unused-fixture-only',publicUrl:'/api/resources/'+rid+'/content',pageCount:1});
     resourceRepository.replaceChunks(rid,[{id:rid+':chunk',resourceId:rid,level:'content',contentType:'paragraph',title:'样本',summary:'',text:className+'教材正文闭环',tags:[],pageStart:1,pageEnd:1,order:0}]);
@@ -360,17 +371,18 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   }
   const encoded = JSON.stringify(snapshot);
   assert.match(encoded, /甲教师专属班/); assert.doesNotMatch(encoded, /乙教师专属班/);
-  for (const scenario of ['classes', 'invalid-class', 'committee', 'capabilities', 'unsupported', 'skill', 'resource-read', 'grading-read', 'contract-recovery', 'repeat-invalid']) {
+  for (const scenario of ['classes', 'invalid-class', 'committee', 'schedule-committee', 'capabilities', 'unsupported', 'skill', 'resource-read', 'grading-read', 'contract-recovery', 'repeat-invalid']) {
     queryScenario = scenario;
     try {
       const sid = (await rpc(a, 'session/create', {request: {}})).value.sessionId;
+      const requestStart=capturedRequests.length;
       const recoveryScenario=['contract-recovery','repeat-invalid'].includes(scenario);
       if(recoveryScenario){
         assert.equal((await rpc(a,'session/prompt',{request:{sessionId:sid,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:'样本学生不知道去哪里找谁'}]}})).ok,true);
         let initial:any;for(let i=0;i<120;i++){initial=await page(a,sid);if(initial.records?.some(record=>record.event?.type==='turn/end'))break;await new Promise(resolve=>setTimeout(resolve,100));}
         assert.ok(initial.records?.some(record=>record.event?.type==='turn/end'));
       }
-      const submitted = await rpc(a, 'session/prompt', {request: {sessionId: sid, requestId: crypto.randomUUID(), mode: 'queue', content: [{type: 'text', text: recoveryScenario?'在我的日程里':'查询样本'}]}});
+      const submitted = await rpc(a, 'session/prompt', {request: {sessionId: sid, requestId: crypto.randomUUID(), mode: 'queue', content: [{type: 'text', text: recoveryScenario?'在我的日程里':scenario==='schedule-committee'?'今天有课的那个班的班长是谁？':'查询样本'}]}});
       assert.equal(submitted.ok, true, JSON.stringify(submitted));
       let result;
       for (let i = 0; i < 120; i++) {
@@ -379,9 +391,19 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       const serialized = JSON.stringify(result);
-      const expected: Record<string, RegExp> = {classes: /甲教师专属班/, 'invalid-class': /找不到当前账号可访问的对象/, committee: /甲教师专属班班长/, capabilities: /qingsong-read-v2/, unsupported: /type.*不支持的取值/, skill: /SHA256/, 'resource-read':/甲教师专属班教材正文闭环/, 'grading-read':/甲教师专属班批改结果闭环/, 'contract-recovery':/样本学生去样本办公室找样本老师/, 'repeat-invalid':/样本学生去样本办公室找样本老师/};
+      const expected: Record<string, RegExp> = {classes: /甲教师专属班/, 'invalid-class': /找不到当前账号可访问的对象/, committee: /甲教师专属班班长/, 'schedule-committee': /甲教师专属班班长/, capabilities: /qingsong-read-v3/, unsupported: /type.*不支持的取值/, skill: /SHA256/, 'resource-read':/甲教师专属班教材正文闭环/, 'grading-read':/甲教师专属班批改结果闭环/, 'contract-recovery':/样本学生去样本办公室找样本老师/, 'repeat-invalid':/样本学生去样本办公室找样本老师/};
       assert.match(serialized, expected[scenario], JSON.stringify(result.records?.filter(r=>['tool/result','turn/end','error'].includes(r.event?.type))));
       if (scenario === 'committee') assert.match(serialized, /committeeRoles/);
+      if(scenario==='schedule-committee'){
+        const requests=capturedRequests.slice(requestStart);
+        assert.ok(requests.length>=3);
+        const first=JSON.stringify(requests[0].messages);
+        assert.match(first,/Asia\/Shanghai/);assert.match(first,/甲教师专属班/);assert.doesNotMatch(first,/乙教师专属班/);
+        assert.match(first,/今天有课的那个班的班长是谁/);
+        const calls=result.records.filter(record=>record.event?.type==='tool/call').map(record=>record.event.data);
+        assert.deepEqual(calls.map(call=>call.name),['qingsong_search','qingsong_read']);
+        assert.equal(JSON.parse(calls[1].arguments).section,'committee');
+      }
       if(['contract-recovery','repeat-invalid'].includes(scenario)){
         const errors=result.records.filter(record=>record.event?.type==='tool/result'&&record.event.data.message.isError).map(record=>JSON.parse(record.event.data.message.content[0].text));
         assert.equal(errors[0].code,'INVALID_QUERY');assert.equal(errors[0].issues[0].field,'type');assert.match(errors[0].message,/schedule.*reminder/);assert.doesNotMatch(errors[0].message,/日期/);
