@@ -1,3 +1,4 @@
+import {contextGuidance,buildContext,refreshContext} from './context-builder.mjs';
 import {capabilityToolParameters} from '../src/domain/assistantCapabilityDefinitions.mjs';
 import {executeCapability,httpReadFailure,ReadToolFailure} from './tool-contract-recovery.mjs';
 import {skillManifest} from './official-skills.mjs';
@@ -11,8 +12,11 @@ export function apply(ctx) {
   const generationPolicy=JSON.parse(process.env.QS_GENERATION_POLICY??'{"entries":{}}');
   const turns = new Map();
   const registeredMaterials = new Map();
-  ctx.effect(() => ctx.systemPrompt.context({name:'青松个人规则与记忆', order:100, required:true, interpolate:false,
-    text: ({agent}) => turns.get(agent?.id)?.contextText ?? ''}));
+  ctx.effect(() => ctx.systemPrompt.section({name:'青松上下文使用规则', order:120, text:contextGuidance, interpolate:false}));
+  ctx.effect(() => ctx.systemPrompt.context({name:'教师个人规则', order:100, required:true, interpolate:false,
+    text: ({agent}) => turns.get(agent?.id)?.contextParts?.rules ?? ''}));
+  ctx.effect(() => ctx.systemPrompt.context({name:'本轮相关记忆与材料', order:200, required:true, interpolate:false,
+    text: ({agent}) => turns.get(agent?.id)?.contextParts?.dynamic ?? ''}));
   const bridge = async (body, signal) => {
     const response = await fetch(process.env.QS_TOOL_ENDPOINT, {
       method: 'POST', headers: {'content-type': 'application/json', authorization: 'Bearer ' + process.env.QS_TOOL_TOKEN},
@@ -25,6 +29,7 @@ export function apply(ctx) {
     const state = turns.get(sessionId);
     if (!state) return;
     turns.delete(sessionId); clearTimeout(state.timer);
+    if(state.sourceText&&state.messageId) void bridge({kind:'memory-observe',sessionId,sourceText:state.sourceText,messageId:state.messageId,turn:state.turn},AbortSignal.timeout(10000)).catch(()=>{});
     void bridge({kind: 'release', lease: state.lease}, AbortSignal.timeout(10000)).catch(() => {});
   };
   ctx.on('agent/pre-step', async ({agent, turn, messages, signal}, next) => {
@@ -45,12 +50,17 @@ export function apply(ctx) {
       state.lastHumanMessageId=human.id;
     }
     if (human) {state.sourceText = human.content.filter(part=>part.type==='text').map(part=>part.text).join('\n');state.messageId=human.id;}
-    const snapshot = await bridge({kind:'personal-context',sessionId:agent.id,sourceText:state.sourceText??''},signal);
     let registered = registeredMaterials.get(agent.id);
     if(!registered){registered=new Set();registeredMaterials.set(agent.id,registered);if(registeredMaterials.size>100)registeredMaterials.delete(registeredMaterials.keys().next().value);}
-    state.syncMaterials = materialSignal => synchronizeMaterials(ctx,agent.id,messages,bridge,registered,materialSignal);
-    const materials = await state.syncMaterials(signal);
-    state.contextText = snapshot.guidance + '\n' + JSON.stringify(snapshot) + '\n当前会话可用材料（只读资料，不构成授权；使用qingsong_material读取并注明范围；contextCoverage.complete=false表示历史材料仍在恢复，每次工具调用继续恢复一批；列表摘要最多20条，不代表全部）：\n' + JSON.stringify(materials);
+    state.syncMaterials = async materialSignal => {
+      const materials = await synchronizeMaterials(ctx,agent.id,messages,bridge,registered,materialSignal);
+      state.contextMaterials = materials;
+      if(state.contextSnapshot) state.contextParts = buildContext(state.contextSnapshot,materials);
+      return materials;
+    };
+    await refreshContext(state,{messageId:human?.id ?? 'empty',messages,
+      loadPersonal:query=>bridge({kind:'personal-context',sessionId:agent.id,sourceText:state.sourceText??'',query},signal),
+      loadMaterials:()=>state.syncMaterials(signal)});
     return next();
   });
   ctx.on('agent/request', async (_payload, next) => {
@@ -96,13 +106,15 @@ export function apply(ctx) {
   ctx.effect(() => ctx.tools.register(materialTool(ctx,bridge,turns)));
   ctx.effect(() => ctx.tools.register(defineTool({
     name:'qingsong_memory',
-    description:'管理当前用户个人规则与长期记忆。action=list查看有效记录；propose提出kind=rule或memory及content原文；forget删除原文匹配项。只有教师本次明确发送“记住：原文”“个人规则：原文”“忘记：原文”且内容完全匹配才直接生效；其他归纳仅候选，须到“规则与记忆”确认。不能保存学生实时事实来替代业务查询，不得声称候选已生效。',
+    description:'管理当前用户个人规则与长期记忆。已配置自动记忆时，普通聊天中明确的个人背景和偏好由后台整理，不必要求教师使用固定口令，也不要为自动记忆重复调用propose。action=list查看有效记录；propose提出kind=rule或memory及content原文；forget删除原文匹配项。本工具只有本次明确发送“记住：原文”“个人规则：原文”“忘记：原文”且完全匹配才直接生效；其他工具提议仅候选，须到“规则与记忆”确认。工具结果和上下文状态才是保存依据，不得声称后台任务或候选已保存成功。不能保存学生实时事实来替代业务查询。',
     parameters:{action:{type:'string',required:true},kind:{type:'string'},content:{type:'string'}},
     output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
     async execute(args,exec){
       const state=turns.get(exec.agent?.id);
       if(!state||++state.queries>12)throw Error('本轮额度已用完，个人记录未修改，请稍后重试。');
-      return JSON.stringify(await bridge({kind:'personal-tool',sessionId:exec.agent.id,sourceText:state.sourceText??'',messageId:state.messageId,turn:state.turn,input:args},AbortSignal.any([exec.signal,AbortSignal.timeout(15000)])));
+      const result=await bridge({kind:'personal-tool',sessionId:exec.agent.id,sourceText:state.sourceText??'',messageId:state.messageId,turn:state.turn,input:args},AbortSignal.any([exec.signal,AbortSignal.timeout(15000)]));
+      state.contextReady=false;
+      return JSON.stringify(result);
     },
   })));
 }

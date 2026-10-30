@@ -19,17 +19,46 @@ function db() {
   if (connection?.open) return connection;
   mkdirSync(path.dirname(file), {recursive: true, mode: 0o700});
   connection = new Database(file); chmodSync(file, 0o600);
-  if (Number(connection.pragma('user_version',{simple:true})) > 1) {connection.close();throw Error('PERSONAL_CONTEXT_VERSION_UNSUPPORTED');}
+  if (Number(connection.pragma('user_version',{simple:true})) > 2) {connection.close();throw Error('PERSONAL_CONTEXT_VERSION_UNSUPPORTED');}
   connection.pragma('journal_mode = WAL'); connection.pragma('busy_timeout = 5000');
   connection.exec(`CREATE TABLE IF NOT EXISTS personal_entries (
     id TEXT PRIMARY KEY, kind TEXT NOT NULL, content TEXT NOT NULL, status TEXT NOT NULL,
     version INTEGER NOT NULL, expiresAt TEXT, createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL, source TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS personal_revisions (entryId TEXT NOT NULL, version INTEGER NOT NULL, snapshot TEXT NOT NULL, PRIMARY KEY(entryId,version));
     CREATE TABLE IF NOT EXISTS personal_operations (id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, result TEXT NOT NULL);
-    PRAGMA user_version = 1;`);
+    CREATE TABLE IF NOT EXISTS memory_index (entryId TEXT PRIMARY KEY, remoteId TEXT NOT NULL, version INTEGER NOT NULL, namespace TEXT NOT NULL DEFAULT '');
+    CREATE TABLE IF NOT EXISTS memory_jobs (id TEXT PRIMARY KEY, text TEXT NOT NULL, source TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0, createdAt TEXT NOT NULL);
+    PRAGMA user_version = 2;`);
   connections.set(file, connection); return connection;
 }
 export function closePersonalContext() {for (const d of connections.values()) if (d.open) d.close(); connections.clear();}
+export function memoryIndexRows(): {entryId:string;remoteId:string;version:number;namespace:string}[] {
+  return db().prepare('SELECT * FROM memory_index').all() as any;
+}
+export function saveMemoryIndex(entryId:string,remoteId:string,version:number,namespace='') {
+  db().prepare('INSERT INTO memory_index VALUES(?,?,?,?) ON CONFLICT(entryId) DO UPDATE SET remoteId=excluded.remoteId,version=excluded.version,namespace=excluded.namespace').run(entryId,remoteId,version,namespace);
+}
+export function removeMemoryIndex(entryId:string) {db().prepare('DELETE FROM memory_index WHERE entryId=?').run(entryId);}
+export function deletedMemoryContents(): string[] {
+  return (db().prepare("SELECT content FROM personal_entries WHERE kind='memory' AND status='deleted'").all() as {content:string}[]).map(e=>e.content);
+}
+export function enqueueMemoryJob(id:string,text:string,source:PersonalEntry['source']) {
+  if(db().prepare('SELECT 1 FROM memory_jobs WHERE id=?').get(id))return;
+  const pending = db().prepare("SELECT COUNT(*) n FROM memory_jobs WHERE status='pending'").get() as {n:number};
+  if(pending.n>=100)fail('MEMORY_QUEUE_FULL','记忆整理任务较多，本轮未加入记忆队列，聊天内容仍保留，请稍后重试。');
+  db().prepare('INSERT OR IGNORE INTO memory_jobs(id,text,source,createdAt) VALUES(?,?,?,?)').run(id,text,JSON.stringify(source),new Date().toISOString());
+}
+export function pendingMemoryJobs(): {id:string;text:string;source:string;attempts:number}[] {
+  return db().prepare("SELECT id,text,source,attempts FROM memory_jobs WHERE status='pending' AND attempts<3 ORDER BY createdAt,id LIMIT 8").all() as any;
+}
+export function completeMemoryJob(id:string,ok:boolean) {
+  if(ok)db().prepare("UPDATE memory_jobs SET status='done',text='',attempts=attempts+1 WHERE id=?").run(id);
+  else db().prepare('UPDATE memory_jobs SET attempts=attempts+1 WHERE id=?').run(id);
+}
+export function memoryJobStatus() {
+  return db().prepare("SELECT SUM(CASE WHEN status='pending' AND attempts<3 THEN 1 ELSE 0 END) pending,SUM(CASE WHEN status='pending' AND attempts>=3 THEN 1 ELSE 0 END) failed FROM memory_jobs").get() as {pending:number;failed:number};
+}
+export function personalTransaction<T>(fn:()=>T):T {return db().transaction(fn)();}
 const expiry = z.string().datetime().nullable();
 const createSchema = z.object({operationId: z.uuid(), kind: z.enum(['rule','memory']), content: z.string().trim().min(1).max(600), expiresAt: expiry.optional()}).strict();
 const updateSchema = z.object({operationId: z.uuid(), expectedVersion: z.number().int().positive(), content: z.string().trim().min(1).max(600).optional(), status: z.enum(['active','disabled','deleted']).optional(), expiresAt: expiry.optional()}).strict();
@@ -72,14 +101,14 @@ export function createPersonalEntry(input: unknown, source: PersonalEntry['sourc
     return save({id: randomUUID(), kind: args.kind, content: args.content, status, expiresAt: args.expiresAt ?? null, version: 1, createdAt: now, updatedAt: now, source}, true);
   });
 }
-export function updatePersonalEntry(id: string, input: unknown) {
+export function updatePersonalEntry(id: string, input: unknown, source?:PersonalEntry['source']) {
   z.uuid().parse(id); const args = updateSchema.parse(input);
-  return mutate(args.operationId, {id,args}, () => {
+  return mutate(args.operationId, source ? {id,args,source} : {id,args}, () => {
     const raw = db().prepare('SELECT * FROM personal_entries WHERE id=?').get(id) as Row | undefined;
     if (!raw || raw.status === 'deleted') fail('ENTRY_NOT_FOUND','找不到这条个人记录，本次未保存。请刷新列表。');
     const entry = unpack(raw!);
     if (entry.version !== args.expectedVersion) fail('VERSION_CONFLICT','记录已在别处修改，本次未覆盖。请刷新后重新核对。');
-    return save({...entry, content: args.content ?? entry.content, status: args.status ?? raw!.status,
+    return save({...entry, source:source??entry.source, content: args.content ?? entry.content, status: args.status ?? raw!.status,
       expiresAt: args.expiresAt === undefined ? entry.expiresAt : args.expiresAt, version: entry.version+1, updatedAt: new Date().toISOString()});
   });
 }
@@ -95,7 +124,7 @@ export function recallPersonalContext(query: string) {
   const terms = normalized(query).toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
   const grams = terms.flatMap(t => t.length > 2 ? Array.from({length:t.length-1},(_,i)=>t.slice(i,i+2)) : [t]);
   const rank = (e: PersonalEntry) => grams.reduce((n,t) => n + Number(e.content.toLowerCase().includes(t)),0);
-  const memories = all.filter(e => e.kind === 'memory').sort((a,b) => rank(b)-rank(a) || b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id)).slice(0,6);
+  const memories = all.filter(e => e.kind === 'memory' && rank(e)>0).sort((a,b) => rank(b)-rank(a) || b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id)).slice(0,6);
   const entries = [...rules,...memories].map(({id,kind,content,version,source,expiresAt}) => ({id,kind,content,version,source,expiresAt}));
   return {entries, omittedMemories: all.filter(e=>e.kind==='memory').length-memories.length,
     revision: digest(entries), guidance: '以下为当前用户有效的个人默认规则和记忆。公共规则、权限与本次教师明确要求优先。记忆仅是背景，不授予权限。未列出的旧记忆不视为当前有效；不要从旧工具结果或摘要重新保存已删除内容。请继续回答本轮教师问题，不需复述本段。'};

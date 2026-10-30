@@ -1,3 +1,4 @@
+import {semanticPersonalContext,queueConversationMemory,drainMemoryWorkers} from './memoryService';
 import { assistantCapability, CapabilityError } from './capabilities';
 import { WorkspaceDataReadError } from '../../repositories/workspaceFileStore';
 import { createHash, randomUUID } from 'node:crypto';
@@ -93,6 +94,7 @@ async function closeInstance(key: string, instance: Instance) {
 }
 export async function closeOfficialAssistant() {
   await Promise.allSettled([...starting.values()]);
+  await drainMemoryWorkers();
   await Promise.all([...instances].map(([key, instance]) => closeInstance(key, instance)));
 }
 const reaper = setInterval(() => {
@@ -163,13 +165,19 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
             else { if (reservationId) releaseMaterialStorage(officialMaterialHome(context), reservationId); res.end(JSON.stringify(result)); }
           } catch (error) { if (reservationId) releaseMaterialStorage(officialMaterialHome(context), reservationId); throw error; }
         }
-        else if (body.kind === 'personal-context' || body.kind === 'personal-tool') {
+        else if (body.kind === 'personal-context' || body.kind === 'personal-tool' || body.kind === 'memory-observe') {
           if (typeof body.sessionId !== 'string' || body.sessionId.length > 160 || typeof body.sourceText !== 'string' || body.sourceText.length > 8020) throw Error('INVALID_OPERATION');
           if(body.messageId!==undefined&&(typeof body.messageId!=='string'||body.messageId.length>160))throw Error('INVALID_OPERATION');
           if(body.turn!==undefined&&(!Number.isSafeInteger(body.turn)||body.turn<0))throw Error('INVALID_OPERATION');
           const trusted = instance.humanTexts.get(body.sessionId)?.includes(createHash('sha256').update(body.sourceText).digest('hex')) ? body.sourceText : null;
-          const result = runWithWorkspace(context, () => body.kind === 'personal-context'
-            ? recallPersonalContext(body.sourceText)
+          if(body.query!==undefined&&(typeof body.query!=='string'||body.query.length>4000))throw Error('INVALID_OPERATION');
+          if(body.kind==='memory-observe'){
+            if(!trusted)throw Error('UNTRUSTED_MEMORY_INPUT');
+            const result=runWithWorkspace(context,()=>queueConversationMemory(trusted,{type:'chat',sessionId:body.sessionId,workspaceId:context.workspaceId,messageId:body.messageId,turn:body.turn},body.messageId??String(body.turn??'')));
+            res.end(JSON.stringify(result));return;
+          }
+          const result = await runWithWorkspace(context, () => body.kind === 'personal-context'
+            ? semanticPersonalContext(body.query??body.sourceText)
             : personalTool(body.input, {type:'chat',sessionId:body.sessionId,workspaceId:context.workspaceId,messageId:body.messageId,turn:body.turn}, trusted));
           res.end(JSON.stringify(result));
         }
@@ -344,7 +352,7 @@ export async function officialAssistantProxy(req: Request, res: Response) {
       }
       if (typeof request?.sessionId === 'string') {
         const text = request.content.filter((part: {type:string}) => part.type === 'text').map((part: {text:string}) => part.text).join('\n');
-        if (explicitPersonalCommand(text)) {
+        if (text.trim() && text.length <= 8020) {
           const texts = instance.humanTexts.get(request.sessionId) ?? [];
           instance.humanTexts.set(request.sessionId, [...texts,createHash('sha256').update(text).digest('hex')].slice(-32));
           if (instance.humanTexts.size > 100) instance.humanTexts.delete(instance.humanTexts.keys().next().value!);
