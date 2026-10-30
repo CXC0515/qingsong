@@ -111,7 +111,7 @@ test('new image input is gated, while a text question after historical images re
   const value=body.kind==='personal-context'?{guidance:'fixture'}:body.kind==='materials-context'?{references:[]}:{};
   return new Response(JSON.stringify(value),{status:200,headers:{'content-type':'application/json'}});
  };
- const fake={...ctx,systemPrompt:{context:()=>()=>{}},tools:{guard:()=>()=>{},register:()=>()=>{}},llm:{resolveModelInfo:async()=>{modelChecks++;return{inputModalities:['text']};}},on:(name,handler)=>handlers.set(name,handler),effect:run=>{const cleanup=run();if(typeof cleanup==='function')disposers.push(cleanup);}};
+ const fake={...ctx,systemPrompt:{context:()=>()=>{},section:()=>()=>{}},tools:{guard:()=>()=>{},register:()=>()=>{}},llm:{resolveModelInfo:async()=>{modelChecks++;return{inputModalities:['text']};}},on:(name,handler)=>handlers.set(name,handler),effect:run=>{const cleanup=run();if(typeof cleanup==='function')disposers.push(cleanup);}};
  try {
   apply(fake);
   const agent={id:'session-image',options:{provider:'fixture',model:'text'},session:{requestHeader:()=>undefined}};

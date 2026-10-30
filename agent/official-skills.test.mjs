@@ -19,7 +19,7 @@ test('published Skill is the only provider entry, dependency-checked, versioned,
 });
 test('real DSH schema compilation registers the unified tools without enabling arbitrary execution',()=>{
  const names=[];let guard;
- applyTeaching({effect:f=>f(),systemPrompt:{context:()=>{}},on:()=>{},tools:{guard:g=>{guard=g;},register:t=>{names.push(t.name);}}});
+ applyTeaching({effect:f=>f(),systemPrompt:{context:()=>{},section:()=>{}},on:()=>{},tools:{guard:g=>{guard=g;},register:t=>{names.push(t.name);}}});
  assert.deepEqual(names,['qingsong_discover','qingsong_search','qingsong_read','qingsong_material','qingsong_memory']);
  assert.equal(guard({name:'qingsong_read'}),undefined);
  for(const name of ['qingsong_query','shell','read_file'])assert.ok(guard({name}));

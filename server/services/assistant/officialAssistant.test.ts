@@ -13,6 +13,7 @@ const testPort = Number(process.env.QS_TEST_PORT ?? 4475);
 const apiRoot = 'http://127.0.0.1:' + testPort;
 process.env.APP_DATA_ROOT = root; process.env.APP_URL = origin; process.env.API_PORT = String(testPort);
 process.env.OPENAI_VISION_MODEL = 'fixture'; process.env.OPENAI_API_KEY = 'fixture';
+process.env.QS_MEMORY_ENABLED = 'false'; // Never inherit real memory credentials from local .env.
 const capturedRequests:any[] = [];
 let delayNext = false;
 let queryScenario: string | undefined;
@@ -402,7 +403,7 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   let saved=(await personal(a)).data.entries.find((e:any)=>e.content==='fixture-cross-session-memory');
   assert.equal(saved?.status,'active','exact authenticated human command must activate');
   assert.equal(saved.source.type,'chat');
-  const recalled=await memoryTurn('recall','新会话的个人约定是什么');
+  const recalled=await memoryTurn('recall','新会话的 fixture-cross-session-memory 个人约定是什么');
   assert.match(JSON.stringify(recalled),/fixture-cross-session-memory/);
   assert.match(JSON.stringify(recalled),/fixture-rule-manual/);
   const isolated=await memoryTurn('recall','我的个人约定是什么',b);
@@ -419,7 +420,7 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   const approved=await personal(a,'PATCH','/'+candidate.id,{operationId:crypto.randomUUID(),expectedVersion:candidate.version,status:'active'});
   assert.equal(approved.status,200);
   assert.equal((await personal(a,'PATCH','/'+candidate.id,{operationId:crypto.randomUUID(),expectedVersion:candidate.version,content:'stale'})).status,409);
-  const confirmedRecall=await memoryTurn('recall','检查刚确认的记忆');
+  const confirmedRecall=await memoryTurn('recall','检查刚确认的 fixture-candidate 记忆');
   assert.match(JSON.stringify(confirmedRecall),/fixture-candidate/);
   await personal(a,'PATCH','/'+candidate.id,{operationId:crypto.randomUUID(),expectedVersion:approved.data.entry.version,status:'disabled'});
   const disabledRecall=await memoryTurn('recall','检查停用后的记忆');
