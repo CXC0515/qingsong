@@ -1,4 +1,4 @@
-import {contextGuidance,buildContext,refreshContext} from './context-builder.mjs';
+import {contextGuidance,buildContext,refreshContext,businessRuntimeContext} from './context-builder.mjs';
 import {capabilityToolParameters} from '../src/domain/assistantCapabilityDefinitions.mjs';
 import {executeCapability,httpReadFailure,ReadToolFailure} from './tool-contract-recovery.mjs';
 import {skillManifest} from './official-skills.mjs';
@@ -17,6 +17,8 @@ export function apply(ctx) {
     text: ({agent}) => turns.get(agent?.id)?.contextParts?.rules ?? ''}));
   ctx.effect(() => ctx.systemPrompt.context({name:'本轮相关记忆与材料', order:200, required:true, interpolate:false,
     text: ({agent}) => turns.get(agent?.id)?.contextParts?.dynamic ?? ''}));
+  ctx.effect(() => ctx.systemPrompt.context({name:'当前业务与上海日期', order:150, required:true, interpolate:false,
+    text: ({agent}) => businessRuntimeContext(turns.get(agent?.id)?.businessContext ?? {complete:false,guidance:'候选尚未加载，使用qingsong_search查找。'})}));
   const bridge = async (body, signal) => {
     const response = await fetch(process.env.QS_TOOL_ENDPOINT, {
       method: 'POST', headers: {'content-type': 'application/json', authorization: 'Bearer ' + process.env.QS_TOOL_TOKEN},
@@ -44,6 +46,7 @@ export function apply(ctx) {
     }
     if (++state.steps > 8) throw Error('本轮已达到8步上限，已有对话保留，教学数据未修改，请拆分问题后重试。');
     await bridge({kind: 'authorize'}, signal);
+    if(!state.businessContext)state.businessContext=await bridge({kind:'business-context'},signal);
     const human = messages.filter(message => message.source?.kind === 'user').at(-1);
     if(human && (state.lastHumanMessageId!==human.id || state.steps===1)){
       if(human.content.some(part=>part.type==='image')) await requireImageModel(ctx,{agent,signal});
@@ -82,7 +85,7 @@ export function apply(ctx) {
     const parameters=capabilityToolParameters(action);
     const tool=defineTool({
       name:'qingsong_'+action,
-      description:action==='discover'?'查看当前已开放业务对象、筛选及section。首次查某类数据先查看，不猜编号、字段或权限。':action==='search'?'查找业务对象。type和filters以discover为准；query搜索名称或正文，返回ref用于read。offset从0开始，limit最多50。':'读取search返回的ref；section以discover为准，长记录分页。日期在filters传from/to。返回textWindow.nextTextOffset时保持同一页并传textOffset续读长文本。来源、完整性及失败状态必须保留，partial不能当成全量。',
+      description:action==='discover'?'查看当前已开放业务对象、筛选及section。首次查某类数据先查看，不猜编号、字段或权限。':action==='search'?'查找业务对象。type和filters以discover为准；query搜索名称或正文，不是整句自然语言问答。零命中先放宽query并核对候选。今天有课等关系描述先查schedule(onDate、scope)，用返回classId继续查班级。offset从0开始，limit最多50。':'读取search或当前业务上下文提供的真实ref；section以discover为准。班委任职读class的committee，不必扫描全班名单；多候选先结合上下文核对。长记录分页，日期在filters传from/to。textWindow.nextTextOffset用于续读。partial不能当成全量。',
       parameters,output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
       async execute(args,exec){
         return JSON.stringify(await bridge({kind:'capability',action,input:args},AbortSignal.any([exec.signal,AbortSignal.timeout(90000)])));

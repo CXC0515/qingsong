@@ -47,7 +47,7 @@ export const normalizeClassLabel = (value: string) => value
   .replace(/[\s()（）\[\]【】{}<>《》·,，.。:：;；'"“”‘’/_\\\-—–]/g, '')
   .trim();
 
-const gradeNumberFromText = (value: string) => {
+export const gradeNumberFromText = (value: string) => {
   const compact = normalizeClassLabel(value);
   const schoolStage = compact.match(/(?:初中|初)([一二三123])/);
   if (schoolStage) return parseChineseNumber(schoolStage[1]) + 6;
@@ -57,7 +57,7 @@ const gradeNumberFromText = (value: string) => {
   return grade ? parseChineseNumber(grade[1]) : undefined;
 };
 
-const classNumberFromText = (value: string) => {
+export const classNumberFromText = (value: string) => {
   const withoutGrade = normalizeClassLabel(value)
     .replace(/(?:初中|初)[一二三123]/g, '')
     .replace(/(?:高中|高)[一二三123]/g, '')

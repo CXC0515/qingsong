@@ -12,7 +12,7 @@ export class CapabilityError extends Error {
   }
 }
 export function missing(): never {throw new CapabilityError('OBJECT_NOT_FOUND','找不到当前账号可访问的对象。数据未修改，请重新查找后读取。',{recovery:'clarify',nextAction:'重新search核对对象；查不到时请教师核对范围，不要反复读取同一编号。'});}
-export interface CapabilityFilters extends Record<string,unknown> {classId?:string;studentId?:string;taskId?:string;from?:string;to?:string;status?:string;enrollmentStatus?:string;lifecycle?:string;negativeOnly?:boolean;subject?:string;kind?:string;grade?:string}
+export interface CapabilityFilters extends Record<string,unknown> {classId?:string;studentId?:string;taskId?:string;from?:string;to?:string;status?:string;enrollmentStatus?:string;lifecycle?:string;negativeOnly?:boolean;subject?:string;kind?:string;grade?:string;onDate?:string;weekday?:number;scope?:'teacher'|'class'}
 export interface SearchArgs {type:AssistantObjectType;query:string;filters:CapabilityFilters;offset:number;limit:number}
 export interface ReadArgs {ref:{type:AssistantObjectType;id:string;parentId?:string};section:string;filters:CapabilityFilters;offset:number;limit:number;textOffset:number}
 function fromDefinition(spec:any):z.ZodType {
@@ -41,6 +41,7 @@ export function parseCapability(action:'discover'|'search'|'read',input:unknown)
 export const assertContext=()=>getWorkspaceContext();
 export const ref=(type:AssistantObjectType,id:string,parentId?:string)=>({type,id,...(parentId?{parentId}:{})});
 export function validateFilters(type:AssistantObjectType, filters:Record<string,unknown>, read=false) {
+  if(type==='schedule'&&filters.onDate!==undefined&&filters.weekday!==undefined)throw new CapabilityError('INVALID_FILTER','onDate与weekday只能提供一个。数据未修改，请保留日期或星期条件。');
   const allowed=new Set<string>(capabilityFilterFields(type,read?'read':'search'));
   const enums:Record<string,readonly string[]>={lifecycle:assistantFilterOptions.lifecycle,enrollmentStatus:assistantFilterOptions.enrollmentStatus};
   if(type==='class')enums.status=assistantFilterOptions.classStatus;

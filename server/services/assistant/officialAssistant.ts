@@ -1,4 +1,5 @@
 import {semanticPersonalContext,queueConversationMemory,drainMemoryWorkers} from './memoryService';
+import {teachingBusinessContext} from './capabilities/teaching';
 import { assistantCapability, CapabilityError } from './capabilities';
 import { WorkspaceDataReadError } from '../../repositories/workspaceFileStore';
 import { createHash, randomUUID } from 'node:crypto';
@@ -165,6 +166,10 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
             if ('images' in result && result.images?.length && reservationId) res.end(JSON.stringify({ ...result, reservationId }));
             else { if (reservationId) releaseMaterialStorage(officialMaterialHome(context), reservationId); res.end(JSON.stringify(result)); }
           } catch (error) { if (reservationId) releaseMaterialStorage(officialMaterialHome(context), reservationId); throw error; }
+        }
+        else if (body.kind === 'business-context') {
+          const result=runWithWorkspace(context,()=>teachingBusinessContext());
+          await authorizeInstance(instance);res.end(JSON.stringify(result));
         }
         else if (body.kind === 'personal-context' || body.kind === 'personal-tool' || body.kind === 'memory-observe') {
           if (typeof body.sessionId !== 'string' || body.sessionId.length > 160 || typeof body.sourceText !== 'string' || body.sourceText.length > 8020) throw Error('INVALID_OPERATION');

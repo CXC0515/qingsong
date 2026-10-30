@@ -1,12 +1,12 @@
 /** Model-facing business objects, never database tables or arbitrary field paths. */
-export const assistantCapabilityVersion = 'qingsong-read-v2';
+export const assistantCapabilityVersion = 'qingsong-read-v3';
 export const assistantObjects = {
-  class: {label:'班级', filters:['status'], sections:['detail','students','seating','summary']},
+  class: {label:'班级（支持简称；关联描述先查相应记录）', filters:['status'], sections:['detail','students','committee','seating','summary']},
   student: {label:'学生档案', filters:['classId','enrollmentStatus'], sections:['detail','observations','homework','weaknessEvidence','classroom','behavior']},
   classroomTask: {label:'课堂任务', filters:['classId','from','to','lifecycle','negativeOnly'], sections:['detail','participants','events']},
   behavior: {label:'课堂表现（必须提供from/to）', filters:['classId','studentId','from','to','kind'], sections:['detail']},
   project: {label:'课堂记录项目', filters:[], sections:['detail']},
-  schedule: {label:'课程', filters:['classId'], sections:['detail','periods']},
+  schedule: {label:'课程与每周课表（按日期对应星期，不代表实际出勤）', filters:['classId','onDate','weekday','scope'], sections:['detail','periods']},
   reminder: {label:'提醒与日程', filters:['classId','from','to','status'], sections:['detail']},
   resource: {label:'资源与教材（query搜索标题及已解析正文）', filters:['subject','kind','grade'], sections:['detail','chunks','pages','original','jobs','suggestions']},
   knowledge: {label:'知识节点', filters:['subject','kind'], sections:['detail','relations','sources','children','revisions','context']},
@@ -24,6 +24,9 @@ export const objectTypeDescription = '业务对象类型：'+Object.entries(assi
 const id = description=>({type:'string',minLength:1,maxLength:160,trim:true,description});
 const date = {type:'string',pattern:'^\\d{4}-\\d{2}-\\d{2}$',format:'date',description:'真实日期YYYY-MM-DD，from/to需同时提供，跨度最多31天'};
 const filters = {
+ onDate:{...date,description:'查询该日期对应星期的常规周课表，YYYY-MM-DD；不与weekday同时填写，不代表临时调课或实际出勤'},
+ weekday:{type:'integer',minimum:1,maximum:7,description:'星期一=1，星期日=7；不与onDate同时填写'},
+ scope:{type:'string',enum:['teacher','class'],description:'teacher为教师课表，class为班级课表；问我的课优先teacher'},
  classId:id('班级编号，先查询班级取得'),studentId:id('学生编号，先查询学生取得'),taskId:id('批改任务编号，先查询grading取得'),
  from:date,to:date,status:{type:'string',minLength:1,maxLength:160,trim:true,description:'对象状态，取值以discover中该对象的filterOptions为准'},
  enrollmentStatus:{type:'string',enum:assistantFilterOptions.enrollmentStatus,description:'学生在籍状态'},
