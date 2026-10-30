@@ -1,8 +1,8 @@
 # Harness 上下文组装与 Mem0 接入
 
-- 版本：v0.3
+- 版本：v0.4
 - 日期：2026-10-30
-- 状态：上下文与记忆已实现；真实模型、embedding、Mem0 与本机持久化 Qdrant 已接通，新增/召回/重启/更正/遗忘通过；用户已授权线上发布，部署进行中。
+- 状态：PR #109 已合并，a7806c9 已部署正式站；服务器真实记忆闭环通过，网页/手机使用效果待用户验收。
 - 本次概要：复用 DSH 上下文注册机制，拆分稳定说明、会话状态、动态记忆和材料；接入开源 Mem0，替换字面召回及固定口令依赖。
 
 ## 范围与目标
@@ -69,3 +69,14 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.qingsong.memory.qd
 
 ## 线上发布方案（用户已授权）
 服务器独立安装 Qdrant，回环监听并由 systemd 常驻；传输仅限本次记忆配置，不输出密钥。应用按本次分支 PR 合并后从母文件夹 main 打包。切换前建立在线产品恢复点，保留旧环境文件、旧代码和 SQLite v1 快照；先完成候选 Linux 检查及真实合成记忆闭环，失败恢复旧 current、旧环境及仅迁移涉及的个人记忆库。网页和手机由用户验收。
+
+## 2026-10-30 生产发布结果
+- PR #109 合并 a7806c9df30bcc4183f39c001b6493a6c976e326，母文件夹 main 同步打包，SHA256 cb595ef5c1546c9e02b8494d30e6e963b25379c505dede7945b469088f2e3cc6。
+- 生产服务器 Qdrant 1.20.0 独立服务 teacher-dashboard-memory，仅127.0.0.1:16333/16334监听；数据为 /var/lib/teacher-dashboard/memory-qdrant/storage，遥测关闭，systemd开机启动。向量索引可由SQLite重建；产品备份继续以SQLite原文和版本为准。
+- 模型密钥通过SSH安全传入 /etc/teacher-dashboard/memory.env，root:root 600；原环境文件未改。新增30-memory.conf由应用加载。运行中进程已核对记忆启用、1024维和回环Qdrant配置，不输出凭据。
+- Linux类型/构建、32项定向及3项HTTP/DSH测试通过；服务器真实模型、embedding、Mem0、Qdrant新增/召回/无关过滤/新进程读取/更正/遗忘闭环通过，全部使用合成用户。
+- 在线恢复点 /var/lib/teacher-dashboard/backups/manual/product-2026-10-30-pre-memory-a7806c9，1345文件/9SQLite，验证通过。两个人记忆库v1→v2；原表全部行哈希及8份业务JSON前后一致。
+- current已切换到a7806c9；应用和记忆服务active/running、NRestarts=0，备份timer恢复。旧a93b088及恢复点保留。回滚脚本 /tmp/qs-memory-cutover.sh 已包含失败回退；旧代码不接受v2记忆库，因此回滚时还须停应用并用恢复点还原仅个人记忆库，同时移除30-memory.conf，不能仅切current。
+- 发布证据：/tmp/qs-memory-linux-tests.log、/tmp/qs-memory-server-real-create2.log、/tmp/qs-memory-server-lifecycle.log、/tmp/qs-memory-cutover.log；受限行哈希记录 /var/log/teacher-dashboard-release-memory-a7806c9。
+- 本节取代之前“尚未部署”的阶段记录；真实网页登录及手机交互由用户验收。
+- v0.4：记录线上部署、迁移备份和真实服务验证。
