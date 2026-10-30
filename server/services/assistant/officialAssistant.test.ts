@@ -197,6 +197,19 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   const cached = await fetch(assetUrl, {headers: {Cookie: a, 'If-None-Match': etag!}});
   assert.equal(cached.status, 304);
   assert.equal((await fetch(assetUrl)).status, 401);
+  const pluginPath = html.match(/(?:src|href)=["']([^"']*plugins\/[^"']*rev=[a-f0-9]{12})["']/)?.[1];
+  assert.ok(pluginPath, 'revisioned plugin script missing');
+  const pluginUrl = new URL(pluginPath.replaceAll('&amp;', '&'), apiRoot + '/api/assistant/official/').href;
+  const plugin = await fetch(pluginUrl, {headers: {Cookie: a}});
+  assert.equal(plugin.status, 200);
+  assert.match(plugin.headers.get('cache-control')!, /private.*immutable/);
+  assert.match(plugin.headers.get('vary')!, /Cookie/i);
+  const pluginEtag = plugin.headers.get('etag');assert.ok(pluginEtag);
+  const pluginBytes = await plugin.arrayBuffer();assert.ok(pluginBytes.byteLength > 0);
+  const pluginCached = await fetch(pluginUrl, {headers: {Cookie: a, 'If-None-Match': pluginEtag!}});
+  assert.equal(pluginCached.status, 304);assert.equal((await pluginCached.arrayBuffer()).byteLength, 0);
+  assert.equal((await fetch(pluginUrl)).status, 401);
+
 
   for (const method of ['credentials/list', 'settings/get', 'directoryPicker/list']) {
     const response = await fetch(apiRoot + '/api/assistant/official/api/' + method, {method: 'POST', headers: {...headers, Cookie: a}, body: JSON.stringify({type:'client-request', method, payload: {args: {}}})}); assert.equal(response.status, 403);

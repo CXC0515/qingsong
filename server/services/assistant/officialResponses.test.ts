@@ -18,6 +18,10 @@ test('parameter, class, date, authorization, queue and internal failures remain 
 test('only static code is privately cached, data and documents are never cached', () => {
   assert.match(officialAssetCache('/assets/index-BXV-oxvX.js', 'application/javascript'), /private.*immutable/);
   assert.match(officialAssetCache('/plugins/', 'text/javascript'), /private.*must-revalidate/);
+  assert.match(officialAssetCache('/plugins/', 'text/javascript', '??pkg/client.js&rev=abcdef123456'), /private.*immutable/);
+  assert.match(officialAssetCache('/plugins/pkg/chunk.js', 'application/javascript', '?rev=abcdef123456'), /private.*immutable/);
+  assert.match(officialAssetCache('/plugins/', 'text/javascript', '??pkg/client.js&rev=invalid'), /must-revalidate/);
+  assert.equal(officialAssetCache('/api/session/page', 'application/json', '?rev=abcdef123456'), 'no-store');
   assert.equal(officialAssetCache('/api/session/page', 'application/json'), 'no-store');
   assert.equal(officialAssetCache('/plugins/events', 'text/event-stream'), 'no-store');
   assert.equal(officialAssetCache('/', 'text/html'), 'no-store');
