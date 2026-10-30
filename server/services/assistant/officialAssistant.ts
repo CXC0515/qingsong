@@ -19,6 +19,7 @@ import { officialBudget } from './officialBudget';
 import {teachingFailure, officialAssetCache} from './officialResponses';
 import {logEvent} from '../../observability/logger';
 import {pipeOfficialEventStream} from './officialStream';
+import {prepareOfficialAsset, officialAssetEncoding} from './officialAssets';
 import { startOfficialRuntime } from '../../../agent/official-runtime.mjs';
 import { allowOfficialCall } from '../../../agent/official-policy.mjs';
 import { relayOfficialSocket } from '../../../agent/official-relay.mjs';
@@ -401,12 +402,23 @@ export async function officialAssistantProxy(req: Request, res: Response) {
         });
         incoming.on('end', () => {
           if (streaming) { res.end(); return; }
-          const bytes = Buffer.concat(chunks);
-          const etag = '"' + createHash('sha256').update(bytes).digest('hex') + '"';
-          res.setHeader('ETag', etag);
-          const supplied = req.headers['if-none-match']?.split(',').map(value => value.trim().replace(/^W\//, '')) ?? [];
-          if (supplied.includes(etag) || supplied.includes('*')) res.status(304).end();
-          else res.end(bytes);
+          void (async () => {
+            const encoding = officialAssetEncoding(req.headers['accept-encoding']);
+            res.vary('Accept-Encoding');
+            if (!encoding) { res.status(406).end(); return; }
+            const artifact = await prepareOfficialAsset(Buffer.concat(chunks), String(incoming.headers['content-type'] ?? ''));
+            if (res.destroyed) return;
+            const body = artifact[encoding], etag = artifact.etags[encoding];
+            res.setHeader('ETag', etag);
+            if (encoding !== 'identity') res.setHeader('Content-Encoding', encoding);
+            else res.removeHeader('Content-Encoding');
+            const supplied = req.headers['if-none-match']?.split(',').map(value => value.trim().replace(/^W\//, '')) ?? [];
+            if (supplied.includes(etag) || supplied.includes('*')) res.status(304).end();
+            else { res.setHeader('Content-Length', body.length); res.end(body); }
+          })().catch(() => {
+            if (!res.headersSent && !res.destroyed) res.status(502).end('助手页面资源加载失败，已有对话保留，请重新连接。');
+            else res.destroy();
+          });
         });
         incoming.on('error', () => res.destroy());
       } else incoming.pipe(res);

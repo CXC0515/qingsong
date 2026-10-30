@@ -5,6 +5,7 @@ import {createServer} from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
+import {Script} from 'node:vm';
 const require = createRequire(new URL('../../../agent/package.json', import.meta.url));
 const {WebSocket} = require('ws');
 const root = await mkdtemp(path.join(os.tmpdir(), 'qs-native-http-'));
@@ -206,9 +207,31 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   assert.match(plugin.headers.get('vary')!, /Cookie/i);
   const pluginEtag = plugin.headers.get('etag');assert.ok(pluginEtag);
   const pluginBytes = await plugin.arrayBuffer();assert.ok(pluginBytes.byteLength > 0);
+  assert.equal(plugin.headers.get('content-encoding'), 'gzip');
+  assert.match(plugin.headers.get('vary')!, /Accept-Encoding/i);
+  for (const encoding of ['br', 'identity']) {
+    const variant = await fetch(pluginUrl, {headers: {Cookie: a, 'Accept-Encoding': encoding}});
+    assert.equal(variant.status, 200);
+    assert.equal(variant.headers.get('content-encoding'), encoding === 'identity' ? null : encoding);
+    assert.equal(Buffer.from(await variant.arrayBuffer()).equals(Buffer.from(pluginBytes)), true);
+    assert.notEqual(variant.headers.get('etag'), pluginEtag);
+    if (encoding === 'br') assert.ok(Number(variant.headers.get('content-length')) < pluginBytes.byteLength);
+  }
+  const forbiddenEncoding = await fetch(pluginUrl, {headers: {Cookie: a, 'Accept-Encoding': '*;q=0'}});
+  assert.equal(forbiddenEncoding.status, 406);
+  const otherTeacherPlugin = await fetch(pluginUrl, {headers: {Cookie: b}});
+  assert.equal(otherTeacherPlugin.status, 200); await otherTeacherPlugin.arrayBuffer();
   const pluginCached = await fetch(pluginUrl, {headers: {Cookie: a, 'If-None-Match': pluginEtag!}});
   assert.equal(pluginCached.status, 304);assert.equal((await pluginCached.arrayBuffer()).byteLength, 0);
   assert.equal((await fetch(pluginUrl)).status, 401);
+  for (const match of html.matchAll(/(?:src|href)=["']([^"']*plugins\/[^"']*rev=[a-f0-9]{12})["']/g)) {
+    const url = new URL(match[1].replaceAll('&amp;', '&'), apiRoot + '/api/assistant/official/').href;
+    const script = await fetch(url, {headers: {Cookie: a, 'Accept-Encoding': 'br'}});
+    assert.equal(script.status, 200);
+    const code = await script.text();
+    assert.doesNotThrow(() => new Script(code), 'startup plugin must remain valid JavaScript');
+    console.log(JSON.stringify({check:'startup-plugin',decodedBytes:Buffer.byteLength(code),transferBytes:Number(script.headers.get('content-length')),encoding:script.headers.get('content-encoding')}));
+  }
 
 
   for (const method of ['credentials/list', 'settings/get', 'directoryPicker/list']) {
