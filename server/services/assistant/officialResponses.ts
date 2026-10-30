@@ -24,9 +24,14 @@ export function teachingFailure(error: unknown) {
   return {recovery:['AUTH_EXPIRED','ACCESS_DENIED','CLOSING','TURN_CANCELLED'].includes(code)?'stop':['TASK_NOT_FOUND','CLASS_NOT_FOUND','STUDENT_NOT_FOUND','TASK_PARTICIPANT_NOT_FOUND'].includes(code)?'clarify':!messages[code]||code==='QUEUE_FULL'?'retry_once':'correct_arguments',code: messages[code] ? code : 'INTERNAL_ERROR', message: messages[code] ?? '查询服务暂时未能完成，已有对话保留，教学数据未修改。请稍后重试。'};
 }
 
-export function officialAssetCache(pathname: string, contentType: string) {
+export function officialAssetCache(pathname: string, contentType: string, search = '') {
   if (!/(javascript|text\/css)/i.test(contentType)) return 'no-store';
   if (/^\/assets\/[^/]+-[a-zA-Z0-9_-]{8,}\.(?:js|css)$/.test(pathname)) return 'private, max-age=31536000, immutable';
-  if (pathname.startsWith('/plugins/')) return 'private, max-age=0, must-revalidate';
+  // DSH rejects mismatched bundle revisions; only revisioned code is immutable.
+  if (pathname.startsWith('/plugins/')) {
+    const revision = new URLSearchParams(search).get('rev');
+    if (revision && /^[a-f0-9]{12}$/.test(revision)) return 'private, max-age=31536000, immutable';
+    return 'private, max-age=0, must-revalidate';
+  }
   return 'no-store';
 }

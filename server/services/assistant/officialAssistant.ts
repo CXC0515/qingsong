@@ -366,7 +366,7 @@ export async function officialAssistantProxy(req: Request, res: Response) {
     res.once('close',()=>{if(!reported){reported=true;report(res.writableFinished?'complete':'closed');}});
     const body = req.method === 'POST' ? JSON.stringify(req.body) : undefined;
     const headers: Record<string, string> = {host: new URL(runtimeConfig.appUrl).host, cookie: instance.cookie};
-    for (const name of ['content-type', 'accept', 'origin', 'if-none-match']) if (typeof req.headers[name] === 'string') headers[name] = req.headers[name];
+    for (const name of ['content-type', 'accept', 'origin']) if (typeof req.headers[name] === 'string') headers[name] = req.headers[name];
     if (body) headers['content-length'] = String(Buffer.byteLength(body));
     const upstream = httpRequest({hostname: '127.0.0.1', port: instance.runtime.port, path: target.pathname + target.search, method: req.method, headers}, incoming => {
       res.status(incoming.statusCode ?? 502);
@@ -374,10 +374,11 @@ export async function officialAssistantProxy(req: Request, res: Response) {
       incoming.on('data',(chunk:Buffer)=>{if(firstByteMs===undefined){firstByteMs=performance.now()-upstreamStarted;logEvent('info','assistant_official_first_byte',{requestId:res.getHeader('x-request-id'),endpoint:target.pathname,instanceMs:Math.round(instanceMs),upstreamHeadersMs:Math.round(headersMs!),firstByteMs:Math.round(firstByteMs)});}bytes+=chunk.length;});
       res.setHeader('Server-Timing', 'instance;dur=' + instanceMs.toFixed(1) + ', upstream;dur=' + (performance.now() - upstreamStarted).toFixed(1));
       if (['GET', 'HEAD'].includes(req.method) && [200, 304].includes(incoming.statusCode ?? 0)) {
-        res.setHeader('Cache-Control', officialAssetCache(target.pathname, String(incoming.headers['content-type'] ?? '')));
+        res.setHeader('Cache-Control', officialAssetCache(target.pathname, String(incoming.headers['content-type'] ?? ''), target.search));
       }
       res.removeHeader('Content-Security-Policy'); res.removeHeader('X-Frame-Options');
-      for (const [name, value] of Object.entries(incoming.headers)) if (value !== undefined && !['set-cookie', 'connection', 'transfer-encoding', 'content-length', 'content-security-policy', 'x-frame-options', 'cache-control'].includes(name)) res.setHeader(name, value);
+      for (const [name, value] of Object.entries(incoming.headers)) if (value !== undefined && !['set-cookie', 'connection', 'transfer-encoding', 'content-length', 'content-security-policy', 'x-frame-options', 'cache-control', 'vary'].includes(name)) res.setHeader(name, value);
+      if (incoming.headers.vary) res.vary(String(incoming.headers.vary));
       res.vary('Cookie');
       const nativeCsp = String(incoming.headers['content-security-policy'] ?? '').split(';').filter(rule => !/^\s*frame-ancestors\b/i.test(rule)).filter(rule => rule.trim()).join('; ');
       res.setHeader('Content-Security-Policy', [nativeCsp, "frame-ancestors 'self'", ...(nativeCsp ? [] : ["object-src 'none'", "base-uri 'self'"])].filter(Boolean).join('; '));
