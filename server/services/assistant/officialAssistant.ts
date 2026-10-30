@@ -186,7 +186,7 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
         else throw Error('INVALID_OPERATION');
       } catch (error) {
         if (!res.headersSent) res.writeHead(400);
-        const failure = error instanceof CapabilityError || error instanceof WorkspaceDataReadError || error instanceof PersonalContextError || error instanceof AssistantMaterialError || error instanceof AssistantMaterialReadError ? {code:error.code,message:error.message} : (error as Error).message === 'MATERIAL_STORAGE_LIMIT' ? { code: 'MATERIAL_STORAGE_LIMIT', message: '附件与解析缓存已达到当前用户512MB限制，原件和对话仍保留，请减少材料或联系管理员。' } : teachingFailure(error);
+        const failure = error instanceof CapabilityError ? error.toFailure() : error instanceof WorkspaceDataReadError || error instanceof PersonalContextError || error instanceof AssistantMaterialError || error instanceof AssistantMaterialReadError ? {code:error.code,message:error.message} : (error as Error).message === 'MATERIAL_STORAGE_LIMIT' ? { code: 'MATERIAL_STORAGE_LIMIT', message: '附件与解析缓存已达到当前用户512MB限制，原件和对话仍保留，请减少材料或联系管理员。' } : teachingFailure(error);
         logEvent('warn', 'assistant_tool_failed', {code: failure.code});
         res.end(JSON.stringify(failure));
       }

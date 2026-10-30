@@ -29,7 +29,7 @@ test('find and read real student fields, ambiguity, pagination, and isolation',a
   await assert.rejects(runWithWorkspace(b,()=>read({ref:{type:'student',id:s.id,parentId:c.id}})),/找不到/);
   assert.equal(runWithWorkspace(b,()=>search({type:'student'})).page?.total,0);
   assert.throws(()=>search({type:'student',filters:{workspaceId:b.workspaceId}}));
-  assert.throws(()=>search({type:'resource',filters:{classId:c.id}}),/不支持筛选/);
+  assert.throws(()=>search({type:'resource',filters:{classId:c.id}}),/不支持filters\.classId/);
   await assert.rejects(read({ref:{type:'student',id:s.id},section:'arbitrarySQL'}),/不支持/);
   assert.throws(()=>search({type:'behavior',filters:{from:'2026-02-30',to:'2026-03-01'}}));
   getRosterDatabase().prepare('UPDATE students SET profile_json=? WHERE id=?').run('{broken',s.id);
@@ -100,6 +100,19 @@ test('classroom results/events, saved seating and schedule/reminder reads keep o
   const event=recordBehavior({operationId:randomUUID(),studentId:s.id,classId:c.id,kind:'participation',note:'样本发言',occurredDate:'2026-10-29'});
   const events=search({type:'behavior',filters:{classId:c.id,from:'2026-10-29',to:'2026-10-29'}});assert.equal(events.page!.total,1);
   assert.equal((await read({ref:{type:'behavior',id:event.id},filters:{from:'2026-10-29',to:'2026-10-29'}})).data.note,'样本发言');
-  assert.throws(()=>search({type:'classroomTask',filters:{lifecycle:'made-up'}}),/不受支持/);
+  assert.throws(()=>search({type:'classroomTask',filters:{lifecycle:'made-up'}}),/不支持的取值/);
+ });
+});
+test('backend contract rejects the real bad type with exact correction and preserves all valid object types',async()=>{
+ const {parseCapability}=await import('./contract');
+ const {assistantObjects,capabilityToolParameters}=await import('../../../../src/domain/assistantCapabilityDefinitions.mjs');
+ runWithWorkspace(b,()=>{
+  assert.throws(()=>discover({type:'日程'}),error=>{
+   const failure=(error as any).toFailure();assert.equal(failure.code,'INVALID_QUERY');assert.equal(failure.issues[0].field,'type');assert.equal(failure.issues[0].received,'日程');assert.ok(failure.issues[0].allowedValues.includes('reminder'));assert.doesNotMatch(failure.message,/日期/);return true;
+  });
+  for(const type of Object.keys(assistantObjects)){
+   assert.equal(parseCapability('search',{type}).type,type);assert.ok(capabilityToolParameters('search').type.enum.includes(type));
+  }
+  for(const args of [{type:'reminder',limit:51},{type:'reminder',offset:-1},{type:'reminder',filters:{from:'2026-10-31'}},{type:'reminder',filters:{from:'2026-02-30',to:'2026-03-01'}},{type:'reminder',workspaceId:'forged'}])assert.throws(()=>parseCapability('search',args));
  });
 });

@@ -53,6 +53,23 @@ const model = createServer(async (req, res) => {
     }
     return;
   }
+  if(['contract-recovery','repeat-invalid'].includes(queryScenario??'')){
+    if(!input.messages.some((message:any)=>message.role==='user'&&typeof message.content==='string'&&message.content==='在我的日程里')){
+      res.write('data: '+JSON.stringify(frame({role:'assistant',content:'你指的是哪件事？我可以帮你核对日程里的安排。'}))+'\n\n');res.end('data: '+JSON.stringify(frame({},'stop'))+'\n\ndata: [DONE]\n\n');return;
+    }
+    const previous=input.messages.filter((m:any)=>m.role==='tool').at(-1);let value:any;
+    if(previous){try{value=JSON.parse(previous.content);}catch{}}
+    let name:string|undefined,args:any;
+    if(!previous){name='skill';args={name:'system-data'};}
+    else if(value?.name==='system-data'||previous?.content?.includes('<skill_content name="system-data">')){name='qingsong_discover';args={type:'日程'};}
+    else if(value?.code==='INVALID_QUERY'&&queryScenario==='repeat-invalid'){name='qingsong_discover';args={type:'日程'};}
+    else if(value?.code){name='qingsong_discover';args={};}
+    else if(value?.data?.objects){name='qingsong_search';args={type:'reminder',query:'样本学生'};}
+    else if(value?.data?.items?.[0]?.ref){name='qingsong_read';args={ref:value.data.items[0].ref,section:'detail'};}
+    if(name){res.write('data: '+JSON.stringify(frame({role:'assistant',tool_calls:[{index:0,id:crypto.randomUUID(),type:'function',function:{name,arguments:JSON.stringify(args)}}]}))+'\n\n');res.end('data: '+JSON.stringify(frame({},'tool_calls'))+'\n\ndata: [DONE]\n\n');}
+    else{res.write('data: '+JSON.stringify(frame({role:'assistant',content:previous?.content??'NO_RESULT'}))+'\n\n');res.end('data: '+JSON.stringify(frame({},'stop'))+'\n\ndata: [DONE]\n\n');}
+    return;
+  }
   if (queryScenario) {
     const previous=input.messages?.at(-1);
     const result=previous?.role==='tool'&&['committee','resource-read','grading-read'].includes(queryScenario)?JSON.parse(previous.content):undefined;
@@ -93,6 +110,7 @@ const {getAuthDatabase, closeAuthDatabase} = await import('../../database/authDa
 const {closeRosterDatabase} = await import('../../database/rosterDatabase');
 const {closeResourceDatabase} = await import('../../database/resourceDatabase');
 const {createWorkspaceContext, runWithWorkspace} = await import('../../context/workspaceContext');
+const {saveReminder}=await import('../../repositories/scheduleRepository');
 const {resourceRepository}=await import('../../repositories/resourceRepository');
 const {saveGradingTask}=await import('../../repositories/gradingTaskRepository');
 const {saveTrialGradingResult}=await import('../../repositories/trialGradingRepository');
@@ -131,6 +149,7 @@ async function register(email: string, className: string, role:'teacher'|'owner'
   runWithWorkspace(createWorkspaceContext(row.user_id, row.workspace_id, row.role), () => {
     const c = createClass({name: className, grade: '七年级', term: '2026秋', headTeacher: className, status: 'active'});
     createStudent({classId: c.id, name: className + '班长', studentNo: '1', gender: 'female', committeeRoleIds: [listCommitteeRoles().find(role => role.name === '班长')!.id]});
+    saveReminder({id:crypto.randomUUID(),name:'样本学生去样本办公室找样本老师',classId:c.id,className,time:'时间待定',repeatRule:'一次性',status:'active',timeKind:'none'});
     const rid=crypto.randomUUID();
     resourceRepository.createResource({id:rid,title:'fixture-native-resource',fileName:'fixture.pdf',mimeType:'application/pdf',kind:'textbook',subject:'语文',grade:'七年级',publisher:'样本',edition:'样本',isPrimary:true,diskPath:'unused-fixture-only',publicUrl:'/api/resources/'+rid+'/content',pageCount:1});
     resourceRepository.replaceChunks(rid,[{id:rid+':chunk',resourceId:rid,level:'content',contentType:'paragraph',title:'样本',summary:'',text:className+'教材正文闭环',tags:[],pageStart:1,pageEnd:1,order:0}]);
@@ -304,22 +323,37 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   }
   const encoded = JSON.stringify(snapshot);
   assert.match(encoded, /甲教师专属班/); assert.doesNotMatch(encoded, /乙教师专属班/);
-  for (const scenario of ['classes', 'invalid-class', 'committee', 'capabilities', 'unsupported', 'skill', 'resource-read', 'grading-read']) {
+  for (const scenario of ['classes', 'invalid-class', 'committee', 'capabilities', 'unsupported', 'skill', 'resource-read', 'grading-read', 'contract-recovery', 'repeat-invalid']) {
     queryScenario = scenario;
     try {
       const sid = (await rpc(a, 'session/create', {request: {}})).value.sessionId;
-      const submitted = await rpc(a, 'session/prompt', {request: {sessionId: sid, requestId: crypto.randomUUID(), mode: 'queue', content: [{type: 'text', text: '查询样本'}]}});
+      const recoveryScenario=['contract-recovery','repeat-invalid'].includes(scenario);
+      if(recoveryScenario){
+        assert.equal((await rpc(a,'session/prompt',{request:{sessionId:sid,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:'样本学生不知道去哪里找谁'}]}})).ok,true);
+        let initial:any;for(let i=0;i<120;i++){initial=await page(a,sid);if(initial.records?.some(record=>record.event?.type==='turn/end'))break;await new Promise(resolve=>setTimeout(resolve,100));}
+        assert.ok(initial.records?.some(record=>record.event?.type==='turn/end'));
+      }
+      const submitted = await rpc(a, 'session/prompt', {request: {sessionId: sid, requestId: crypto.randomUUID(), mode: 'queue', content: [{type: 'text', text: recoveryScenario?'在我的日程里':'查询样本'}]}});
       assert.equal(submitted.ok, true, JSON.stringify(submitted));
       let result;
       for (let i = 0; i < 120; i++) {
         result = await page(a, sid);
-        if (result.records?.some(record => record.event?.type === 'turn/end')) break;
+        if ((result.records?.filter(record => record.event?.type === 'turn/end').length??0)>=(recoveryScenario?2:1)) break;
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       const serialized = JSON.stringify(result);
-      const expected: Record<string, RegExp> = {classes: /甲教师专属班/, 'invalid-class': /找不到当前账号可访问的对象/, committee: /甲教师专属班班长/, capabilities: /qingsong-read-v1/, unsupported: /查询参数格式不正确/, skill: /SHA256/, 'resource-read':/甲教师专属班教材正文闭环/, 'grading-read':/甲教师专属班批改结果闭环/};
+      const expected: Record<string, RegExp> = {classes: /甲教师专属班/, 'invalid-class': /找不到当前账号可访问的对象/, committee: /甲教师专属班班长/, capabilities: /qingsong-read-v2/, unsupported: /type.*不支持的取值/, skill: /SHA256/, 'resource-read':/甲教师专属班教材正文闭环/, 'grading-read':/甲教师专属班批改结果闭环/, 'contract-recovery':/样本学生去样本办公室找样本老师/, 'repeat-invalid':/样本学生去样本办公室找样本老师/};
       assert.match(serialized, expected[scenario], JSON.stringify(result.records?.filter(r=>['tool/result','turn/end','error'].includes(r.event?.type))));
       if (scenario === 'committee') assert.match(serialized, /committeeRoles/);
+      if(['contract-recovery','repeat-invalid'].includes(scenario)){
+        const errors=result.records.filter(record=>record.event?.type==='tool/result'&&record.event.data.message.isError).map(record=>JSON.parse(record.event.data.message.content[0].text));
+        assert.equal(errors[0].code,'INVALID_QUERY');assert.equal(errors[0].issues[0].field,'type');assert.match(errors[0].message,/schedule.*reminder/);assert.doesNotMatch(errors[0].message,/日期/);
+        assert.equal(errors.length,scenario==='repeat-invalid'?2:1);
+        if(scenario==='repeat-invalid')assert.equal(errors[1].code,'REPEATED_TOOL_FAILURE');
+        const calls=result.records.filter(record=>record.event?.type==='tool/call').map(record=>record.event.data);
+        assert.ok(calls.some(call=>call.name==='qingsong_search'&&JSON.parse(call.arguments).type==='reminder'));
+        const last=result.records.filter(record=>record.event?.type==='tool/result').at(-1);assert.equal(last.event.data.message.isError,false);
+      }
       assert.doesNotMatch(serialized, /请重新登录/);
       assert.doesNotMatch(serialized, /乙教师专属班/);
     } finally { queryScenario = undefined; }
@@ -327,6 +361,9 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
   const toolNames=capturedRequests.flatMap(input=>(input.tools??[]).map(tool=>tool.function?.name));
   for(const name of ['skill','qingsong_discover','qingsong_search','qingsong_read','qingsong_material','qingsong_memory'])assert.ok(toolNames.includes(name),'missing real model tool schema: '+name);
   assert.ok(!toolNames.includes('qingsong_query'));
+  const schemas=capturedRequests.flatMap(input=>input.tools??[]);
+  const discover=schemas.find(tool=>tool.function?.name==='qingsong_discover');assert.ok(discover.function.parameters.properties.type.enum.includes('reminder'));
+  const reader=schemas.find(tool=>tool.function?.name==='qingsong_read');assert.deepEqual(reader.function.parameters.properties.ref.required.sort(),['id','type']);
   const skills=await rpc(a,'skills/list',{request:{sessionId:id}});assert.equal(skills.ok,true,JSON.stringify(skills));
   assert.match(JSON.stringify(skills),/system-data/);assert.doesNotMatch(JSON.stringify(skills),/office|filesystem/);
   // Real HTTP and DSH contracts for user-owned memory; all supplier responses are local fixtures.

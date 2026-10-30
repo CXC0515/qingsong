@@ -2,34 +2,54 @@ import {AsyncLocalStorage} from 'node:async_hooks';
 import {z} from 'zod';
 import {randomUUID} from 'node:crypto';
 import {assistantObjects, assistantCapabilityVersion, assistantFilterOptions, type AssistantObjectType} from '../../../../src/domain/assistantCapabilities';
+import {capabilityFilterFields,capabilityArgumentDefinitions,capabilityArgumentIssues,invalidCapabilityArguments} from '../../../../src/domain/assistantCapabilityDefinitions.mjs';
 import {getWorkspaceContext} from '../../../context/workspaceContext';
 export class CapabilityError extends Error {
-  constructor(public code: string, message: string) {super(message);}
+  constructor(public code: string, message: string, public guidance?: {recovery?:string;issues?:unknown[];nextAction?:string}) {super(message);}
+  toFailure(){
+    const parameterError=['INVALID_QUERY','INVALID_FILTER','SECTION_UNSUPPORTED','DATE_RANGE_REQUIRED','TASK_REQUIRED','INVALID_RANGE','CAPABILITY_UNSUPPORTED'].includes(this.code);
+    return {code:this.code,message:this.message,recovery:parameterError?'correct_arguments':'clarify',nextAction:parameterError?'按错误说明修正参数，不确定时调用qingsong_discover({})。':'停止原样重复此读取，核对对象和已有结果；可改查其他已开放内容或向教师确认。',...this.guidance};
+  }
 }
-export function missing(): never {throw new CapabilityError('OBJECT_NOT_FOUND','找不到当前账号可访问的对象。数据未修改，请重新查找后读取。');}
-const id = z.string().trim().min(1).max(160);
-const date=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v=>{const d=new Date(v+'T00:00:00Z');return Number.isFinite(+d)&&d.toISOString().slice(0,10)===v;});
-const filterShape={classId:id.optional(),studentId:id.optional(),taskId:id.optional(),from:date.optional(),to:date.optional(),status:id.optional(),enrollmentStatus:id.optional(),lifecycle:id.optional(),negativeOnly:z.boolean().optional(),subject:id.optional(),kind:id.optional(),grade:id.optional()};
-export const filterSchema=z.object(filterShape).strict().default({}).refine(v=>(!v.from&&!v.to)||(Boolean(v.from&&v.to)&&v.from!<=v.to!&&Date.parse(v.to!)-Date.parse(v.from!)<=30*86400000), '日期须成对且跨度最多31天');
-const type=z.enum(Object.keys(assistantObjects) as [AssistantObjectType,...AssistantObjectType[]]);
-const page={offset:z.number().int().min(0).max(100000).default(0),limit:z.number().int().min(1).max(50).default(20)};
-export const discoverSchema=z.object({type:type.optional()}).strict();
-export const searchSchema=z.object({type,query:z.string().trim().max(200).default(''),filters:filterSchema,...page}).strict();
-export const readSchema=z.object({textOffset:z.number().int().min(0).max(10000000).default(0),ref:z.object({type,id,parentId:id.optional()}).strict(),section:z.string().max(64).default('detail'),filters:filterSchema,...page}).strict();
-export type SearchArgs=z.infer<typeof searchSchema>;
-export type ReadArgs=z.infer<typeof readSchema>;
+export function missing(): never {throw new CapabilityError('OBJECT_NOT_FOUND','找不到当前账号可访问的对象。数据未修改，请重新查找后读取。',{recovery:'clarify',nextAction:'重新search核对对象；查不到时请教师核对范围，不要反复读取同一编号。'});}
+export interface CapabilityFilters extends Record<string,unknown> {classId?:string;studentId?:string;taskId?:string;from?:string;to?:string;status?:string;enrollmentStatus?:string;lifecycle?:string;negativeOnly?:boolean;subject?:string;kind?:string;grade?:string}
+export interface SearchArgs {type:AssistantObjectType;query:string;filters:CapabilityFilters;offset:number;limit:number}
+export interface ReadArgs {ref:{type:AssistantObjectType;id:string;parentId?:string};section:string;filters:CapabilityFilters;offset:number;limit:number;textOffset:number}
+function fromDefinition(spec:any):z.ZodType {
+ let schema:any;
+ if(spec.type==='object')schema=z.object(Object.fromEntries(Object.entries(spec.properties??{}).map(([key,value])=>[key,fromDefinition(value)]))).strict();
+ else if(spec.type==='string'){
+  schema=spec.enum?z.enum(spec.enum):z.string();if(spec.trim&&!spec.enum)schema=schema.trim();
+  if(!spec.enum){if(spec.minLength!==undefined)schema=schema.min(spec.minLength);if(spec.maxLength!==undefined)schema=schema.max(spec.maxLength);if(spec.pattern)schema=schema.regex(new RegExp(spec.pattern));}
+ }else if(spec.type==='integer'){schema=z.number().int();if(spec.minimum!==undefined)schema=schema.min(spec.minimum);if(spec.maximum!==undefined)schema=schema.max(spec.maximum);}
+ else schema=z.boolean();
+ if(Object.hasOwn(spec,'default'))return schema.default(spec.default);
+ return spec.required?schema:schema.optional();
+}
+const build=(action:string)=>z.object(Object.fromEntries(Object.entries(capabilityArgumentDefinitions[action]).map(([key,spec])=>[key,fromDefinition(spec)]))).strict();
+export const discoverSchema=build('discover') as z.ZodType<{type?:AssistantObjectType}>;
+export const searchSchema=build('search') as unknown as z.ZodType<SearchArgs>;
+export const readSchema=build('read') as unknown as z.ZodType<ReadArgs>;
+export function parseCapability(action:'discover',input:unknown):{type?:AssistantObjectType};
+export function parseCapability(action:'search',input:unknown):SearchArgs;
+export function parseCapability(action:'read',input:unknown):ReadArgs;
+export function parseCapability(action:'discover'|'search'|'read',input:unknown){
+ const issues=capabilityArgumentIssues(action,input);
+ if(issues.length){const failure=invalidCapabilityArguments(issues);throw new CapabilityError(failure.code,failure.message,failure);}
+ return {discover:discoverSchema,search:searchSchema,read:readSchema}[action].parse(input);
+}
 export const assertContext=()=>getWorkspaceContext();
 export const ref=(type:AssistantObjectType,id:string,parentId?:string)=>({type,id,...(parentId?{parentId}:{})});
 export function validateFilters(type:AssistantObjectType, filters:Record<string,unknown>, read=false) {
-  const allowed=new Set<string>(read ? type==='behavior'?['classId','studentId','from','to','kind']:type==='student'?['classId','from','to']:[] : assistantObjects[type].filters);
+  const allowed=new Set<string>(capabilityFilterFields(type,read?'read':'search'));
   const enums:Record<string,readonly string[]>={lifecycle:assistantFilterOptions.lifecycle,enrollmentStatus:assistantFilterOptions.enrollmentStatus};
   if(type==='class')enums.status=assistantFilterOptions.classStatus;
   if(type==='reminder')enums.status=assistantFilterOptions.reminderStatus;
   if(type==='grading')enums.status=assistantFilterOptions.gradingStatus;
   if(type==='resource')enums.kind=assistantFilterOptions.resourceKind;
   if(type==='gradingMaterial')enums.kind=assistantFilterOptions.materialKind;
-  for(const [key,values] of Object.entries(enums))if(filters[key]!==undefined&&!values.includes(String(filters[key])))throw new CapabilityError('INVALID_FILTER','筛选值'+key+'不受支持。数据未修改，请检查能力目录。');
-  for(const key of Object.keys(filters))if(!allowed.has(key))throw new CapabilityError('INVALID_FILTER','此对象不支持筛选条件'+key+'。数据未修改，请先查看能力目录。');
+  for(const [key,values] of Object.entries(enums))if(filters[key]!==undefined&&!values.includes(String(filters[key])))throw new CapabilityError('INVALID_FILTER','filters.'+key+'的取值不受支持。数据未修改。允许：'+values.join('、'),{recovery:'correct_arguments',issues:[{field:'filters.'+key,problem:'不支持的取值',allowedValues:values}],nextAction:'按该对象允许的筛选值修改后再调用。'});
+  for(const key of Object.keys(filters))if(!allowed.has(key))throw new CapabilityError('INVALID_FILTER','此对象不支持filters.'+key+'。数据未修改。',{recovery:'correct_arguments',issues:[{field:'filters.'+key,problem:'该对象不支持的筛选项',allowedFields:[...allowed]}],nextAction:'移除不支持的筛选项；按discover给出的当前对象条件查询。'});
 }
 // Bounded projection is a final safeguard, not a replacement for domain pagination.
 export const readTextWindow = new AsyncLocalStorage<number>();

@@ -1,3 +1,5 @@
+import {capabilityToolParameters} from '../src/domain/assistantCapabilityDefinitions.mjs';
+import {executeCapability,httpReadFailure,ReadToolFailure} from './tool-contract-recovery.mjs';
 import {skillManifest} from './official-skills.mjs';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { applyGenerationPolicy } from './generation-policy.mjs';
@@ -16,7 +18,7 @@ export function apply(ctx) {
       method: 'POST', headers: {'content-type': 'application/json', authorization: 'Bearer ' + process.env.QS_TOOL_TOKEN},
       body: JSON.stringify(body), signal,
     });
-    if (!response.ok) throw Error((await response.json()).message || '教学助手请求失败，业务数据未修改，请稍后重试。');
+    if(!response.ok){const body=await response.json();if(body&&typeof body==='object')throw new ReadToolFailure(httpReadFailure(body,response.status));throw Error('READ_SERVICE_UNAVAILABLE');}
     return response.json();
   };
   const finish = (sessionId) => {
@@ -67,20 +69,29 @@ export function apply(ctx) {
     return ['qingsong_discover','qingsong_search','qingsong_read','qingsong_memory','qingsong_material'].includes(exec.name)?undefined:'教师助手仅开放业务读取、受控Skill、已选材料与个人上下文。';
   }
   for(const action of ['discover','search','read']){
-    const parameters=action==='discover'?{type:{type:'string'}}:action==='search'?{
-      type:{type:'string',required:true},query:{type:'string'},filters:{type:'object',additionalProperties:false,properties:Object.fromEntries(['classId','studentId','taskId','from','to','status','enrollmentStatus','lifecycle','subject','kind','grade'].map(key=>[key,{type:'string'}]).concat([['negativeOnly',{type:'boolean'}]]))},offset:{type:'number'},limit:{type:'number'},
-    }:{textOffset:{type:'number'},ref:{type:'object',required:true,additionalProperties:false,properties:{type:{type:'string'},id:{type:'string'},parentId:{type:'string'}}},section:{type:'string'},filters:{type:'object',additionalProperties:false,properties:Object.fromEntries(['classId','studentId','taskId','from','to','status','enrollmentStatus','lifecycle','subject','kind','grade'].map(key=>[key,{type:'string'}]).concat([['negativeOnly',{type:'boolean'}]]))},offset:{type:'number'},limit:{type:'number'}};
-    ctx.effect(()=>ctx.tools.register(defineTool({
+    const parameters=capabilityToolParameters(action);
+    const tool=defineTool({
       name:'qingsong_'+action,
       description:action==='discover'?'查看当前已开放业务对象、筛选及section。首次查某类数据先查看，不猜编号、字段或权限。':action==='search'?'查找业务对象。type和filters以discover为准；query搜索名称或正文，返回ref用于read。offset从0开始，limit最多50。':'读取search返回的ref；section以discover为准，长记录分页。日期在filters传from/to。返回textWindow.nextTextOffset时保持同一页并传textOffset续读长文本。来源、完整性及失败状态必须保留，partial不能当成全量。',
       parameters,output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
       async execute(args,exec){
-        const state=turns.get(exec.agent?.id);
-        if(!state||++state.queries>12)throw Error('本轮读取额度已用完，数据未修改，请拆分问题后重试。');
         return JSON.stringify(await bridge({kind:'capability',action,input:args},AbortSignal.any([exec.signal,AbortSignal.timeout(90000)])));
       },
-    })));
+    });
+    const execute=tool.execute.bind(tool);
+    tool.execute=(args,exec)=>executeCapability({state:turns.get(exec.agent?.id),action,args,exec,execute:()=>execute(args,exec)});
+    ctx.effect(()=>ctx.tools.register(tool));
   }
+  ctx.on('tools/post-execute',async(exec,result,next)=>{
+    const decision=await next();
+    const state=turns.get(exec.agent?.id),failure=state?.toolFailures?.get(exec.callId);
+    if(failure)state.toolFailures.delete(exec.callId);
+    if(result.isError&&failure&&decision.kind==='accept'){
+      const {value:_value,...accepted}=decision;
+      return {...accepted,content:[{type:'text',text:JSON.stringify(failure)}]};
+    }
+    return decision;
+  });
   ctx.effect(() => ctx.tools.guard(exec => guardTool(exec)));
   ctx.effect(() => ctx.tools.register(materialTool(ctx,bridge,turns)));
   ctx.effect(() => ctx.tools.register(defineTool({
