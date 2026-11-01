@@ -4,10 +4,16 @@ import PersonalContextPanel from './PersonalContextPanel';
 import MaterialPoolPicker from './MaterialPoolPicker';
 import { GlassButton,GlassSurface } from '../../components/glass/Glass';
 import { apiFetch } from '../../services/apiClient';
+import { isDemoRoute } from '../../demo/entry';
+import DemoAssistant from '../../demo/DemoAssistant';
 
 interface MaterialPickRequest { requestId: string; sessionId: string; connectionId: string; attempts: Map<string, string> }
 
 export default function AssistantPanel() {
+  return isDemoRoute() ? <DemoAssistant /> : <OfficialAssistantPanel />;
+}
+
+function OfficialAssistantPanel() {
   const [settings,setSettings]=useState(false),[dirty,setDirty]=useState(false),[busy,setBusy]=useState(false);
   const closeSettings=useRef<()=>void>(null);
   const frame = useRef<HTMLIFrameElement>(null);
