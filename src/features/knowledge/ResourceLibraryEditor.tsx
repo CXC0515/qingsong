@@ -1,4 +1,4 @@
-import { demoAssetUrl } from '../../demo/assets';
+import { demoAssetUrl, demoFrameProps } from '../../demo/assets';
 import ResponsiveDialog from '../../components/ResponsiveDialog';
 import { GlassButton, GlassSegments } from '../../components/glass/Glass';
 /**
@@ -1006,7 +1006,7 @@ export default function ResourceLibraryEditor({
                     {pdfReaderCache.map((entry) => (
                       <iframe
                         key={entry.id}
-                        src={entry.source}
+                        {...demoFrameProps(entry.source)}
                         title={`${entry.title} PDF 原文`}
                         aria-hidden={entry.id !== selectedResourceId}
                         className={`${entry.id === selectedResourceId ? "z-10 opacity-100" : "pointer-events-none z-0 opacity-0"} absolute inset-0 h-full min-h-0 w-full rounded-lg border border-slate-200 bg-white dark:border-zinc-800`}

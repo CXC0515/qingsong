@@ -3,6 +3,7 @@ import test from 'node:test';
 import { apiFetch } from '../services/apiClient';
 import { demoRequest, installDemoApi, isDemoRoute } from './entry';
 import { createDemoApi } from './mockApi';
+import { demoAssetUrl, demoFrameProps } from './assets';
 
 test('demo API never falls back to fetch, while teacher API preserves its original transport', async () => {
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
@@ -13,6 +14,9 @@ test('demo API never falls back to fetch, while teacher API preserves its origin
   globalThis.fetch = async (_input, init) => { network++; assert.equal(new Headers(init?.headers).get('x-demo-csrf'), '1'); assert.equal(init?.credentials, 'same-origin'); return Response.json({ teacher: true }); };
   try {
     assert.equal(isDemoRoute(), true);
+    assert.equal('src' in demoFrameProps('/api/resources/original'), false);
+    assert.match(demoFrameProps('/api/resources/original').srcDoc!, /虚构演示原文/);
+    assert.match(demoAssetUrl('/api/resources/image'), /^data:image/);
     assert.equal((await demoRequest('/api/roster')!).status, 503);
     installDemoApi(createDemoApi());
     assert.equal((await apiFetch('/api/roster')).status, 200);
@@ -20,6 +24,8 @@ test('demo API never falls back to fetch, while teacher API preserves its origin
     assert.equal(network, 0);
     location.search = '';
     assert.equal(isDemoRoute(), false);
+    assert.deepEqual(demoFrameProps('/real-original'), { src: '/real-original' });
+    assert.equal(demoAssetUrl('/real-image'), '/real-image');
     assert.deepEqual(await (await apiFetch('/api/account/profile', { method: 'PUT' })).json(), { teacher: true });
     assert.equal(network, 1);
     location.pathname = '/reset-password'; location.search = '?demo=1';
