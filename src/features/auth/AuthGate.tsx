@@ -1,17 +1,20 @@
 /** @license SPDX-License-Identifier: Apache-2.0 */
 
-import { createContext, FormEvent, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, FormEvent, lazy, ReactNode, Suspense, useContext, useEffect, useMemo, useState } from 'react';
 import { GraduationCap, LoaderCircle, LogIn, UserPlus } from 'lucide-react';
 import type { TeacherProfile } from '../../domain/types';
 import { apiFetch } from '../../services/apiClient';
 import { authClient } from '../../services/authClient';
+import { demoCredentials, demoEnabled, isDemoRoute } from '../../demo/entry';
+
+const VisitorSession = lazy(() => import('../../demo/VisitorSession'));
 
 export interface AccountState {
   user: { id: string; email: string; name: string };
   role: 'owner' | 'teacher';
   profile: TeacherProfile;
 }
-interface AuthState extends AccountState {
+export interface AuthState extends AccountState {
   refreshAccount: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -25,6 +28,11 @@ export const useAuth = () => {
 const readCode = async (response: Response) => (await response.json().catch(() => ({})) as { code?: string }).code;
 
 export default function AuthGate({ children }: { children: ReactNode }) {
+  if (isDemoRoute()) return <Suspense fallback={<div role="status" className="grid min-h-dvh place-items-center">正在载入访客体验…</div>}><VisitorSession>{value => <AuthContext.Provider value={value}>{children}</AuthContext.Provider>}</VisitorSession></Suspense>;
+  return <TeacherAuthGate>{children}</TeacherAuthGate>;
+}
+
+function TeacherAuthGate({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<AccountState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -74,6 +82,11 @@ export default function AuthGate({ children }: { children: ReactNode }) {
         setNotice('注册成功，请使用新账户登录');
         return;
       }
+      if (demoEnabled && email.trim().toLowerCase() === demoCredentials.email) {
+        if (password !== demoCredentials.password) throw new Error('SIGN_IN_FAILED');
+        window.location.assign('/?demo=1');
+        return;
+      }
       const result = await authClient.signIn.email({ email, password });
       if (result.error) throw new Error('SIGN_IN_FAILED');
       window.history.replaceState({}, '', '/');
@@ -92,7 +105,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     <main className="min-h-dvh bg-[radial-gradient(circle_at_top_left,#d7e6db_0,transparent_38%),linear-gradient(145deg,#f8faf8,#eef2f0)] px-4 py-8 grid place-items-center">
       <section className="w-full max-w-md rounded-[28px] border border-white/80 bg-white/90 p-6 shadow-2xl shadow-emerald-950/10 backdrop-blur sm:p-8" aria-labelledby="auth-title">
         <div className="mb-7 flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-700 text-white"><GraduationCap /></span><div><p className="text-xs font-bold tracking-widest text-emerald-700">青松教师</p><h1 id="auth-title" className="text-2xl font-black text-slate-900">{isPasswordReset ? '设置新密码' : registrationToken ? '接受邀请并注册' : '欢迎回来'}</h1></div></div>
-        <p className="mb-5 text-sm leading-6 text-slate-500">{isPasswordReset ? '重置链接仅可使用一次，并在 30 分钟后失效。' : registrationToken ? '每位教师拥有独立工作区。请使用邀请指定的邮箱完成注册。' : '登录后访问你的班级、资料、OCR 结果和批改记录。'}</p>
+        <p className="mb-5 text-sm leading-6 text-slate-500">{isPasswordReset ? '重置链接仅可使用一次，并在 30 分钟后失效。' : registrationToken ? '每位教师拥有独立工作区。请使用邀请指定的邮箱完成注册。' : demoEnabled ? <>访客体验账号：<strong className="break-all select-all text-emerald-800">{demoCredentials.email}</strong><br />密码：<strong className="break-all select-all text-emerald-800">{demoCredentials.password}</strong>（与账号相同）<span className="mt-2 block">使用模拟数据，不调用真实 AI；体验操作不保存到正式系统。</span></> : '登录后访问你的班级、资料、OCR 结果和批改记录。'}</p>
         <form className="space-y-4" onSubmit={submit}>
           {registrationToken && !isPasswordReset && <label className="block text-sm font-semibold text-slate-700">姓名<input required maxLength={80} value={name} onChange={event => setName(event.target.value)} className="qs-field-input mt-1.5 min-h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600" autoComplete="name" /></label>}
           {!isPasswordReset && <label className="block text-sm font-semibold text-slate-700">邮箱<input required type="email" value={email} readOnly={Boolean(invitedEmail)} onChange={event => setEmail(event.target.value)} className="qs-field-input mt-1.5 min-h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-600 read-only:bg-slate-50" autoComplete="email" /></label>}

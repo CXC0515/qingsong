@@ -1,3 +1,4 @@
+import { demoAssetUrl } from '../../demo/assets';
 import ResponsiveDialog from '../../components/ResponsiveDialog';
 import { GlassButton, GlassSegments } from '../../components/glass/Glass';
 /**
@@ -666,7 +667,7 @@ const OcrPageReader = ({
         <div className="mx-auto max-w-5xl space-y-4">
           {visiblePages.map((page) => {
             const pageChunks = chunks.filter((chunk) => chunk.level === "content" && chunk.pageStart <= page.pageNumber && chunk.pageEnd >= page.pageNumber);
-            const imageUrl = `/api/resources/${resourceId}/pages/${page.pageNumber}/image`;
+            const imageUrl = demoAssetUrl(`/api/resources/${resourceId}/pages/${page.pageNumber}/image`);
             return (
               <article key={page.pageNumber} data-resource-page={page.pageNumber} className={`scroll-mt-3 overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-zinc-900 ${page.included ? "border-slate-200 dark:border-zinc-800" : "border-dashed border-rose-300 opacity-60"}`}>
                 <header className="flex items-center justify-between border-b border-slate-100 px-3 py-2 dark:border-zinc-800">

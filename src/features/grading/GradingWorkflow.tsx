@@ -1,3 +1,4 @@
+import { demoAssetUrl } from '../../demo/assets';
 import ResponsiveDialog from '../../components/ResponsiveDialog';
 import { GlassButton } from '../../components/glass/Glass';
 /**
@@ -685,7 +686,7 @@ function SubmissionPreview({ page, roster, asset, document, validation, validati
   const [studentId, setStudentId] = useState(page.studentId ?? '');
   const [studentNo, setStudentNo] = useState('');
   const [identityError, setIdentityError] = useState('');
-  const previewUrl = asset ? `/api/grading-tasks/${encodeURIComponent(asset.taskId)}/materials/${encodeURIComponent(asset.id)}/content` : undefined;
+  const previewUrl = asset ? demoAssetUrl(`/api/grading-tasks/${encodeURIComponent(asset.taskId)}/materials/${encodeURIComponent(asset.id)}/content`) : undefined;
   const needsIdentityReview = page.rosterMatchStatus !== 'matched';
   const visionReady = document?.resources.some(resource => resource.role === 'source-page') ?? false;
   const signals = [

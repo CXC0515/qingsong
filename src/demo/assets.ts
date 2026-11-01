@@ -1,0 +1,3 @@
+import { isDemoRoute } from './entry';
+export const demoImage = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1100"><rect width="800" height="1100" fill="#fffdf7"/><g fill="#25443c" font-family="sans-serif"><text x="65" y="100" font-size="30">青松教师 · 模拟练习材料</text><text x="65" y="175" font-size="22">1. 解方程：2x + 6 = 18。（10 分）</text><text x="65" y="240" font-size="22">解：2x = 12，所以 x = 6。</text><text x="65" y="345" font-size="22">2. 正方形边长为 5，求它的面积。（10 分）</text><text x="65" y="410" font-size="22">解：5 × 5 = 25。</text><text x="65" y="650" font-size="20">此图仅为演示样例，不代表真实 OCR 或 AI 结果。</text></g></svg>');
+export const demoAssetUrl = (url: string) => isDemoRoute() ? demoImage : url;
