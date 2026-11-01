@@ -61,4 +61,3 @@
 - 公网Chromium实际输入演示凭据进入成功；无认证cookie。资料原文srcDoc中文可读、OCR底图是已加载的内嵌图片；375×568实际触控路径为资料列表→阅读器→OCR，宽度375无横向溢出。演示文档实际业务/上传资源请求0。原站Google字体被既有CSP拦截的控制台提示保留，未作无关修复。
 - 服务器证据：`/tmp/qs-visitor-preview-linux.log`、`/tmp/qs-visitor-preview-cutover.log`；仅结构/计数/哈希的受限记录 `/var/log/teacher-dashboard-release-visitor-preview/`。本机浏览器证据 `/tmp/qs-visitor-local-evidence/`，不含真实教师数据。
 - 纯文档发布记录后续合并不代表应用再次部署。关闭或撤除按上文操作，无需清理数据库中的模拟账号。
-
