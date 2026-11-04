@@ -50,11 +50,12 @@ import MaterialPool from './features/knowledge/MaterialPool';
 import { getKnowledgeGraph } from './services/resourceApi';
 import { getScheduleWorkspace, removeReminder, removeScheduleItem, saveReminder, saveReminderBatch, saveReminderSeries, saveScheduleBatch, saveScheduleItem, saveSchedulePeriods } from './services/scheduleApi';
 import TagManagement from './features/tags/TagManagement';
-import LessonPlanWorkspace from './features/lesson-plan/LessonPlanWorkspace';
 import GradingWorkspace from './features/grading/GradingWorkspace';
 import DiagnosisWorkspace, { DiagnosisTab } from './features/diagnosis/DiagnosisWorkspace';
 import { useAuth } from './features/auth/AuthGate';
 import { apiFetch } from './services/apiClient';
+
+const LessonPlanWorkspace = React.lazy(() => import('./features/lesson-plan/LessonPlanWorkspace'));
 
 const describeRosterError = (error: unknown) => {
   const code = error instanceof Error ? error.message : '未知错误';
@@ -810,7 +811,7 @@ export default function App() {
           )}
 
           {activePage === 'lesson-plan' && (
-            isDemoRoute() ? <div className="glass-panel rounded-2xl p-6"><p>备课生成尚未提供访客演示。正式账号可使用，演示不会访问真实资料或模型。</p></div> : <LessonPlanWorkspace onShowToast={triggerToast} />
+            isDemoRoute() ? <div className="glass-panel rounded-2xl p-6"><p>备课生成尚未提供访客演示。正式账号可使用，演示不会访问真实资料或模型。</p></div> : <React.Suspense fallback={<div role="status" className="p-6">正在打开备课空间…</div>}><LessonPlanWorkspace onShowToast={triggerToast} /></React.Suspense>
           )}
 
           {(activePage === 'classroom' || (activePage === 'classroom-tasks' && taskNavigation?.sourcePage === 'classroom')) && (
