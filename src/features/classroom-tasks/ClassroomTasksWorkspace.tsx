@@ -47,7 +47,7 @@ export default function ClassroomTasksWorkspace({ students, classes, initialClas
   useEffect(()=>{setClassId(initialClassId);},[initialClassId]); const [lifecycle, setLifecycle] = useState(''); const [query, setQuery] = useState('');
   const [items, setItems] = useState<TaskListItem[]>([]); const [total, setTotal] = useState(0); const [offset, setOffset] = useState(0); const [loading, setLoading] = useState(false); const [create, setCreate] = useState(false);
   const [seed, setSeed] = useState<Partial<CreateTaskInput>>();
-  const creation = useRef<{ fingerprint: string; operationId: string }>();
+  const creation = useRef<{ fingerprint: string; operationId: string }>(undefined);
   const [archiveBusy,setArchiveBusy]=useState<string|null>(null);
   const archiveLock=useRef(false);
   const archiveItem=async(item:TaskListItem)=>{

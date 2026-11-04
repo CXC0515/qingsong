@@ -1,0 +1,30 @@
+import test, { after } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import { randomUUID } from 'node:crypto';
+import { runWithWorkspace, type WorkspaceContext } from '../../context/workspaceContext';
+import { resourceRepository } from '../../repositories/resourceRepository';
+import { closeResourceDatabase } from '../../database/resourceDatabase';
+import { retrieveTeachingContext } from './resourceRetrievalService';
+const root = await mkdtemp(path.join(os.tmpdir(), 'qs-prep-retrieval-'));
+const context: WorkspaceContext = { userId:'retrieval-user',workspaceId:'retrieval-workspace',role:'teacher',root,dataDirectory:path.join(root,'data'),uploadDirectory:path.join(root,'uploads') };
+after(async()=>{closeResourceDatabase();await rm(root,{recursive:true,force:true});});
+test('selected resources constrain retrieval before ranking and excluded pages stay excluded',()=>runWithWorkspace(context,()=>{
+ const make=(title:string,subject='语文')=>{
+  const id=randomUUID();resourceRepository.createResource({id,title,fileName:'fixture.pdf',mimeType:'application/pdf',kind:'textbook',subject,grade:'七年级',publisher:'',edition:'统编',isPrimary:true,diskPath:'fixture-only',publicUrl:'/api/resources/'+id+'/content',pageCount:2});
+  resourceRepository.initializeResourcePages(id,2);
+  resourceRepository.replaceChunks(id,[1,2].map(n=>({id:id+':'+n,resourceId:id,level:'content',title:'说明',summary:'',text:'证据链 '+title+' 第'+n+'页',tags:[],pageStart:n,pageEnd:n,order:n})));
+  return id;
+ };
+ const selected=make('已选'),other=make('未选'),math=make('数学','数学');
+ resourceRepository.setResourcePageIncluded(selected,2,false);
+ const result=retrieveTeachingContext({query:'证据链',subject:'语文',grade:'七年级',allowedResourceIds:[selected],preferredResourceIds:[other],limit:10});
+ assert.ok(result.citations.length>0);
+ assert.ok(result.citations.every(c=>c.resourceId===selected&&c.pageStart===1));
+ assert.equal(result.coverage.resources,1);
+ assert.deepEqual(retrieveTeachingContext({query:'证据链',allowedResourceIds:[]}).citations,[]);
+ assert.deepEqual(retrieveTeachingContext({query:'证据链',subject:'语文',allowedResourceIds:[math]}).citations,[]);
+ assert.equal(retrieveTeachingContext({query:'证据链',allowedResourceIds:[selected],edition:'其他版本'}).coverage.resources,0);
+}));

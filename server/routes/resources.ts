@@ -566,6 +566,8 @@ router.post("/resource-retrieval/teaching-context", (request, response) => {
       subject: z.string().trim().max(60).optional(),
       resourceKinds: z.array(resourceKindSchema).max(8).optional(),
       preferredResourceIds: z.array(z.string().min(1)).max(20).optional(),
+      allowedResourceIds: z.array(z.string().min(1)).max(100).optional(),
+      grade:z.string().max(60).optional(),edition:z.string().max(100).optional(),
       limit: z.number().int().min(1).max(30).default(10),
     })
     .safeParse(request.body);
@@ -577,10 +579,10 @@ router.post("/resource-retrieval/teaching-context", (request, response) => {
     query,
     subject,
     resourceKinds,
-    preferredResourceIds = [],
+    preferredResourceIds = [],allowedResourceIds,grade,edition,
     limit,
   } = parsed.data;
-  response.json(retrieveTeachingContext({query,subject,resourceKinds,preferredResourceIds,limit}));
+  response.json(retrieveTeachingContext({query,subject,resourceKinds,preferredResourceIds,allowedResourceIds,grade,edition,limit}));
 });
 
 router.post("/knowledge/nodes", (request, response) => {

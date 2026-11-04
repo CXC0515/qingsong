@@ -114,7 +114,7 @@ function a1Range(range: string, rowCount: number, columnCount: number) {
     fail('MATERIAL_RANGE_LIMIT', '单次单元格范围不能超过5000格，也不能倒置或超出工作表规格。原件未修改，请缩小范围。');
   return {r1, c1, r2: Math.min(r2, rowCount), c2: Math.min(c2, columnCount), requested: {r1, c1, r2, c2}};
 }
-function validateZipBudget(bytes: Buffer) {
+export function validateZipBudget(bytes: Buffer) {
   const eocd = bytes.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
   if (eocd < 0 || eocd + 22 > bytes.length) fail('MATERIAL_ARCHIVE_INVALID', 'Office文件不是有效归档，原件未修改。');
   const count = bytes.readUInt16LE(eocd + 10), offset = bytes.readUInt32LE(eocd + 16);

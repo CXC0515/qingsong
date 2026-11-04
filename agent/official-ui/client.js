@@ -128,6 +128,27 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     }
     ctx.effect(() => ctx.locale.addLanguage({id: 'zh-CN-x-qingsong', label: '简体中文（青松）', fallback: 'zh'}));
     ctx.effect(() => ctx.locale.register('conversation', 'zh-CN-x-qingsong', {'placeholder.hero': '问问课表、班级名单或课堂记录…', 'placeholder.default': '继续问问教学上的事…'}));
+    // Parent chooses an entry; DSH remains the owner of session navigation and unsent drafts.
+    ctx.effect(()=>{
+      let sequence=0;
+      const open=async event=>{
+        if(event.origin!==location.origin||event.source!==parent||event.data?.type!=='qingsong:open-context'||event.data.connectionId!==connectionId)return;
+        const {target,requestId}=event.data,attempt=++sequence;
+        try{
+          if(typeof target?.workspaceId!=='string')throw Error('工作空间格式不正确。');
+          if(target.sessionId){
+            const reference=ctx.sessions.retain(target.sessionId,{source:'qingsong-preparation'});
+            try{
+              const binding=await reference.ready;if(attempt!==sequence)return;
+              ctx.uiWorkspace.openSession(target.sessionId);
+              if(target.instruction)ctx.conversation.input.requestDraftInitialization(binding,{prompt:target.instruction,whenDraftExists:'append'});
+            }finally{reference.release();}
+          }else await ctx.uiWorkspace.openWorkspace(target.workspaceId,undefined,{agentPreset:'qingsong'});
+          if(attempt===sequence)parent.postMessage({type:'qingsong:context-opened',connectionId,requestId},location.origin);
+        }catch(error){if(attempt===sequence)parent.postMessage({type:'qingsong:context-opened',connectionId,requestId,error:'助手工作空间未能打开，教案和原会话保留，请重试。'},location.origin);}
+      };
+      window.addEventListener('message',open);return()=>{sequence++;window.removeEventListener('message',open);};
+    });
     // Observe native stores; a failed initial pull is not an endless loading state.
     ctx.effect(() => {
       const frameName=window.name||'';

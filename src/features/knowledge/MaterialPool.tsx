@@ -286,7 +286,7 @@ export default function MaterialPool({ presetKey, onOpenResource, onShowToast }:
       </aside>
       <section className="glass-panel flex min-h-0 flex-col rounded-2xl p-3 sm:p-4">
         <button type="button" className="btn-secondary mb-3 flex min-h-12 w-full items-center justify-between gap-2 px-3 text-left text-base lg:hidden" onClick={() => setFolderPicker('browse')}>
-          <span className="min-w-0 truncate">浏览：{view.kind === 'all' ? '全部材料' : view.kind === 'unfiled' ? '未整理' : view.kind === 'trash' ? '回收站' : folderPath(view.id)}</span>
+          <span className="min-w-0 truncate">浏览：{view.kind === 'all' ? '全部材料' : view.kind === 'unfiled' ? '未整理' : view.kind === 'trash' ? '回收站' : folderPath('id' in view ? view.id : '')}</span>
           <ChevronDown className="h-4 w-4 shrink-0" />
         </button>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

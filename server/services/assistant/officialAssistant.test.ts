@@ -82,6 +82,16 @@ const model = createServer(async (req, res) => {
     else{res.write('data: '+JSON.stringify(frame({role:'assistant',content:previous?.content??'NO_RESULT'}))+'\n\n');res.end('data: '+JSON.stringify(frame({},'stop'))+'\n\ndata: [DONE]\n\n');}
     return;
   }
+  if (queryScenario === 'preparation') {
+    const previous = input.messages.filter((m:any)=>m.role==='tool').at(-1);
+    let value:any; try { value=JSON.parse(previous?.content??'null'); } catch {}
+    const args = value?.id && value?.result?.baseRevision
+      ? {action:'propose',taskId:value.id,baseRevision:value.result.baseRevision,operationId:crypto.randomUUID(),summary:'合成课堂任务建议',content:JSON.stringify({type:'doc',content:[{type:'heading',attrs:{level:2},content:[{type:'text',text:'教学目标'}]},{type:'paragraph',content:[{type:'text',text:'合成教案闭环：依据原文寻找证据。'}]}]})}
+      : !previous ? {action:'begin',stage:'整理合成课堂任务'} : undefined;
+    const delta = args ? {role:'assistant',tool_calls:[{index:0,id:crypto.randomUUID(),type:'function',function:{name:'qingsong_preparation',arguments:JSON.stringify(args)}}]} : {role:'assistant',content:'修改候选已就绪，等待教师确认。'};
+    res.write('data: '+JSON.stringify(frame(delta))+'\n\n');
+    res.end('data: '+JSON.stringify(frame({},args?'tool_calls':'stop'))+'\n\ndata: [DONE]\n\n'); return;
+  }
   if (queryScenario) {
     const previous=input.messages?.at(-1);
     const result=previous?.role==='tool'&&['committee','resource-read','grading-read'].includes(queryScenario)?JSON.parse(previous.content):undefined;
@@ -391,7 +401,7 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       const serialized = JSON.stringify(result);
-      const expected: Record<string, RegExp> = {classes: /甲教师专属班/, 'invalid-class': /找不到当前账号可访问的对象/, committee: /甲教师专属班班长/, 'schedule-committee': /甲教师专属班班长/, capabilities: /qingsong-read-v3/, unsupported: /type.*不支持的取值/, skill: /SHA256/, 'resource-read':/甲教师专属班教材正文闭环/, 'grading-read':/甲教师专属班批改结果闭环/, 'contract-recovery':/样本学生去样本办公室找样本老师/, 'repeat-invalid':/样本学生去样本办公室找样本老师/};
+      const expected: Record<string, RegExp> = {classes: /甲教师专属班/, 'invalid-class': /找不到当前账号可访问的对象/, committee: /甲教师专属班班长/, 'schedule-committee': /甲教师专属班班长/, capabilities: /qingsong-read-v4/, unsupported: /type.*不支持的取值/, skill: /SHA256/, 'resource-read':/甲教师专属班教材正文闭环/, 'grading-read':/甲教师专属班批改结果闭环/, 'contract-recovery':/样本学生去样本办公室找样本老师/, 'repeat-invalid':/样本学生去样本办公室找样本老师/};
       assert.match(serialized, expected[scenario], JSON.stringify(result.records?.filter(r=>['tool/result','turn/end','error'].includes(r.event?.type))));
       if (scenario === 'committee') assert.match(serialized, /committeeRoles/);
       if(scenario==='schedule-committee'){
@@ -627,6 +637,37 @@ test('owner generation settings: permissions, durable revision, native payload a
    console.log('统一管理员预览：admin-preview@fixture.test / Fixture-password-12345；数据根：'+root);
  }
 
+});
+
+test('preparation: native workspace binding, candidate creation and explicit teacher application', {timeout:60000}, async()=>{
+ const cookie=await register('preparation-native@fixture.test','备课合成班');
+ const call=async(url:string,body?:unknown)=>{
+  const response=await fetch(apiRoot+url,{method:body?'POST':'GET',headers:{Origin:origin,Cookie:cookie,'content-type':'application/json','x-demo-csrf':'1'},...(body?{body:JSON.stringify(body)}:{})});
+  const result=await response.json();assert.ok(response.ok,JSON.stringify(result));return result;
+ };
+ const {preparation:detail}=await call('/api/preparations',{title:'陋室铭合成验收',subject:'语文',operationId:crypto.randomUUID()});
+ const prep=detail.preparation.id,doc=detail.documents[0].id;
+ const body={mode:'preparation',preparationId:prep,documentId:doc,revision:1};
+ const {target}=await call('/api/assistant/official/api/qingsong/preparation-target',body);
+ assert.ok(target.workspaceId&&target.sessionId);
+ assert.equal((await call('/api/assistant/official/api/qingsong/preparation-target',body)).target.sessionId,target.sessionId);
+ queryScenario='preparation';
+ try {
+  assert.ok((await rpc(cookie,'session/prompt',{request:{sessionId:target.sessionId,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:'请为这份合成教案提供修改建议'}]}})).ok);
+  let latest:any;
+  for(let i=0;i<160;i++) {latest=(await call('/api/preparations/'+prep)).preparation;if(latest.proposals.length)break;await new Promise(resolve=>setTimeout(resolve,100));}
+  assert.equal(latest.proposals.length,1,JSON.stringify(latest.tasks));
+  assert.equal(latest.documents[0].revision,1,'AI candidate must not replace current draft');
+  assert.equal(latest.tasks[0].status,'completed');
+  const applied=await call('/api/preparations/'+prep+'/proposals/'+latest.proposals[0].id+'/apply',{operationId:crypto.randomUUID()});
+  assert.equal(applied.document.revision,2);
+  assert.match(JSON.stringify(applied.document.content),/合成教案闭环/);
+  assert.equal((await call('/api/preparations/'+prep+'/documents/'+doc+'/revisions')).revisions.length,2);
+  const history=await call('/api/preparations/'+prep+'/documents/'+doc+'/revisions/1');
+  assert.equal(history.document.revision,1);
+  for(let i=0;i<160;i++) {const session=await page(cookie,target.sessionId);if(session.records?.some(record=>record.event?.type==='turn/end'))break;await new Promise(resolve=>setTimeout(resolve,50));}
+  assert.ok((await page(cookie,target.sessionId)).records.some(record=>record.event?.type==='turn/end'));
+ } finally {queryScenario=undefined;}
 });
 
 test('corrupt grading storage returns a recoverable HTTP error without overwriting the file',async()=>{

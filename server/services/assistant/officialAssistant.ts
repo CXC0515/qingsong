@@ -1,3 +1,6 @@
+import {resolvePreparationTarget,preparationRuntimeContext,preparationAssistantTool,stopSessionTasks} from './preparationAssistant';
+import {getNativeWorkspace,setNativeWorkspace,getSessionBinding,PreparationError,updateTask,getTask} from '../preparation/preparationService';
+import {ZodError} from 'zod';
 import {semanticPersonalContext,queueConversationMemory,drainMemoryWorkers} from './memoryService';
 import {teachingBusinessContext} from './capabilities/teaching';
 import { assistantCapability, CapabilityError } from './capabilities';
@@ -46,6 +49,7 @@ type Instance = {
   touched: number;
   fingerprint: string;
   leases: Map<string, AbortController>;
+  leaseSessions: Map<string, string>;
   sockets: Set<{close: () => void}>;
   humanTexts: Map<string, string[]>;
   closing?: Promise<void>;
@@ -84,6 +88,10 @@ async function closeInstance(key: string, instance: Instance) {
     for (const timer of instance.leaseTimers.values()) clearTimeout(timer);
     instance.leaseTimers.clear();
     for (const controller of instance.leases.values()) controller.abort();
+    runWithWorkspace(instance.context, () => {
+      for (const [lease, sessionId] of instance.leaseSessions) stopSessionTasks(sessionId, 'interrupted', '助手连接已中断，已有教案和候选保留，可重新开始。', lease.slice(key.length + 1));
+    });
+    instance.leaseSessions.clear();
     for (const socket of instance.sockets) socket.close();
     await instance.runtime.close();
     for (const lease of instance.leases.keys()) officialBudget.release(lease);
@@ -94,6 +102,18 @@ async function closeInstance(key: string, instance: Instance) {
   })();
   return instance.closing;
 }
+/** Cancel only an already-running native session; never starts an assistant instance. */
+export async function cancelPreparationSession(sessionId: string) {
+  const context = getWorkspaceContext();
+  if (!getSessionBinding(sessionId)) throw new PreparationError('SESSION_NOT_FOUND', '找不到当前账号的备课会话，教案保留。', 404);
+  const instance = instances.get(scope(context));
+  if (instance && !instance.closing && instance.runtime.isAlive()) {
+    await authorizeInstance(instance);
+    await nativeWorkspaceCall(instance.runtime, instance.cookie, 'session/cancel', { sessionId });
+  }
+  stopSessionTasks(sessionId, 'cancelled', '已停止本次备课任务，教案正文和已保存的修改候选保留。');
+}
+
 export async function closeOfficialAssistant() {
   await Promise.allSettled([...starting.values()]);
   await drainMemoryWorkers();
@@ -129,10 +149,13 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
       if (req.method !== 'POST' || req.url !== '/' || req.headers.authorization !== 'Bearer ' + token || !instance) { res.writeHead(403).end('{}'); return; }
       try {
         let text = '';
-        for await (const chunk of req) { text += chunk; if (text.length > 32768) throw Error('TOO_LARGE'); }
+        for await (const chunk of req) { text += chunk; if (text.length > 512000) throw Error('TOO_LARGE'); }
         const body = JSON.parse(text);
         const lease = key + ':' + body.lease;
         if (body.kind === 'release') {
+          const sessionId = instance.leaseSessions.get(lease);
+          if (sessionId) runWithWorkspace(context,()=>stopSessionTasks(sessionId, 'interrupted', undefined, body.lease));
+          instance.leaseSessions.delete(lease);
           clearTimeout(instance.leaseTimers.get(lease)); instance.leaseTimers.delete(lease);
           leases.get(lease)?.abort(); leases.delete(lease); officialBudget.release(lease);
           res.end('{}'); return;
@@ -141,11 +164,14 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
         if (body.kind === 'acquire') {
           if (typeof body.lease !== 'string' || body.lease.length > 160 || leases.has(lease)) throw Error('INVALID_LEASE');
           const controller = new AbortController(); leases.set(lease, controller);
-          const deadline = setTimeout(() => { if (instance) void closeInstance(key, instance).catch(() => {}); }, 190000); deadline.unref(); instance.leaseTimers.set(lease, deadline);
+          if (materialSessionId(body.sessionId)) instance.leaseSessions.set(lease, body.sessionId);
+          const preparation = typeof body.sessionId==='string' ? runWithWorkspace(context,()=>getSessionBinding(body.sessionId)) : undefined;
+          const budget=preparation?{steps:24,queries:48,timeoutMs:480000}:{steps:8,queries:12,timeoutMs:180000};
+          const deadline = setTimeout(() => { if (instance) void closeInstance(key, instance).catch(() => {}); }, budget.timeoutMs+10000); deadline.unref(); instance.leaseTimers.set(lease, deadline);
           const cancel = () => controller.abort();
           req.on('aborted', cancel); res.on('close', () => { if (!res.writableEnded) cancel(); });
-          try { await officialBudget.acquire(lease, controller.signal); await authorizeInstance(instance); res.end('{}'); }
-          catch (error) { clearTimeout(instance.leaseTimers.get(lease)); instance.leaseTimers.delete(lease); controller.abort(); leases.delete(lease); officialBudget.release(lease); throw error; }
+          try { await officialBudget.acquire(lease, controller.signal); await authorizeInstance(instance); res.end(JSON.stringify({budget})); }
+          catch (error) { clearTimeout(instance.leaseTimers.get(lease)); instance.leaseTimers.delete(lease); controller.abort(); leases.delete(lease); instance.leaseSessions.delete(lease); officialBudget.release(lease); throw error; }
         } else if (body.kind === 'authorize') res.end('{}');
         else if (body.kind === 'material-images-saved') {
           releaseMaterialStorage(officialMaterialHome(context), body.reservationId); res.end('{}');
@@ -166,6 +192,30 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
             if ('images' in result && result.images?.length && reservationId) res.end(JSON.stringify({ ...result, reservationId }));
             else { if (reservationId) releaseMaterialStorage(officialMaterialHome(context), reservationId); res.end(JSON.stringify(result)); }
           } catch (error) { if (reservationId) releaseMaterialStorage(officialMaterialHome(context), reservationId); throw error; }
+        }
+        else if (body.kind === 'preparation-context') {
+          if(!materialSessionId(body.sessionId))throw Error('INVALID_SESSION');
+          res.end(JSON.stringify(runWithWorkspace(context,()=>preparationRuntimeContext(body.sessionId))));
+        }
+        else if (body.kind === 'preparation-tool') {
+          if(!materialSessionId(body.sessionId)||typeof body.sourceText!=='string'||body.sourceText.length>8020)throw Error('INVALID_SESSION');
+          const execution = instance.leases.get(lease);
+          if (!execution || instance.leaseSessions.get(lease) !== body.sessionId) throw Error('INVALID_LEASE');
+          const source=instance.humanTexts.get(body.sessionId)?.includes(createHash('sha256').update(body.sourceText).digest('hex'))?body.sourceText:'';
+          const controller=new AbortController();req.once('aborted',()=>controller.abort());
+          res.once('close',()=>{if(!res.writableFinished)controller.abort();});
+          const signal=AbortSignal.any([controller.signal,execution.signal,AbortSignal.timeout(90000)]);
+          const reservation=body.input?.action==='render'?await reserveMaterialStorage(officialMaterialHome(context),30*1024*1024):undefined;
+          try {
+            const result:any=await runWithWorkspace(context,()=>preparationAssistantTool(body.sessionId,body.input,source,signal,body.lease));
+            await authorizeInstance(instance);
+            if(result.images){
+              const images=[];
+              for(const item of result.images){const data=await readFile(item.path,{signal});images.push({data:data.toString('base64'),mediaType:item.mediaType,name:'备课资料页面'});}
+              const {renderDirectory:privatePath,...visible}=result;
+              res.end(JSON.stringify({...visible,images,reservationId:reservation}));
+            }else{if(reservation)releaseMaterialStorage(officialMaterialHome(context),reservation);res.end(JSON.stringify(result));}
+          }catch(error){if(reservation)releaseMaterialStorage(officialMaterialHome(context),reservation);throw error;}
         }
         else if (body.kind === 'business-context') {
           const result=runWithWorkspace(context,()=>teachingBusinessContext());
@@ -200,7 +250,7 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
         else throw Error('INVALID_OPERATION');
       } catch (error) {
         if (!res.headersSent) res.writeHead(400);
-        const failure = error instanceof CapabilityError ? error.toFailure() : error instanceof WorkspaceDataReadError || error instanceof PersonalContextError || error instanceof AssistantMaterialError || error instanceof AssistantMaterialReadError ? {code:error.code,message:error.message} : (error as Error).message === 'MATERIAL_STORAGE_LIMIT' ? { code: 'MATERIAL_STORAGE_LIMIT', message: '附件与解析缓存已达到当前用户512MB限制，原件和对话仍保留，请减少材料或联系管理员。' } : teachingFailure(error);
+        const failure = error instanceof CapabilityError ? error.toFailure() : error instanceof PreparationError ? {code:error.code,message:error.message} : error instanceof ZodError ? {code:'INVALID_PREPARATION_INPUT',message:'备课参数格式不正确，正文未修改，请核对能力说明。'} : error instanceof WorkspaceDataReadError || error instanceof PersonalContextError || error instanceof AssistantMaterialError || error instanceof AssistantMaterialReadError ? {code:error.code,message:error.message} : (error as Error).message === 'MATERIAL_STORAGE_LIMIT' ? { code: 'MATERIAL_STORAGE_LIMIT', message: '附件与解析缓存已达到当前用户512MB限制，原件和对话仍保留，请减少材料或联系管理员。' } : teachingFailure(error);
         logEvent('warn', 'assistant_tool_failed', {code: failure.code});
         res.end(JSON.stringify(failure));
       }
@@ -224,8 +274,9 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
       });
       authenticated = performance.now();
       const initial = await nativeWorkspaceCall(runtime, cookie, 'workspace/create', {path: path.join(context.dataDirectory, 'assistant', key, 'official', 'empty-workspace')});
+      runWithWorkspace(context,()=>setNativeWorkspace('default',initial.workspace.workspaceId));
       if (initial.workspace.title === 'empty-workspace') await nativeWorkspaceCall(runtime, cookie, 'workspace/rename', {workspaceId: initial.workspace.workspaceId, title: '我的工作区'});
-      instance = {runtime, bridge, context, cookie, authorizers: new Map([[identity, authorize]]), leaseTimers: new Map(), touched: Date.now(), fingerprint: revision, leases, sockets: new Set(), humanTexts: new Map()};
+      instance = {runtime, bridge, context, cookie, authorizers: new Map([[identity, authorize]]), leaseTimers: new Map(), touched: Date.now(), fingerprint: revision, leases, leaseSessions: new Map(), sockets: new Set(), humanTexts: new Map()};
       logEvent('info', 'assistant_official_startup', {runtimeMs: Math.round(runtimeReady - startTime), authMs: Math.round(authenticated - runtimeReady), workspaceMs: Math.round(performance.now() - authenticated), totalMs: Math.round(performance.now() - startTime)});
       instances.set(key, instance);
       return instance;
@@ -304,6 +355,15 @@ export async function officialAssistantProxy(req: Request, res: Response) {
   catch { res.status(400).end(); return; }
   if (target.pathname === '/api/settings/describe' && req.method === 'POST' && req.body?.type === 'client-request' && req.body?.method === 'settings/describe') {
     res.json({type: 'server-response', rpcId: req.body.rpcId, result: {ok: true, value: {writable: false, hasDocument: false, namespaces: [{ns: 'locale', autoGenerate: false, schema: {type: 'object', properties: {preference: {type: 'string'}}}, value: {preference: 'zh-CN-x-qingsong'}, applies: 'live', secrets: [], revision: 0}]}}}); return;
+  }
+  if (target.pathname === '/api/qingsong/preparation-target' && req.method === 'POST') {
+    try {
+      const context=getWorkspaceContext();
+      const instance=await ensureInstance(context,()=>checkIdentity(req.headers,context),createHash('sha256').update(req.headers.cookie??'').digest('hex'));
+      const target=await runWithWorkspace(context,()=>resolvePreparationTarget(req.body,(method,request)=>nativeWorkspaceCall(instance.runtime,instance.cookie,method,request)));
+      res.json({target});
+    } catch(error){res.status(error instanceof PreparationError?error.status:400).json({message:error instanceof Error?error.message:'助手工作空间未能打开，教案和会话保留。',saved:false});}
+    return;
   }
   if (target.pathname === '/api/qingsong/workspace' && req.method === 'POST') {
     const body = req.body;

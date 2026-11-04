@@ -1,6 +1,9 @@
 /** Model-facing business objects, never database tables or arbitrary field paths. */
-export const assistantCapabilityVersion = 'qingsong-read-v3';
+export const assistantCapabilityVersion = 'qingsong-read-v4';
 export const assistantObjects = {
+  preparation: {label:'备课空间',filters:['subject'],sections:['detail','sources','documents','tasks']},
+  lessonPlan: {label:'教案正文与版本（必须提供preparationId）',filters:['preparationId'],sections:['detail','content','revisions']},
+  preparationSource: {label:'本次备课已选资料（必须提供preparationId）',filters:['preparationId'],sections:['detail','original']},
   class: {label:'班级（支持简称；关联描述先查相应记录）', filters:['status'], sections:['detail','students','committee','seating','summary']},
   student: {label:'学生档案', filters:['classId','enrollmentStatus'], sections:['detail','observations','homework','weaknessEvidence','classroom','behavior']},
   classroomTask: {label:'课堂任务', filters:['classId','from','to','lifecycle','negativeOnly'], sections:['detail','participants','events']},
@@ -24,6 +27,8 @@ export const objectTypeDescription = '业务对象类型：'+Object.entries(assi
 const id = description=>({type:'string',minLength:1,maxLength:160,trim:true,description});
 const date = {type:'string',pattern:'^\\d{4}-\\d{2}-\\d{2}$',format:'date',description:'真实日期YYYY-MM-DD，from/to需同时提供，跨度最多31天'};
 const filters = {
+ revision:{type:'integer',minimum:1,maximum:1000000,description:'教案历史版本号；不填读取当前版本'},
+ preparationId:id('备课编号，先search preparation取得；不代表材料池权限'),
  onDate:{...date,description:'查询该日期对应星期的常规周课表，YYYY-MM-DD；不与weekday同时填写，不代表临时调课或实际出勤'},
  weekday:{type:'integer',minimum:1,maximum:7,description:'星期一=1，星期日=7；不与onDate同时填写'},
  scope:{type:'string',enum:['teacher','class'],description:'teacher为教师课表，class为班级课表；问我的课优先teacher'},
@@ -95,6 +100,6 @@ export function invalidCapabilityArguments(issues){
 }
 
 export function capabilityFilterFields(type,action='search'){
- if(action==='read')return ({student:['classId','from','to'],behavior:['classId','studentId','from','to','kind']})[type]??[];
+ if(action==='read')return ({lessonPlan:['revision'],student:['classId','from','to'],behavior:['classId','studentId','from','to','kind']})[type]??[];
  return assistantObjects[type]?.filters??[];
 }

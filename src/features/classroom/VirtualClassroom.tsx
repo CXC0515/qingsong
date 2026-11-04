@@ -32,13 +32,13 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthGate';
 import { readClassroomExportStudentNo } from '../../domain/userPreferences';
-import { ClassroomLayout, CommitteeRole, SchoolClass, Student } from '../../domain/types';
+import { ClassroomLayout, CommitteeRole, SchoolClass, Student, RosterStudent } from '../../domain/types';
 import { exportClassroomLayout, getClassroomLayout, saveClassroomLayout } from '../../services/classroomApi';
 import ResponsiveDialog from '../../components/ResponsiveDialog';
 import BehaviorTagEditor from '../students/BehaviorTagEditor';
 
 interface VirtualClassroomProps {
-  students: Student[];
+  students: RosterStudent[];
   classes: SchoolClass[];
   committeeRoles: CommitteeRole[];
   layoutCache: MutableRefObject<Map<string, ClassroomLayout>>;

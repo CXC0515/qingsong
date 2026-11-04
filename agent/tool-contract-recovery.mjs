@@ -21,7 +21,7 @@ function fingerprint(tool,args){
 export async function executeCapability({state,action,args,exec,execute}){
  const remember=failure=>{if(state){state.toolFailures??=new Map();state.toolFailures.set(exec.callId,failure);}throw new ReadToolFailure(failure);};
  if(!state)return remember({code:'TURN_NOT_ACTIVE',message:'读取轮次已经结束，数据未修改，请重新提问。',recovery:'stop'});
- if(++state.queries>12)return remember({code:'TOOL_BUDGET_EXHAUSTED',message:'本轮读取次数已达上限，数据未修改。请缩小问题范围后继续。',recovery:'stop'});
+ if(++state.queries>(state.budget?.queries??12))return remember({code:'TOOL_BUDGET_EXHAUSTED',message:'本轮读取次数已达上限，数据未修改。请缩小问题范围后继续。',recovery:'stop'});
  state.failedCalls??=new Map();
  const key=fingerprint('qingsong_'+action,args),prior=state.failedCalls.get(key);
  if(state.stopReading)return remember({...state.stopReading,nextAction:'本轮读取已停止；请先处理上述权限、取消或数据错误。'});

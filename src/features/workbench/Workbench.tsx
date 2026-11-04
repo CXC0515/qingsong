@@ -1,3 +1,4 @@
+import type {AssistantEntry} from '../assistant/AssistantPanel';
 import {useEffect, useRef} from 'react';
 import {X} from 'lucide-react';
 import AssistantPanel from '../assistant/AssistantPanel';
@@ -8,6 +9,7 @@ import type { SchoolClass, ScheduleItem, TimerReminder } from '../../domain/type
 interface WorkbenchProps {
   active:boolean;
   assistantOpen:boolean;
+  assistantEntry?:AssistantEntry;
   onCloseAssistant:()=>void;
   classes:SchoolClass[];
   schedule:ScheduleItem[];
@@ -18,7 +20,7 @@ interface WorkbenchProps {
   onRecordLesson:(item:ScheduleItem,date:string)=>void;
 }
 
-export default function Workbench({active,assistantOpen,onCloseAssistant,classes,schedule,reminders,selectedClassId,onNavigate,onEnterClass,onRecordLesson}:WorkbenchProps){
+export default function Workbench({active,assistantOpen,assistantEntry,onCloseAssistant,classes,schedule,reminders,selectedClassId,onNavigate,onEnterClass,onRecordLesson}:WorkbenchProps){
   const assistantDialog=useRef<HTMLDialogElement>(null);
   useEffect(()=>{
     const media=window.matchMedia('(max-width:899px)');
@@ -66,7 +68,7 @@ export default function Workbench({active,assistantOpen,onCloseAssistant,classes
     </div>
     <dialog ref={assistantDialog} className="qs-assistant-space qs-assistant-dialog" aria-label="AI助手" onCancel={e=>{e.preventDefault();closeAssistant();}}>
       <header className="qs-mobile-ai-header"><strong>AI助手</strong><button type="button" onClick={closeAssistant} aria-label="返回原页面"><X size={22}/></button></header>
-      <AssistantPanel/>
+      <AssistantPanel entry={assistantEntry}/>
     </dialog>
   </div>;
 }
