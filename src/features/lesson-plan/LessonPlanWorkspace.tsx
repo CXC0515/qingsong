@@ -1,135 +1,342 @@
-﻿/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState } from 'react';
-import { GlassButton, GlassSegments } from '../../components/glass/Glass';
-import { SearchField, WorkspaceToolbar } from '../../components/WorkspaceUI';
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowRight, FileText, Plus, Search } from "lucide-react";
+import { GlassButton } from "../../components/glass/Glass";
 import {
-  BookOpenCheck, CheckSquare, FileText, Layers, Plus, Search, Sparkles
-} from 'lucide-react';
+  EmptyState,
+  SearchField,
+  WorkspaceToolbar,
+} from "../../components/WorkspaceUI";
+import ResponsiveDialog from "../../components/ResponsiveDialog";
+import type {
+  Preparation,
+  PreparationDetail as Detail,
+} from "../../domain/preparation";
+import {
+  createPreparation,
+  getPreparation,
+  listPreparations,
+} from "../../services/preparationApi";
+import PreparationDetail from "./PreparationDetail";
+import "./preparation.css";
 
-interface LessonPlanWorkspaceProps {
+export default function LessonPlanWorkspace({
+  onShowToast,
+}: {
   onShowToast: (message: string) => void;
-}
-
-type LessonPlanTab = 'tasks' | 'workflow' | 'review';
-
-const tabs: { id: LessonPlanTab; label: string }[] = [
-  { id: 'tasks', label: '教案任务' },
-  { id: 'workflow', label: '教案工作流' },
-  { id: 'review', label: '复核队列' }
-];
-
-const lessonTasks = [
-  {
-    title: '《驿路梨花》第二课时教学设计',
-    className: '七年级 3 班',
-    status: '待完善',
-    node: '生成教学流程',
-    deadline: '今天 20:00'
-  },
-  {
-    title: '标题作用题讲评课微课设计',
-    className: '七年级 3 班',
-    status: '待复核',
-    node: '教师复核',
-    deadline: '明天 09:00'
-  },
-  {
-    title: '第四单元复习课教学方案',
-    className: '七年级 4 班',
-    status: '草稿',
-    node: '资料准备',
-    deadline: '2026-07-08'
-  }
-];
-
-export default function LessonPlanWorkspace({ onShowToast }: LessonPlanWorkspaceProps) {
-  const [query,setQuery]=useState('');
-  const [activeTab, setActiveTab] = useState<LessonPlanTab>('tasks');
-
+}) {
+  const [items, setItems] = useState<Preparation[]>([]),
+    [detail, setDetail] = useState<Detail | null>(null),
+    [documentId, setDocumentId] = useState<string | undefined>();
+  const [query, setQuery] = useState(""),
+    [subject, setSubject] = useState(""),
+    [creating, setCreating] = useState(false),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState("");
+  const sequence = useRef(0);
+  const loadList = useCallback(async () => {
+    const next = await listPreparations();
+    setItems(next);
+  }, []);
+  const open = useCallback(async (id: string, selectedDocumentId?: string) => {
+    const serial = ++sequence.current;
+    setLoading(true);
+    setError("");
+    try {
+      const next = await getPreparation(id);
+      if (serial === sequence.current) {
+        setDocumentId(selectedDocumentId);
+        setDetail(next);
+      }
+    } catch (cause) {
+      if (serial === sequence.current) setError((cause as Error).message);
+    } finally {
+      if (serial === sequence.current) setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    let active = true;
+    const params = new URLSearchParams(window.location.search),
+      id = params.get("preparationId");
+    if (id) void open(id, params.get("documentId") ?? undefined);
+    else
+      void loadList()
+        .catch((cause) => {
+          if (active) setError(cause.message);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    const requested = (event: Event) => {
+      const value = (
+        event as CustomEvent<{ preparationId?: string; documentId?: string }>
+      ).detail;
+      if (!value?.preparationId) return;
+      if (
+        !window.dispatchEvent(
+          new Event("qingsong:preparation-before-leave", { cancelable: true }),
+        )
+      )
+        return;
+      void open(value.preparationId, value.documentId);
+    };
+    window.addEventListener("qingsong:open-preparation", requested);
+    return () => {
+      active = false;
+      sequence.current++;
+      window.removeEventListener("qingsong:open-preparation", requested);
+    };
+  }, [loadList, open]);
+  useEffect(() => {
+    if (!detail)
+      window.dispatchEvent(
+        new CustomEvent("qingsong:preparation-context", { detail: {} }),
+      );
+  }, [Boolean(detail)]);
+  const back = async () => {
+    sequence.current++;
+    setDetail(null);
+    setError("");
+    const url = new URL(window.location.href);
+    url.searchParams.delete("preparationId");
+    url.searchParams.delete("documentId");
+    window.history.replaceState(null, "", url);
+    setLoading(true);
+    try {
+      await loadList();
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  const subjects = [
+    ...new Set(items.map((item) => item.subject).filter(Boolean)),
+  ];
+  const visible = items.filter(
+    (item) =>
+      (!subject || item.subject === subject) &&
+      `${item.title} ${item.subject} ${item.grade}`
+        .toLocaleLowerCase()
+        .includes(query.toLocaleLowerCase()),
+  );
+  if (detail)
+    return (
+      <div key={detail.preparation.id} className="contents">
+        <PreparationDetail
+          initial={detail}
+          initialDocumentId={documentId}
+          onBack={() => void back()}
+          onShowToast={onShowToast}
+        />
+      </div>
+    );
   return (
-    <div className="space-y-5 animate-fade-in" id="lesson-plan-workspace-page">
-      <WorkspaceToolbar label="教案工作区">
-        <GlassSegments label="教案页面" value={activeTab} options={tabs.map(tab=>({value:tab.id,label:tab.label}))} onChange={setActiveTab}/>
-        <div className="qs-toolbar-actions"><span className="qs-muted">功能预览 · 暂未接入生成与保存</span><GlassButton disabled title="教案生成与保存暂未接入"><Plus className="w-4 h-4"/>新建教案任务</GlassButton></div>
+    <div className="qs-preparations" id="lesson-plan-workspace-page">
+      <WorkspaceToolbar label="备课列表操作">
+        <SearchField
+          className="qs-prep-list-search"
+          placeholder="查找课题或备课"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <select
+          className="qs-prep-subject-filter"
+          value={subject}
+          aria-label="筛选学科"
+          onChange={(event) => setSubject(event.target.value)}
+        >
+          <option value="">全部学科</option>
+          {subjects.map((item) => (
+            <option key={item}>{item}</option>
+          ))}
+        </select>
+        <GlassButton onClick={() => setCreating(true)}>
+          <Plus size={17} />
+          新建备课
+        </GlassButton>
       </WorkspaceToolbar>
-
-      {activeTab === 'tasks' && (
-        <div className="glass-panel rounded-[24px] overflow-hidden">
-          <div className="p-4 border-b border-slate-200/70 dark:border-zinc-800/80 flex items-center gap-3">
-            <SearchField className="qs-search-grow" placeholder="搜索示例教案、班级、课文" value={query} onChange={event=>setQuery(event.target.value)}/>
-
-          </div>
-
-          <div className="qs-lesson-row qs-lesson-heading px-5 py-3 text-[11px] font-black text-slate-400 uppercase border-b border-slate-200/70 dark:border-zinc-800/80">
-            <span>任务</span>
-            <span>班级</span>
-            <span>当前节点</span>
-            <span>状态</span>
-          </div>
-          {lessonTasks.filter(task=>(task.title+' '+task.className).includes(query)).map(task => (
-            <div key={task.title} className="qs-lesson-row px-5 py-4 items-center border-b border-slate-200/60 dark:border-zinc-800/70 last:border-b-0 hover:bg-slate-50/70 dark:hover:bg-zinc-900/50 transition-all">
-              <div>
-                <p className="text-sm font-black text-slate-800 dark:text-slate-100">{task.title}</p>
-                <p className="text-xs text-slate-400 mt-1">截止：{task.deadline}</p>
-              </div>
-              <span className="text-sm text-slate-600 dark:text-slate-300">{task.className}</span>
-              <span className="w-fit px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200 text-xs font-bold">{task.node}</span>
-              <span className="text-xs font-bold text-slate-500">{task.status}</span>
-            </div>
+      {error && (
+        <p className="qs-prep-error" role="alert">
+          {error}
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              void loadList()
+                .then(() => setError(""))
+                .catch((cause) => setError(cause.message))
+                .finally(() => setLoading(false));
+            }}
+          >
+            重新读取
+          </button>
+        </p>
+      )}
+      {loading && !items.length ? (
+        <p className="qs-prep-empty" role="status">
+          正在读取备课…
+        </p>
+      ) : visible.length ? (
+        <div className="qs-prep-list">
+          {visible.map((item) => (
+            <button
+              type="button"
+              key={item.id}
+              onClick={() => void open(item.id)}
+              className="qs-prep-list-item"
+            >
+              <FileText size={23} />
+              <span className="qs-prep-list-title">
+                <strong>{item.title}</strong>
+                <small>
+                  {[item.subject, item.grade, item.edition]
+                    .filter(Boolean)
+                    .join(" · ") || "本课信息待补充"}
+                </small>
+              </span>
+              <span className="qs-prep-list-meta">
+                <small>
+                  {item.status === "ready"
+                    ? "已选授课稿"
+                    : item.status === "archived"
+                      ? "已归档"
+                      : "草稿"}
+                </small>
+                <time dateTime={item.updatedAt}>
+                  {new Date(item.updatedAt).toLocaleDateString("zh-CN")}
+                </time>
+              </span>
+              <ArrowRight size={17} />
+            </button>
           ))}
         </div>
+      ) : (
+        <EmptyState
+          title={items.length ? "没有找到这份备课" : "开始备一课"}
+          description={
+            items.length
+              ? "可以换个课题名称或学科。"
+              : "可以从已有教案、PPT 开始，也可以根据教材和教辅编写。"
+          }
+          action={
+            !items.length ? (
+              <GlassButton onClick={() => setCreating(true)}>
+                <Plus size={17} />
+                新建备课
+              </GlassButton>
+            ) : undefined
+          }
+        />
       )}
-
-      {activeTab === 'workflow' && (
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5">
-          <div className="glass-panel rounded-[24px] p-6 space-y-5">
-            <div className="flex items-center gap-2">
-              <BookOpenCheck className="w-5 h-5 text-emerald-700 dark:text-emerald-300" />
-              <h3 className="text-base font-black text-slate-900 dark:text-slate-50">教案工作流预览</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              {['选择课文与课时', '读取资料与目标', '生成教学流程', '教师调整确认'].map((step, index) => (
-                <div key={step} className="p-4 rounded-2xl border border-slate-200/70 dark:border-zinc-800/80 bg-slate-50/70 dark:bg-zinc-900/50">
-                  <span className="text-[10px] font-black text-slate-400">STEP {index + 1}</span>
-                  <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-1">{step}</p>
-                </div>
-              ))}
-            </div>
-            <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10">
-              <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-2">教案生成暂未接入</p>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                输入课文、课时、班级学情和教学目标后，生成教学目标、重难点、课堂流程、板书、提问链和作业建议，并进入教案复核队列。
-              </p>
-            </div>
-          </div>
-
-          <div className="glass-panel rounded-[24px] p-5 space-y-4">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-emerald-700 dark:text-emerald-300" />
-              <h3 className="text-base font-black text-slate-900 dark:text-slate-50">生成结果预览</h3>
-            </div>
-            {['教学目标', '问题链', '课堂活动', '板书结构'].map(item => (
-              <div key={item} className="p-3 rounded-2xl bg-slate-50 dark:bg-zinc-900/60 border border-slate-200/70 dark:border-zinc-800/80">
-                <span className="text-xs font-black text-slate-700 dark:text-slate-200">{item}</span>
-                <p className="text-[11px] text-slate-400 mt-1">等待 AI 教案工作流生成。</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'review' && (
-        <div className="glass-panel rounded-[24px] p-8 text-center">
-          <CheckSquare className="w-12 h-12 mx-auto text-slate-300 stroke-1 mb-3" />
-          <h3 className="text-base font-black text-slate-900 dark:text-slate-50">教案复核队列</h3>
-          <p className="text-sm text-slate-500 mt-2">教案生成功能接入后，可在这里复核结果。当前没有待复核教案。</p>
-        </div>
+      {creating && (
+        <NewPreparation
+          onClose={() => setCreating(false)}
+          onCreated={(value) => {
+            setDetail(value);
+            setCreating(false);
+            setDocumentId(value.documents[0]?.id);
+          }}
+        />
       )}
     </div>
   );
 }
-
+function NewPreparation({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (detail: Detail) => void;
+}) {
+  const [input, setInput] = useState({
+      title: "",
+      subject: "",
+      grade: "",
+      edition: "",
+      requirements: "",
+    }),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const operation = useRef(crypto.randomUUID());
+  const field = (key: keyof typeof input, value: string) => {
+    setInput((current) => ({ ...current, [key]: value }));
+    operation.current = crypto.randomUUID();
+  };
+  const submit = async () => {
+    if (!input.title.trim() || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      onCreated(
+        await createPreparation({
+          ...input,
+          title: input.title.trim(),
+          operationId: operation.current,
+        }),
+      );
+    } catch (cause) {
+      setError((cause as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <ResponsiveDialog
+      title="新建备课"
+      busy={busy}
+      wide
+      onClose={onClose}
+      footer={
+        <GlassButton
+          disabled={!input.title.trim() || busy}
+          onClick={() => void submit()}
+        >
+          {busy ? "正在创建…" : "创建并加入资料"}
+        </GlassButton>
+      }
+    >
+      <div className="qs-prep-settings-grid">
+        <label className="qs-prep-field qs-prep-span-all">
+          备课名称
+          <input
+            autoFocus
+            value={input.title}
+            onChange={(event) => field("title", event.target.value)}
+            placeholder="课题、单元或教学内容"
+            maxLength={200}
+          />
+        </label>
+        {(
+          [
+            ["subject", "学科"],
+            ["grade", "年级／册次"],
+            ["edition", "教材版本"],
+          ] as const
+        ).map(([key, label]) => (
+          <label className="qs-prep-field" key={key}>
+            {label}
+            <input
+              value={input[key]}
+              onChange={(event) => field(key, event.target.value)}
+              placeholder="可稍后补充"
+            />
+          </label>
+        ))}
+        <label className="qs-prep-field qs-prep-span-all">
+          这次怎么备
+          <textarea
+            rows={4}
+            value={input.requirements}
+            onChange={(event) => field("requirements", event.target.value)}
+            placeholder="例如：两课时，以已有教案为底稿，删去拓展阅读，补充练习。"
+          />
+        </label>
+        {error && (
+          <p role="alert" className="qs-prep-error">
+            {error}
+          </p>
+        )}
+      </div>
+    </ResponsiveDialog>
+  );
+}

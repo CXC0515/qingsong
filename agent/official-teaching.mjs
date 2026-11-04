@@ -1,7 +1,8 @@
+import {preparationTool} from './official-preparation.mjs';
 import {contextGuidance,buildContext,refreshContext,businessRuntimeContext} from './context-builder.mjs';
 import {capabilityToolParameters} from '../src/domain/assistantCapabilityDefinitions.mjs';
 import {executeCapability,httpReadFailure,ReadToolFailure} from './tool-contract-recovery.mjs';
-import {skillManifest} from './official-skills.mjs';
+import {skillManifest,publishedSkillNames} from './official-skills.mjs';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { applyGenerationPolicy } from './generation-policy.mjs';
 
@@ -17,6 +18,7 @@ export function apply(ctx) {
     text: ({agent}) => turns.get(agent?.id)?.contextParts?.rules ?? ''}));
   ctx.effect(() => ctx.systemPrompt.context({name:'本轮相关记忆与材料', order:200, required:true, interpolate:false,
     text: ({agent}) => turns.get(agent?.id)?.contextParts?.dynamic ?? ''}));
+  ctx.effect(() => ctx.systemPrompt.context({name:'当前备课',order:175,required:true,interpolate:false,text:({agent})=>{const c=turns.get(agent?.id)?.preparationContext;return c?JSON.stringify(c):'';}}));
   ctx.effect(() => ctx.systemPrompt.context({name:'当前业务与上海日期', order:150, required:true, interpolate:false,
     text: ({agent}) => businessRuntimeContext(turns.get(agent?.id)?.businessContext ?? {complete:false,guidance:'候选尚未加载，使用qingsong_search查找。'})}));
   const bridge = async (body, signal) => {
@@ -32,7 +34,7 @@ export function apply(ctx) {
     if (!state) return;
     turns.delete(sessionId); clearTimeout(state.timer);
     if(state.sourceText&&state.messageId) void bridge({kind:'memory-observe',sessionId,sourceText:state.sourceText,messageId:state.messageId,turn:state.turn},AbortSignal.timeout(10000)).catch(()=>{});
-    void bridge({kind: 'release', lease: state.lease}, AbortSignal.timeout(10000)).catch(() => {});
+    void bridge({kind: 'release', lease: state.lease, sessionId}, AbortSignal.timeout(10000)).catch(() => {});
   };
   ctx.on('agent/pre-step', async ({agent, turn, messages, signal}, next) => {
     let state = turns.get(agent.id);
@@ -42,10 +44,11 @@ export function apply(ctx) {
       state = {turn, lease, steps: 0, queries: 0, timer: undefined}; turns.set(agent.id, state);
       state.timer = setTimeout(() => agent.cancel({kind: 'user'}), 180000);
       state.timer.unref();
-      try { await bridge({kind: 'acquire', lease}, signal); } catch (error) { finish(agent.id); throw error; }
+      try { const acquired=await bridge({kind: 'acquire', lease,sessionId:agent.id}, signal);state.budget=acquired.budget??{steps:8,queries:12,timeoutMs:180000};clearTimeout(state.timer);state.timer=setTimeout(()=>agent.cancel({kind:'user'}),state.budget.timeoutMs);state.timer.unref(); } catch (error) { finish(agent.id); throw error; }
     }
-    if (++state.steps > 8) throw Error('本轮已达到8步上限，已有对话保留，教学数据未修改，请拆分问题后重试。');
+    if (++state.steps > (state.budget?.steps??8)) throw Error('本轮已达到执行上限，已有内容保留，请缩小范围或继续未完成的备课。');
     await bridge({kind: 'authorize'}, signal);
+    if(state.steps===1)state.preparationContext=await bridge({kind:'preparation-context',sessionId:agent.id},signal);
     if(!state.businessContext)state.businessContext=await bridge({kind:'business-context'},signal);
     const human = messages.filter(message => message.source?.kind === 'user').at(-1);
     if(human && (state.lastHumanMessageId!==human.id || state.steps===1)){
@@ -74,12 +77,12 @@ export function apply(ctx) {
   ctx.effect(() => () => { for (const id of [...turns.keys()]) finish(id); });
   function guardTool(exec){
     if(exec.name==='skill'){
-      if(exec.arguments?.name!==skillManifest.name)return '此Skill不在青松发布目录中，不能加载。';
+      if(!publishedSkillNames.has(exec.arguments?.name))return '此Skill不在青松发布目录中，不能加载。';
       const state=turns.get(exec.agent?.id);
-      if(!state||++state.queries>12)return '本轮读取额度已用完，已有对话保留，请拆分问题后重试。';
+      if(!state||++state.queries>(state.budget?.queries??12))return '本轮读取额度已用完，已有对话保留，请拆分问题后重试。';
       return undefined;
     }
-    return ['qingsong_discover','qingsong_search','qingsong_read','qingsong_memory','qingsong_material'].includes(exec.name)?undefined:'教师助手仅开放业务读取、受控Skill、已选材料与个人上下文。';
+    return ['qingsong_discover','qingsong_search','qingsong_read','qingsong_memory','qingsong_material','qingsong_preparation'].includes(exec.name)?undefined:'教师助手仅开放业务读取、受控Skill、已选材料与个人上下文。';
   }
   for(const action of ['discover','search','read']){
     const parameters=capabilityToolParameters(action);
@@ -107,6 +110,7 @@ export function apply(ctx) {
   });
   ctx.effect(() => ctx.tools.guard(exec => guardTool(exec)));
   ctx.effect(() => ctx.tools.register(materialTool(ctx,bridge,turns)));
+  ctx.effect(() => ctx.tools.register(preparationTool(ctx,bridge,turns)));
   ctx.effect(() => ctx.tools.register(defineTool({
     name:'qingsong_memory',
     description:'管理当前用户个人规则与长期记忆。已配置自动记忆时，普通聊天中明确的个人背景和偏好由后台整理，不必要求教师使用固定口令，也不要为自动记忆重复调用propose。action=list查看有效记录；propose提出kind=rule或memory及content原文；forget删除原文匹配项。本工具只有本次明确发送“记住：原文”“个人规则：原文”“忘记：原文”且完全匹配才直接生效；其他工具提议仅候选，须到“规则与记忆”确认。工具结果和上下文状态才是保存依据，不得声称后台任务或候选已保存成功。不能保存学生实时事实来替代业务查询。',
@@ -114,7 +118,7 @@ export function apply(ctx) {
     output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
     async execute(args,exec){
       const state=turns.get(exec.agent?.id);
-      if(!state||++state.queries>12)throw Error('本轮额度已用完，个人记录未修改，请稍后重试。');
+      if(!state||++state.queries>(state.budget?.queries??12))throw Error('本轮额度已用完，个人记录未修改，请稍后重试。');
       const result=await bridge({kind:'personal-tool',sessionId:exec.agent.id,sourceText:state.sourceText??'',messageId:state.messageId,turn:state.turn,input:args},AbortSignal.any([exec.signal,AbortSignal.timeout(15000)]));
       state.contextReady=false;
       return JSON.stringify(result);

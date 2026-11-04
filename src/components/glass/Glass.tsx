@@ -39,7 +39,7 @@ export function GlassButton({ className = '', children, variant = 'secondary', c
   if(variant==='ghost')return <button type="button" {...props} data-variant={variant} className={'qs-button qs-button-ghost '+className}>{children}</button>;
   return <GlassSurface preset="button" data-variant={variant} className={'qs-button-host '+containerClassName}><button type="button" {...props} className={'qs-button ' + className}>{children}</button></GlassSurface>;
 }
-export function GlassSegments<T extends string>({ value, options, onChange, label, density = 'normal' }: { value: T; options: ReadonlyArray<{ value: T; label: ReactNode }>; onChange: (value: T) => boolean | void; label: string; density?:'normal'|'compact' }) {
+export function GlassSegments<T extends string>({ value, options, onChange, label, density = 'normal' }: { value: T; options: ReadonlyArray<{ value: NoInfer<T>; label: ReactNode }>; onChange: (value: NoInfer<T>) => boolean | void; label: string; density?:'normal'|'compact' }) {
   const host = useRef<HTMLDivElement>(null);
   const api = useRef<ReturnType<typeof mountSegmented> | null>(null);
   const latest = useRef({ value, onChange });

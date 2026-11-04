@@ -1,3 +1,5 @@
+import preparationRouter from './routes/preparation';
+import preparationDocumentsRouter from './routes/preparationDocuments';
 import { officialAssistantProxy } from './services/assistant/officialAssistant';
 import classroomBehaviorRouter from './routes/classroomBehavior';
 import personalContextRouter from './routes/personalContext';
@@ -127,6 +129,8 @@ export const createApp = (config: RuntimeConfig = runtimeConfig) => {
   app.use('/api', generationPolicyRouter);
   app.use('/api', assistantRouter);
   app.use('/api', personalContextRouter);
+  app.use('/api', preparationRouter);
+  app.use('/api', preparationDocumentsRouter);
   app.use('/api', accountRouter);
 
   app.use('/api', rosterRouter);

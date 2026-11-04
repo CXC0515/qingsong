@@ -1,3 +1,6 @@
+import {isDemoRoute} from './demo/entry';
+import type {PreparationAssistantContext} from './domain/preparationAssistant';
+import type {AssistantEntry} from './features/assistant/AssistantPanel';
 import {readReviewPreferences,saveReviewPreferences,type ReviewPreferences} from './domain/reviewPreferences';
 /**
  * @license
@@ -47,11 +50,12 @@ import MaterialPool from './features/knowledge/MaterialPool';
 import { getKnowledgeGraph } from './services/resourceApi';
 import { getScheduleWorkspace, removeReminder, removeScheduleItem, saveReminder, saveReminderBatch, saveReminderSeries, saveScheduleBatch, saveScheduleItem, saveSchedulePeriods } from './services/scheduleApi';
 import TagManagement from './features/tags/TagManagement';
-import LessonPlanWorkspace from './features/lesson-plan/LessonPlanWorkspace';
 import GradingWorkspace from './features/grading/GradingWorkspace';
 import DiagnosisWorkspace, { DiagnosisTab } from './features/diagnosis/DiagnosisWorkspace';
 import { useAuth } from './features/auth/AuthGate';
 import { apiFetch } from './services/apiClient';
+
+const LessonPlanWorkspace = React.lazy(() => import('./features/lesson-plan/LessonPlanWorkspace'));
 
 const describeRosterError = (error: unknown) => {
   const code = error instanceof Error ? error.message : '未知错误';
@@ -105,6 +109,15 @@ export default function App() {
   const [settingsVisited,setSettingsVisited]=useState(false);
   useEffect(()=>{if(activePage==='settings')setSettingsVisited(true);},[activePage]);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const preparationAssistantContext=useRef<PreparationAssistantContext>({});
+  const [assistantEntry,setAssistantEntry]=useState<AssistantEntry>({mode:'default',requestKey:0});
+  useEffect(()=>{
+    const update=(event:Event)=>{preparationAssistantContext.current=(event as CustomEvent<PreparationAssistantContext>).detail??{};};
+    const open=(event:Event)=>{const context=(event as CustomEvent<PreparationAssistantContext>).detail??{};preparationAssistantContext.current=context;setAssistantEntry({...context,mode:'preparation',requestKey:Date.now()});setWorkbenchVisited(true);setAssistantOpen(true);};
+    window.addEventListener('qingsong:preparation-context',update);window.addEventListener('qingsong:preparation-assistant',open);
+    return()=>{window.removeEventListener('qingsong:preparation-context',update);window.removeEventListener('qingsong:preparation-assistant',open);};
+  },[]);
+  useEffect(()=>{if(activePage==='workbench')setAssistantEntry({mode:'default',requestKey:Date.now()});},[activePage]);
   const [workbenchVisited, setWorkbenchVisited] = useState(() => assistantSourceRoute(window.location.href).page==='workbench');
   useEffect(() => { if (activePage === 'workbench') setWorkbenchVisited(true); }, [activePage]);
   const [lessonRoute,setLessonRoute]=useState<LessonRoute|null>(()=>readLessonRoute(authState.user.id));
@@ -152,8 +165,7 @@ export default function App() {
   const knowledgeGraphRequestRef = useRef<Promise<KnowledgeGraphSnapshot> | null>(null);
   const [teacherProfile, setTeacherProfile] = useState<TeacherProfile>(authState.profile);
 
-  const canLeaveTask = () => activePage !== 'classroom-tasks'
-    || window.dispatchEvent(new Event('classroom-task-before-leave', { cancelable: true }));
+  const canLeaveTask = () => (activePage !== 'classroom-tasks'||window.dispatchEvent(new Event('classroom-task-before-leave',{cancelable:true}))) && (activePage !== 'lesson-plan'||window.dispatchEvent(new Event('qingsong:preparation-before-leave',{cancelable:true})));
 
   const signOut = () => {
     if (!canLeaveTask()) return;
@@ -750,7 +762,7 @@ export default function App() {
       isOwner={authState.role === 'owner'}
       onEnterAdmin={enterAdmin}
       onSignOut={signOut}
-      onOpenAssistant={() => { setWorkbenchVisited(true); setAssistantOpen(true); }}
+      onOpenAssistant={() => {setAssistantEntry(activePage==='lesson-plan'?{...preparationAssistantContext.current,mode:'preparation',requestKey:Date.now()}:{mode:'default',requestKey:Date.now()});setWorkbenchVisited(true);setAssistantOpen(true);}}
       onSelectClass={selectRecordingClass}
       onSelectPage={setActivePage}
       onSelectScheduleSection={setScheduleSection}
@@ -782,6 +794,7 @@ export default function App() {
             <Workbench
               active={activePage === 'workbench'}
               assistantOpen={assistantOpen}
+              assistantEntry={assistantEntry}
               onCloseAssistant={() => setAssistantOpen(false)}
               classes={classes}
               schedule={schedule}
@@ -798,7 +811,7 @@ export default function App() {
           )}
 
           {activePage === 'lesson-plan' && (
-            <LessonPlanWorkspace onShowToast={triggerToast} />
+            isDemoRoute() ? <div className="glass-panel rounded-2xl p-6"><p>备课生成尚未提供访客演示。正式账号可使用，演示不会访问真实资料或模型。</p></div> : <React.Suspense fallback={<div role="status" className="p-6">正在打开备课空间…</div>}><LessonPlanWorkspace onShowToast={triggerToast} /></React.Suspense>
           )}
 
           {(activePage === 'classroom' || (activePage === 'classroom-tasks' && taskNavigation?.sourcePage === 'classroom')) && (

@@ -57,7 +57,7 @@ export function materialTool(ctx, bridge, turns) {
     }},
     async execute(args,exec) {
       const state=turns.get(exec.agent?.id);
-      if(!state || ++state.queries>12) throw Error('本轮读取额度已用完，材料仍保留，请拆分问题后重试。');
+      if(!state || ++state.queries>(state.budget?.queries??12)) throw Error('本轮读取额度已用完，材料仍保留，请拆分问题后重试。');
       if(args.action==='render') await requireImageModel(ctx,exec);
       if(state.syncMaterials) await state.syncMaterials(exec.signal);
       const result=await bridge({kind:'material',sessionId:exec.agent.id,input:args},AbortSignal.any([exec.signal,AbortSignal.timeout(90000)]));

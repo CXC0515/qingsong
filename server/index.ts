@@ -1,3 +1,4 @@
+import {closePreparationDatabase} from './database/preparationDatabase';
 import { officialAssistantUpgrade, closeOfficialAssistant, officialPrefix } from './services/assistant/officialAssistant';
 import { stopAssistant } from './services/assistant/assistantService';
 import {closePersonalContext} from './services/assistant/personalContext';
@@ -24,14 +25,16 @@ const { getAuthDatabase } = await import('./database/authDatabase');
 const { createWorkspaceContext, runWithWorkspace } = await import('./context/workspaceContext');
 const { resourceRepository } = await import('./repositories/resourceRepository');
 const { markProcessingMaterialsInterrupted } = await import('./repositories/materialRepository');
+const { interruptPreparationTasks } = await import('./services/preparation/preparationService');
 const { markRunningGradingBatchesInterrupted } = await import('./repositories/gradingBatchRepository');
 
 const memberships = getAuthDatabase().prepare(`
   SELECT user_id, workspace_id, role FROM app_workspace_members WHERE status = 'active'
 `).all() as Array<{ user_id: string; workspace_id: string; role: 'owner' | 'teacher' }>;
-const interrupted = { resourceJobs: 0, materials: 0, gradingBatches: 0 };
+const interrupted = { resourceJobs: 0, materials: 0, gradingBatches: 0, preparationTasks: 0 };
 for (const membership of memberships) {
   runWithWorkspace(createWorkspaceContext(membership.user_id, membership.workspace_id, membership.role), () => {
+    interrupted.preparationTasks += interruptPreparationTasks();
     interrupted.resourceJobs += resourceRepository.markRunningJobsInterrupted();
     interrupted.materials += markProcessingMaterialsInterrupted();
     interrupted.gradingBatches += markRunningGradingBatchesInterrupted();
@@ -65,6 +68,7 @@ const shutdown = (reason: string, exitCode: number) => {
     await Promise.allSettled([stopAssistant(),closeModelAdmin(),closeOfficialAssistant()]);
     clearTimeout(forceTimer);
     closeRosterDatabase();
+    closePreparationDatabase();
     closeResourceDatabase();
     closeAuthDatabase();
     closePersonalContext();
