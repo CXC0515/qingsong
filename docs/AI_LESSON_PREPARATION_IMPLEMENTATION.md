@@ -1,7 +1,7 @@
 # AI 备课空间
 
 版本：v1.0 · 2026-11-05（Asia/Shanghai）
-状态：本机和 Linux 检查通过，待发布及用户验收。用户已批准本专项代码、文档、检查及部署；真实课堂质量、正式网页及真机体验由用户验收。
+状态：PR #121已合并并部署707c4b3，待用户体验验收。用户已批准本专项代码、文档、检查及部署；真实课堂质量、正式网页及真机体验由用户验收。
 
 ## 本次概要与目标
 
@@ -83,3 +83,11 @@ Linux 使用固定 Node 24.22.1，根依赖安装须 `npm ci --legacy-peer-deps`
 - 安装缓存和临时目录使用候选磁盘目录，避免服务器982MB的/tmp容量不足；安装后保留optional LibreOffice WASM包。npm对未登记allowScripts的依赖仅提示，不自动改变项目配置。
 - 服务器原来没有中文字体；Ubuntu镜像字体包404后，安装Noto CJK官方固定提交f8d157532fbfaeda587e826d4cd5b21a49186f7c的NotoSansCJKsc-Regular.otf，SHA256为2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b，附SIL OFL许可。
 - 发布前手工在线恢复点：`/var/lib/teacher-dashboard/backups/product-2026-11-05-pre-preparation-b98c71f`；665文件、9个SQLite，完整性及清单回读通过。未删除任何已有备份或用户会话。
+
+## 发布记录
+
+- PR #121合并为`707c4b3540b486890d5f83f32a1182b83c8d0bc8`。母文件夹main快进同步后打包，SHA256 `95d753861a22b2aca28fcdbc5caa8458fa70db78d95dfc7d95225e169f89d581`；540份源码逐文件校验，运行源码与已验证候选一致（发布记录文档除外）。母文件夹4项未跟踪内容保留。
+- Linux中文PDF另行实际转换及渲染，图片、合并表格、基础公式和编号正常，无字体替代警告；原始证据保存于`/var/log/teacher-dashboard-preparation-2026-11-05/`。
+- current切换到`/opt/teacher-dashboard/releases/707c4b3540b486890d5f83f32a1182b83c8d0bc8`。应用active/running、NRestarts0，记忆服务与备份timer active；74份公网静态资源完整下载及哈希一致，备课与助手匿名入口401。
+- 原有6个教学SQLite、135张表的记录计数前后一致；备课新增独立数据库，不迁移或覆盖原有教学库。未删除用户会话、规则、记忆、教学数据或备份。
+- 本次候选和本机测试服务在完成检查后清理；原有旧发布暂留等待用户体验及后续收敛，不把健康检查当作真实模型或真机验收。
