@@ -7,6 +7,13 @@ import {
   type Node as XmlNode,
 } from "@xmldom/xmldom";
 import type { DocumentNode, RichDocument } from "../../../src/domain/document";
+import {
+  isDocumentLinkHref,
+  isDocumentColor,
+  isDocumentFontFamily,
+  documentFontSizePoints,
+  documentOrderedListFormats,
+} from "../../../src/domain/documentContract";
 import { validateZipBudget } from "../assistant/materialReader";
 import { storeDocumentImage } from "./documentAssets";
 import { PreparationDocumentError } from "./errors";
@@ -57,10 +64,19 @@ export async function importPreparationDocx(
   const root = parseXml(await main.async("string"));
   const warnings = new Set<string>();
   const relationships = new Map<string, string>();
+  const hyperlinks = new Map<string, string>();
   const relFile = archive.file("word/_rels/document.xml.rels");
   if (relFile)
     for (const rel of childElements(parseXml(await relFile.async("string")))) {
-      if (rel.getAttribute("TargetMode") === "External") continue;
+      if (rel.getAttribute("TargetMode") === "External") {
+        const target = rel.getAttribute("Target");
+        if (
+          rel.getAttribute("Type")?.endsWith("/hyperlink") &&
+          isDocumentLinkHref(target)
+        )
+          hyperlinks.set(rel.getAttribute("Id") ?? "", target);
+        continue;
+      }
       const target = path.posix.normalize(
         path.posix.join("word", rel.getAttribute("Target") ?? ""),
       );
@@ -116,6 +132,19 @@ export async function importPreparationDocx(
     );
   if (root.getElementsByTagNameNS(W, "txbxContent").length)
     warnings.add("原件含文本框或浮动内容，未按原始版式还原，请对照原件核对。");
+  const listIdentities = new WeakMap<DocumentNode, string>();
+  const appendContent = (target: DocumentNode[], next: DocumentNode[]) => {
+    for (const node of next) {
+      const previous = target.at(-1);
+      if (
+        previous?.type === node.type &&
+        listIdentities.has(node) &&
+        listIdentities.get(previous) === listIdentities.get(node)
+      )
+        previous.content!.push(...(node.content ?? []));
+      else target.push(node);
+    }
+  };
   const imageCache = new Map<string, DocumentNode>();
   const image = async (drawing: XmlElement): Promise<DocumentNode | null> => {
     const blip = Array.from(drawing.getElementsByTagName("*")).find(
@@ -172,14 +201,33 @@ export async function importPreparationDocx(
     const properties = direct(element, "pPr");
     const styleId = attr(properties && direct(properties, "pStyle"), "val");
     const style = styles.get(styleId) ?? styleId;
-    const heading = /(?:heading|标题)\s*([1-6])/i.exec(style);
+    const namedHeading = /(?:heading|标题)\s*([1-6])/i.exec(style);
+    const outline = attr(properties && direct(properties, "outlineLvl"), "val");
+    // Feishu exports numeric style IDs with no style definitions, but keeps the
+    // standard zero-based outline level on the paragraph itself.
+    const headingLevel = /^[0-5]$/.test(outline)
+      ? Number(outline) + 1
+      : namedHeading ? Number(namedHeading[1]) : undefined;
+    const alignmentValue = attr(properties && direct(properties, "jc"), "val");
+    const alignment =
+      alignmentValue === "both"
+        ? "justify"
+        : ["left", "right", "center", "justify"].includes(alignmentValue)
+          ? alignmentValue
+          : undefined;
+    const paragraphAttrs = {
+      ...(headingLevel ? { level: headingLevel } : {}),
+      ...(alignment ? { textAlign: alignment } : {}),
+    };
     const blocks: DocumentNode[] = [],
       inline: DocumentNode[] = [];
     const flush = () => {
       if (inline.length) {
         blocks.push({
-          type: heading ? "heading" : "paragraph",
-          ...(heading ? { attrs: { level: Number(heading[1]) } } : {}),
+          type: headingLevel ? "heading" : "paragraph",
+          ...(Object.keys(paragraphAttrs).length
+            ? { attrs: paragraphAttrs }
+            : {}),
           content: inline.splice(0),
         });
       }
@@ -238,6 +286,27 @@ export async function importPreparationDocx(
         return;
       }
       let marks = inherited;
+      if (node.namespaceURI === W && node.localName === "hyperlink") {
+        const id = node.getAttributeNS(R, "id") ?? node.getAttribute("r:id");
+        const href = id && hyperlinks.get(id);
+        if (href)
+          marks = [
+            ...(inherited ?? []),
+            {
+              type: "link",
+              attrs: {
+                href,
+                target: "_blank",
+                rel: "noopener noreferrer nofollow",
+                class: null,
+              },
+            },
+          ];
+        else
+          warnings.add(
+            "部分内部或非网页链接保留了文字，链接目标未转入编辑稿。",
+          );
+      }
       if (node.localName === "r") {
         const properties = direct(node, "rPr");
         marks = [...inherited];
@@ -254,6 +323,57 @@ export async function importPreparationDocx(
           )
             marks.push({ type });
         }
+        const textStyle: Record<string, unknown> = {};
+        const color = attr(properties && direct(properties, "color"), "val");
+        if (/^[0-9a-f]{6}$/i.test(color))
+          textStyle.color = "#" + color.toLowerCase();
+        const font = properties && direct(properties, "rFonts");
+        const family =
+          attr(font, "eastAsia") || attr(font, "ascii") || attr(font, "hAnsi");
+        if (family && isDocumentFontFamily(family))
+          textStyle.fontFamily = family;
+        const halfPoints = Number(
+          attr(properties && direct(properties, "sz"), "val"),
+        );
+        if (halfPoints) {
+          const size = `${halfPoints / 2}pt`;
+          if (documentFontSizePoints(size) !== undefined)
+            textStyle.fontSize = size;
+          else
+            warnings.add(
+              "部分字号超出网页编辑范围，文字已保留，请对照原件核对。",
+            );
+        }
+        if (Object.keys(textStyle).length)
+          marks.push({ type: "textStyle", attrs: textStyle });
+        const fill = attr(properties && direct(properties, "shd"), "fill");
+        const named = attr(
+          properties && direct(properties, "highlight"),
+          "val",
+        );
+        const namedColors: Record<string, string> = {
+          yellow: "#ffff00",
+          green: "#00ff00",
+          cyan: "#00ffff",
+          magenta: "#ff00ff",
+          blue: "#0000ff",
+          red: "#ff0000",
+          darkBlue: "#000080",
+          darkCyan: "#008080",
+          darkGreen: "#008000",
+          darkMagenta: "#800080",
+          darkRed: "#800000",
+          darkYellow: "#808000",
+          darkGray: "#808080",
+          lightGray: "#c0c0c0",
+          black: "#000000",
+          white: "#ffffff",
+        };
+        const highlight = /^[0-9a-f]{6}$/i.test(fill)
+          ? "#" + fill.toLowerCase()
+          : namedColors[named];
+        if (isDocumentColor(highlight))
+          marks.push({ type: "highlight", attrs: { color: highlight } });
       }
       if (node.namespaceURI === W && node.localName === "t") {
         if (node.textContent)
@@ -278,8 +398,10 @@ export async function importPreparationDocx(
     flush();
     if (!blocks.length)
       blocks.push({
-        type: heading ? "heading" : "paragraph",
-        ...(heading ? { attrs: { level: Number(heading[1]) } } : {}),
+        type: headingLevel ? "heading" : "paragraph",
+        ...(Object.keys(paragraphAttrs).length
+          ? { attrs: paragraphAttrs }
+          : {}),
       });
     const numberingProperties = properties && direct(properties, "numPr");
     if (numberingProperties) {
@@ -290,26 +412,49 @@ export async function importPreparationDocx(
       if (level > 0)
         warnings.add("多级编号已转为可编辑列表，请核对层级与原编号。");
       const definition = numbering.get(numId);
-      return [
-        {
-          type: definition?.format === "bullet" ? "bulletList" : "orderedList",
-          ...(definition?.format === "bullet"
-            ? {}
-            : { attrs: { start: definition?.start ?? 1 } }),
-          content: [{ type: "listItem", content: blocks }],
-        },
-      ];
+      const list: DocumentNode = {
+        type: definition?.format === "bullet" ? "bulletList" : "orderedList",
+        ...(definition?.format === "bullet"
+          ? {}
+          : {
+              attrs: {
+                start: definition?.start ?? 1,
+                type:
+                  Object.keys(documentOrderedListFormats).find(
+                    (key) =>
+                      documentOrderedListFormats[key] === definition?.format,
+                  ) ?? null,
+              },
+            }),
+        content: [{ type: "listItem", content: blocks }],
+      };
+      listIdentities.set(list, numId);
+      return [list];
     }
     return blocks;
   };
   const table = async (element: XmlElement): Promise<DocumentNode> => {
     const rows: DocumentNode[] = [];
+    const grid = direct(element, "tblGrid");
+    const gridWidths = grid
+      ? childElements(grid).map((column) =>
+          Math.max(1, Math.round(Number(attr(column, "w")) / 15)),
+        )
+      : [];
     const merged = new Map<number, DocumentNode>();
     for (const row of childElements(element).filter(
       (n) => n.localName === "tr",
     )) {
       const cells: DocumentNode[] = [];
+      const headerProperty =
+        direct(row, "trPr") && direct(direct(row, "trPr")!, "tblHeader");
+      const headerRow = Boolean(
+        headerProperty &&
+          !["0", "false", "off"].includes(attr(headerProperty, "val")),
+      );
       let column = 0;
+      const groups: Array<{ cells: XmlElement[]; colspan: number }> = [];
+      let horizontal: (typeof groups)[number] | undefined;
       for (const cell of childElements(row).filter(
         (n) => n.localName === "tc",
       )) {
@@ -322,6 +467,31 @@ export async function importPreparationDocx(
               1,
           ),
         );
+        const merge = properties && direct(properties, "hMerge");
+        const mode = merge ? attr(merge, "val") || "continue" : "";
+        if (mode === "continue") {
+          if (!horizontal || horizontal.colspan + colspan > 50)
+            throw new PreparationDocumentError(
+              "DOCX_TABLE_INVALID",
+              "Word表格的横向合并范围损坏，原件保留，教案未修改。",
+            );
+          horizontal.cells.push(cell);
+          horizontal.colspan += colspan;
+        } else {
+          if (mode && mode !== "restart")
+            throw new PreparationDocumentError(
+              "DOCX_TABLE_INVALID",
+              "Word表格的横向合并格式不受支持，原件保留，教案未修改。",
+            );
+          const group = { cells: [cell], colspan };
+          groups.push(group);
+          horizontal = mode === "restart" ? group : undefined;
+        }
+      }
+      for (const group of groups) {
+        const cell = group.cells[0];
+        const properties = direct(cell, "tcPr");
+        const colspan = group.colspan;
         const merge = properties && direct(properties, "vMerge");
         if (merge && attr(merge, "val") !== "restart" && merged.has(column)) {
           const original = merged.get(column)!;
@@ -330,14 +500,37 @@ export async function importPreparationDocx(
           continue;
         }
         const content: DocumentNode[] = [];
-        for (const child of childElements(cell)) {
-          if (child.localName === "p")
-            content.push(...(await paragraph(child)));
-          if (child.localName === "tbl") content.push(await table(child));
+        for (const [index, member] of group.cells.entries()) {
+          for (const child of childElements(member)) {
+            if (child.localName === "p") {
+              const next = await paragraph(child);
+              // Continuation cells are usually empty; preserve any real content
+              // without appending a blank line for every covered grid column.
+              if (!index || next.some((node) => node.content?.length))
+                appendContent(content, next);
+            }
+            if (child.localName === "tbl") content.push(await table(child));
+          }
         }
+        const shading = attr(properties && direct(properties, "shd"), "fill");
+        const firstAlignment = content.find((node) =>
+          ["paragraph", "heading"].includes(node.type),
+        )?.attrs?.textAlign;
+        const widths = gridWidths.slice(column, column + colspan);
         const result: DocumentNode = {
-          type: "tableCell",
-          attrs: { colspan, rowspan: 1, colwidth: null },
+          type:
+            headerRow || shading.toUpperCase() === "F0F2F0"
+              ? "tableHeader"
+              : "tableCell",
+          attrs: {
+            colspan,
+            rowspan: 1,
+            colwidth:
+              widths.length === colspan && widths.every(Number.isFinite)
+                ? widths
+                : null,
+            align: typeof firstAlignment === "string" ? firstAlignment : null,
+          },
           content: content.length ? content : [{ type: "paragraph" }],
         };
         cells.push(result);
@@ -360,15 +553,7 @@ export async function importPreparationDocx(
   const content: DocumentNode[] = [];
   for (const child of childElements(body)) {
     if (child.localName === "p") {
-      const next = await paragraph(child);
-      const previous = content.at(-1);
-      if (
-        next.length === 1 &&
-        previous?.type === next[0].type &&
-        ["bulletList", "orderedList"].includes(previous.type)
-      )
-        previous.content!.push(...next[0].content!);
-      else content.push(...next);
+      appendContent(content, await paragraph(child));
     } else if (child.localName === "tbl") content.push(await table(child));
     else if (child.localName !== "sectPr")
       warnings.add("原件包含特殊正文结构，未完整转入编辑稿，请对照原件核对。");

@@ -29,6 +29,7 @@ export function ExportResult({ file }: { file: DocumentExport }) {
       <span>
         版本 {file.revision} · {file.format.toUpperCase()}
       </span>
+      {file.format === "docx" && <p>可将此 Word 导入飞书继续编辑。飞书可能调整字体、字号、颜色和编号样式，导入后请核对排版。</p>}
       {file.warnings?.map((warning, index) => (
         <p key={index}>{warning}</p>
       ))}

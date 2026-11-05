@@ -123,28 +123,54 @@ function OfficialAssistantPanel({entry}:{entry?:AssistantEntry}) {
     window.addEventListener('message',receive);startTimer();
     return()=>{window.removeEventListener('message',receive);stopTimer();};
   },[connectionId]);
-  const [targetError,setTargetError]=useState('');
-  useEffect(()=>{
-    if(!ready||!entry)return;
-    const controller=new AbortController();const requestId=crypto.randomUUID();
-    setTargetError('');
-    const {requestKey,...body}=entry;
-    void apiFetch('/api/assistant/official/api/qingsong/preparation-target',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal:controller.signal})
-      .then(async response=>{const value=await response.json();if(!response.ok)throw Error(value.message||'工作空间未能打开，已有内容保留。');return value.target as PreparationAssistantTarget;})
-      .then(target=>{if(!controller.signal.aborted)frame.current?.contentWindow?.postMessage({type:'qingsong:open-context',connectionId,requestId,target},location.origin);})
-      .catch(error=>{if(!controller.signal.aborted)setTargetError(error.message);});
-    const acknowledge=(event:MessageEvent)=>{
-      if(event.origin!==location.origin||event.source!==frame.current?.contentWindow||event.data?.connectionId!==connectionId||event.data?.requestId!==requestId||event.data?.type!=='qingsong:context-opened')return;
-      if(event.data.error)setTargetError(event.data.error);
+  const [targetError, setTargetError] = useState('');
+  const [targetStage, setTargetStage] = useState('');
+  const [targetAttempt, setTargetAttempt] = useState(0);
+  useEffect(() => {
+    if (!ready || !entry) return;
+    const controller = new AbortController(), requestId = crypto.randomUUID();
+    let acknowledgementTimer: ReturnType<typeof setTimeout> | undefined;
+    setTargetError(''); setTargetStage('正在打开工作空间…');
+    const send = (type: string, extra = {}) => frame.current?.contentWindow?.postMessage({type,connectionId,requestId,...extra},location.origin);
+    const acknowledge = (event: MessageEvent) => {
+      const data = event.data;
+      if (event.origin !== location.origin || event.source !== frame.current?.contentWindow || data?.connectionId !== connectionId || data?.requestId !== requestId) return;
+      if (data.type === 'qingsong:context-progress') {
+        const labels: Record<string,string> = {'workspace-directory':'正在同步备课工作区…','session-directory':'正在同步教案会话…','session-content':'正在读取教案会话…','session-navigation':'正在打开教案会话…','draft':'正在准备备课要求…','workspace-navigation':'正在打开工作空间…'};
+        setTargetStage(labels[data.stage] ?? '正在打开助手…');
+      } else if (data.type === 'qingsong:context-opened') {
+        clearTimeout(acknowledgementTimer); setTargetStage('');
+        if (data.error) setTargetError(data.error);
+      }
     };
-    window.addEventListener('message',acknowledge);
-    return()=>{controller.abort();window.removeEventListener('message',acknowledge);};
-  },[ready,entry,connectionId]);
+    window.addEventListener('message', acknowledge);
+    const {requestKey: _requestKey, ...body} = entry;
+    void apiFetch('/api/assistant/official/api/qingsong/preparation-target', {
+      method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.any([controller.signal,AbortSignal.timeout(30000)]),
+    }).then(async response => {
+      const value = await response.json();
+      if (!response.ok) throw Error(value.message || '工作空间未能打开，已有内容保留。');
+      return value.target as PreparationAssistantTarget;
+    }).then(target => {
+      if (controller.signal.aborted) return;
+      send('qingsong:open-context', {target});
+      acknowledgementTimer = setTimeout(() => {
+        send('qingsong:cancel-context'); setTargetStage('');
+        setTargetError('打开教案会话等待超时，教案和原会话保留。请重试，不会重复发送消息。');
+      },30000);
+    }).catch(cause => {
+      if (controller.signal.aborted) return;
+      setTargetStage('');
+      setTargetError(cause?.name === 'TimeoutError' ? '工作空间连接超时，教案和原会话保留，请重试。' : cause instanceof Error ? cause.message : '工作空间未能打开，已有内容保留，请重试。');
+    });
+    return () => {controller.abort(); clearTimeout(acknowledgementTimer); send('qingsong:cancel-context'); window.removeEventListener('message',acknowledge);};
+  }, [ready,entry,connectionId,targetAttempt]);
   const retry=()=>{closeMaterialPick();setConnectionId(crypto.randomUUID());};
   return <GlassSurface className="qs-assistant-panel qs-official-assistant flex h-full min-h-0 flex-col overflow-hidden">
     <style>{".qs-official-assistant>.lg-content{display:flex;flex-direction:column;min-height:0;flex:1;padding:0;gap:0;overflow:hidden}.qs-official-frame{display:flex;flex:1;min-height:0;margin:12px;border-radius:18px;overflow:hidden;background:#fff}"}</style>
     {!ready&&<div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-sm"><p role={error?'alert':'status'} className={error?'text-red-700':'text-gray-500'}>{error||(phase==='page'?'正在载入助手界面…':'正在同步工作区与会话…')}{!error&&elapsed>0?` ${elapsed}秒`:''}{slow&&!error?'，连接较慢，已有会话保留。':''}</p>{(slow||error)&&<GlassButton disabled={busy} onClick={retry}>重新连接</GlassButton>}</div>}
-    {targetError&&<p role="alert" className="px-4 py-2 text-sm text-red-700">{targetError}</p>}
+    {targetStage && <p role="status" className="px-4 py-2 text-sm text-gray-500">{targetStage}</p>}
+    {targetError && <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-sm text-red-700"><p role="alert">{targetError}</p><GlassButton onClick={() => setTargetAttempt(value => value + 1)}>重试打开</GlassButton></div>}
     <div className="qs-official-frame"><iframe ref={frame} title="青松教学助手" name={"qingsong-assistant:"+connectionId} src={"/api/assistant/official/?connection="+connectionId} onLoad={()=>frame.current?.contentWindow?.postMessage({type:'qingsong:probe',connectionId},location.origin)} className="min-h-0 w-full flex-1 border-0" sandbox="allow-scripts allow-same-origin allow-downloads allow-popups" onError={() => setError('助手未能打开，已有对话保留，请刷新重试。')}/></div>
     {settings&&<ResponsiveDialog title="会话设置" header={null} wide compactFull busy={busy} confirmDiscard={dirty} closeRef={closeSettings} onClose={()=>setSettings(false)}><PersonalContextPanel active onClose={()=>closeSettings.current?.()} onDirtyChange={setDirty} onBusyChange={setBusy}/></ResponsiveDialog>}
     {materialPick&&<MaterialPoolPicker key={materialPick.requestId} onConfirm={confirmMaterialPick} onClose={closeMaterialPick} />}

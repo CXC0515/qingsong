@@ -128,26 +128,39 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     }
     ctx.effect(() => ctx.locale.addLanguage({id: 'zh-CN-x-qingsong', label: '简体中文（青松）', fallback: 'zh'}));
     ctx.effect(() => ctx.locale.register('conversation', 'zh-CN-x-qingsong', {'placeholder.hero': '问问课表、班级名单或课堂记录…', 'placeholder.default': '继续问问教学上的事…'}));
-    // Parent chooses an entry; DSH remains the owner of session navigation and unsent drafts.
-    ctx.effect(()=>{
-      let sequence=0;
-      const open=async event=>{
-        if(event.origin!==location.origin||event.source!==parent||event.data?.type!=='qingsong:open-context'||event.data.connectionId!==connectionId)return;
-        const {target,requestId}=event.data,attempt=++sequence;
-        try{
-          if(typeof target?.workspaceId!=='string')throw Error('工作空间格式不正确。');
-          if(target.sessionId){
-            const reference=ctx.sessions.retain(target.sessionId,{source:'qingsong-preparation'});
-            try{
-              const binding=await reference.ready;if(attempt!==sequence)return;
-              ctx.uiWorkspace.openSession(target.sessionId);
-              if(target.instruction)ctx.conversation.input.requestDraftInitialization(binding,{prompt:target.instruction,whenDraftExists:'append'});
-            }finally{reference.release();}
-          }else await ctx.uiWorkspace.openWorkspace(target.workspaceId,undefined,{agentPreset:'qingsong'});
-          if(attempt===sequence)parent.postMessage({type:'qingsong:context-opened',connectionId,requestId},location.origin);
-        }catch(error){if(attempt===sequence)parent.postMessage({type:'qingsong:context-opened',connectionId,requestId,error:'助手工作空间未能打开，教案和原会话保留，请重试。'},location.origin);}
+    // Parent chooses an entry; native catalogs, navigation and unsent drafts remain DSH-owned.
+    ctx.effect(() => {
+      let current;
+      const cancel = () => {current?.controller.abort(); current = undefined;};
+      const receive = async event => {
+        const data = event.data;
+        if (event.origin !== location.origin || event.source !== parent || data?.connectionId !== connectionId) return;
+        if (data.type === 'qingsong:cancel-context') {if (current?.requestId === data.requestId) cancel(); return;}
+        if (data.type !== 'qingsong:open-context') return;
+        cancel();
+        // Invalidates a previous SDK workspace open; a specific session never falls back to a blank one.
+        ctx.layout.beginNavigation();
+        const navigation = {requestId:data.requestId,controller:new AbortController()}; current = navigation;
+        try {
+          const target = await globalThis.QingsongAssistantNavigation.openContext(ctx, data.target, {
+            signal:navigation.controller.signal,
+            onStage:stage => parent.postMessage({type:'qingsong:context-progress',connectionId,requestId:data.requestId,stage},location.origin),
+          });
+          if (current === navigation) parent.postMessage({type:'qingsong:context-opened',connectionId,requestId:data.requestId,target},location.origin);
+        } catch (error) {
+          if (current !== navigation || navigation.controller.signal.aborted) return;
+          const stage = error.stage ?? 'session-navigation';
+          console.warn('[青松助手] 打开目标失败', {requestId:data.requestId,stage,errorName:error.name});
+          const messages = {
+            'workspace-directory':'工作区目录尚未同步，', 'session-directory':'教案会话目录未能同步，',
+            'session-content':'教案会话未能读取，', 'session-navigation':'教案会话未能打开，',
+            'workspace-navigation':'工作区未能打开，', 'draft':'备课要求未能放入输入框，',
+          };
+          parent.postMessage({type:'qingsong:context-opened',connectionId,requestId:data.requestId,stage,error:(messages[stage]??'助手未能打开，')+'教案和原会话保留，请重试。'},location.origin);
+        } finally {if (current === navigation) current = undefined;}
       };
-      window.addEventListener('message',open);return()=>{sequence++;window.removeEventListener('message',open);};
+      window.addEventListener('message',receive);
+      return () => {cancel(); window.removeEventListener('message',receive);};
     });
     // Observe native stores; a failed initial pull is not an endless loading state.
     ctx.effect(() => {

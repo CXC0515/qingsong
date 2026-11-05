@@ -1,6 +1,7 @@
 import {isDemoRoute} from './demo/entry';
 import type {PreparationAssistantContext} from './domain/preparationAssistant';
 import type {AssistantEntry} from './features/assistant/AssistantPanel';
+import AssistantDock from './features/assistant/AssistantDock';
 import {readReviewPreferences,saveReviewPreferences,type ReviewPreferences} from './domain/reviewPreferences';
 /**
  * @license
@@ -108,7 +109,7 @@ export default function App() {
   const [activePage, setActivePageState] = useState<PageId>(() => assistantSourceRoute(window.location.href).page);
   const [settingsVisited,setSettingsVisited]=useState(false);
   useEffect(()=>{if(activePage==='settings')setSettingsVisited(true);},[activePage]);
-  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(() => assistantSourceRoute(window.location.href).page === 'workbench' && window.matchMedia('(min-width:1100px)').matches);
   const preparationAssistantContext=useRef<PreparationAssistantContext>({});
   const [assistantEntry,setAssistantEntry]=useState<AssistantEntry>({mode:'default',requestKey:0});
   useEffect(()=>{
@@ -748,6 +749,8 @@ export default function App() {
     <AppLayout
       headerContextRef={setClassroomHeaderTarget}
       activePage={activePage}
+      assistantOpen={assistantOpen}
+      assistant={workbenchVisited || assistantOpen ? <AssistantDock identityKey={authState.user.id} open={assistantOpen} entry={assistantEntry} onClose={() => setAssistantOpen(false)}/> : null}
       classes={classes}
       expandedGroups={expandedGroups}
       navGroups={navGroups}
@@ -789,13 +792,8 @@ export default function App() {
               onNavigate={handleNavigate}
             />
           )}
-          {(workbenchVisited || assistantOpen || activePage === 'workbench') && (
-            <div className={activePage === 'workbench' || assistantOpen ? 'contents' : 'hidden'} aria-hidden={activePage !== 'workbench' && !assistantOpen}>
+          {activePage === 'workbench' && (
             <Workbench
-              active={activePage === 'workbench'}
-              assistantOpen={assistantOpen}
-              assistantEntry={assistantEntry}
-              onCloseAssistant={() => setAssistantOpen(false)}
               classes={classes}
               schedule={schedule}
               reminders={reminders}
@@ -807,7 +805,6 @@ export default function App() {
                 handleNavigate('classroom');
               }}
             />
-            </div>
           )}
 
           {activePage === 'lesson-plan' && (

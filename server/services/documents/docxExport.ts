@@ -17,6 +17,8 @@ import {
   AlignmentType,
   ExternalHyperlink,
   LevelFormat,
+  TableLayoutType,
+  ShadingType,
   type ILevelsOptions,
   type ParagraphChild,
 } from "docx";
@@ -24,11 +26,24 @@ import type {
   DocumentNode,
   DocumentRecord,
 } from "../../../src/domain/document";
+import {
+  documentFontSizePoints,
+  documentColorHex,
+  documentOrderedListFormats,
+  isDocumentLinkHref,
+} from "../../../src/domain/documentContract";
 import { resolveDocumentAsset } from "./documentAssets";
 import { latexToOmml, ommlToLatex, validateOmml } from "./officeMath";
 import { PreparationDocumentError } from "./errors";
 
-export const DOCUMENT_CONVERTER_VERSION = "preparation-documents-v1";
+export const DOCUMENT_CONVERTER_VERSION = "preparation-documents-v2";
+const paragraphAlignment = (value: unknown) =>
+  ({
+    left: AlignmentType.LEFT,
+    center: AlignmentType.CENTER,
+    right: AlignmentType.RIGHT,
+    justify: AlignmentType.JUSTIFIED,
+  })[String(value)];
 const headingLevels = [
   HeadingLevel.HEADING_1,
   HeadingLevel.HEADING_2,
@@ -113,23 +128,32 @@ export async function exportPreparationDocx(
         (node.marks ?? []).map((mark) => [mark.type, mark.attrs ?? {}]),
       );
       const style = marks.get("textStyle") ?? {};
-      const color =
-        typeof style.color === "string" && /^#?[0-9a-f]{6}$/i.test(style.color)
-          ? style.color.replace("#", "")
-          : undefined;
+      const color = documentColorHex(style.color)?.slice(1);
+      const highlight = documentColorHex(marks.get("highlight")?.color);
+      const fontSize = documentFontSizePoints(style.fontSize);
       const text = new TextRun({
         text: node.text ?? "",
         bold: marks.has("bold"),
         italics: marks.has("italic"),
         underline: marks.has("underline") ? {} : undefined,
         strike: marks.has("strike"),
-        subScript: marks.has("subscript"),
-        superScript: marks.has("superscript"),
         color,
+        ...(typeof style.fontFamily === "string"
+          ? { font: style.fontFamily }
+          : {}),
+        ...(fontSize ? { size: fontSize * 2 } : {}),
+        ...(typeof highlight === "string"
+          ? {
+              shading: {
+                fill: highlight.replace("#", ""),
+                type: ShadingType.CLEAR,
+              },
+            }
+          : {}),
         ...(marks.has("code") ? { font: "Courier New" } : {}),
       });
       const href = marks.get("link")?.href;
-      if (typeof href === "string" && /^https?:\/\//.test(href))
+      if (isDocumentLinkHref(href))
         output.push(new ExternalHyperlink({ children: [text], link: href }));
       else output.push(text);
     }
@@ -150,7 +174,9 @@ export async function exportPreparationDocx(
             level: index,
             format:
               node.type === "orderedList"
-                ? LevelFormat.DECIMAL
+                ? ((documentOrderedListFormats[
+                    String(node.attrs?.type ?? "1")
+                  ] ?? LevelFormat.DECIMAL) as ILevelsOptions["format"])
                 : LevelFormat.BULLET,
             text: node.type === "orderedList" ? `%${index + 1}.` : "•",
             start: Number(node.attrs?.start) || 1,
@@ -171,6 +197,7 @@ export async function exportPreparationDocx(
         result.push(
           new Paragraph({
             children: await inline(first.content),
+            alignment: paragraphAlignment(first.attrs?.textAlign),
             ...(list
               ? { numbering: { reference: list.reference, level: list.level } }
               : {}),
@@ -181,15 +208,60 @@ export async function exportPreparationDocx(
         continue;
       }
       if (node.type === "table") {
+        const columnWidths: number[] = [];
+        const occupiedUntil: number[] = [];
+        // Editor rows omit cells covered by an earlier rowspan. Resolve their real
+        // grid positions once, for both column widths and individual cell widths.
+        const layout = (node.content ?? []).map((row, rowIndex) => {
+          let column = 0;
+          const cells = (row.content ?? []).map((cell) => {
+            while ((occupiedUntil[column] ?? 0) > rowIndex) column++;
+            const span = Number(cell.attrs?.colspan) || 1;
+            const start = column;
+            const rowSpan = Number(cell.attrs?.rowspan) || 1;
+            const widths = Array.isArray(cell.attrs?.colwidth)
+              ? cell.attrs.colwidth
+              : [];
+            for (let c = 0; c < span; c++) {
+              columnWidths[column + c] =
+                Number(widths[c]) || columnWidths[column + c] || 120;
+              occupiedUntil[column + c] = rowIndex + rowSpan;
+            }
+            column += span;
+            return { cell, column: start, span };
+          });
+          return { row, cells };
+        });
+        const totalWidth = columnWidths.reduce((sum, width) => sum + width, 0);
+        const scale = Math.min(1, 620 / totalWidth);
+        if (scale < 1)
+          warnings.add("表格列宽已按纸张宽度等比缩小，网页中的原始列宽保留。");
+        const wordWidths = columnWidths.map((width) =>
+          Math.round(width * scale * 15),
+        );
         const rows: TableRow[] = [];
-        for (const row of node.content ?? []) {
+        for (const { row, cells: positionedCells } of layout) {
           const cells: TableCell[] = [];
-          for (const cell of row.content ?? []) {
-            const content = await blocks(cell.content ?? []);
+          for (const { cell, column, span } of positionedCells) {
+            const alignment = String(cell.attrs?.align ?? "");
+            const aligned = cell.content?.map((child) =>
+              ["paragraph", "heading"].includes(child.type) &&
+              !child.attrs?.textAlign &&
+              alignment
+                ? { ...child, attrs: { ...child.attrs, textAlign: alignment } }
+                : child,
+            );
+            const content = await blocks(aligned ?? []);
             cells.push(
               new TableCell({
                 children: content.length ? content : [new Paragraph("")],
-                columnSpan: Number(cell.attrs?.colspan) || 1,
+                columnSpan: span,
+                width: {
+                  size: wordWidths
+                    .slice(column, column + span)
+                    .reduce((sum, width) => sum + width, 0),
+                  type: WidthType.DXA,
+                },
                 rowSpan: Number(cell.attrs?.rowspan) || 1,
                 ...(cell.type === "tableHeader"
                   ? { shading: { fill: "F0F2F0" } }
@@ -197,12 +269,25 @@ export async function exportPreparationDocx(
               }),
             );
           }
-          if (cells.length) rows.push(new TableRow({ children: cells }));
+          // Keep an empty editor row: docx adds the vertical-merge continuation
+          // cells while constructing Table, and needs the row to be present.
+          rows.push(
+            new TableRow({
+              children: cells,
+              tableHeader:
+                Boolean(row.content?.length) &&
+                row.content?.every(
+                  (cell) => cell.type === "tableHeader",
+                ),
+            }),
+          );
         }
         if (rows.length)
           result.push(
             new Table({
               rows,
+              columnWidths: wordWidths,
+              layout: TableLayoutType.FIXED,
               width: { size: 100, type: WidthType.PERCENTAGE },
             }),
           );
@@ -240,14 +325,7 @@ export async function exportPreparationDocx(
         );
         continue;
       }
-      const alignment = (
-        {
-          left: AlignmentType.LEFT,
-          center: AlignmentType.CENTER,
-          right: AlignmentType.RIGHT,
-          justify: AlignmentType.JUSTIFIED,
-        } as const
-      )[String(node.attrs?.textAlign)];
+      const alignment = paragraphAlignment(node.attrs?.textAlign);
       result.push(
         new Paragraph({
           children: await inline(node.content ?? (node.text ? [node] : [])),

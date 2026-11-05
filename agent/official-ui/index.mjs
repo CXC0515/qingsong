@@ -1,7 +1,23 @@
-import { readFileSync } from 'node:fs';
-export const name = 'qingsong-official-ui';
+import { readFileSync } from "node:fs";
+export const name = "qingsong-official-ui";
 export function apply(ctx) {
-  const logo = readFileSync(new URL('./qingsong-logo.png', import.meta.url)).toString('base64');
-  const css = readFileSync(new URL('./shell.css', import.meta.url), 'utf8');
-  ctx.on('webserver/index-inject', table => { table.push({kind: 'style', text: css + '\n.qs-brand-mark{background-image:url(data:image/png;base64,' + logo + ')}'}); });
+  const logo = readFileSync(
+    new URL("./qingsong-logo.png", import.meta.url),
+  ).toString("base64");
+  const navigation = readFileSync(
+    new URL("./navigation.js", import.meta.url),
+    "utf8",
+  );
+  const css = readFileSync(new URL("./shell.css", import.meta.url), "utf8");
+  ctx.on("webserver/index-inject", (table) => {
+    table.push({ kind: "script", placement: "head", text: navigation });
+    table.push({
+      kind: "style",
+      text:
+        css +
+        "\n.qs-brand-mark{background-image:url(data:image/png;base64," +
+        logo +
+        ")}",
+    });
+  });
 }

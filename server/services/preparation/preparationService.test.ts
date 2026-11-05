@@ -338,7 +338,7 @@ test("document validation bounds layout dimensions and rejects structures the ed
             type: "doc",
             content: [{ type: "paragraph", attrs }],
           }),
-        /尺寸无效/,
+        /尺寸无效|不支持的排版属性/,
       );
     }
     for (const node of [

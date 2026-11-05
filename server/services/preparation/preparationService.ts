@@ -9,6 +9,12 @@ import type {
   RichDocument,
 } from "../../../src/domain/document";
 import { emptyDocument } from "../../../src/domain/document";
+import {
+  documentNodeAttributes,
+  documentMarkAttributes,
+  documentStableNodeTypes,
+  documentAttributeIssue,
+} from "../../../src/domain/documentContract";
 import type {
   Preparation,
   PreparationDetail,
@@ -106,52 +112,8 @@ function editable(id: string) {
 function touch(preparation: Preparation) {
   repo.put("preparations", { ...preparation, updatedAt: now() });
 }
-const nodeTypes = new Set([
-  "doc",
-  "paragraph",
-  "heading",
-  "text",
-  "bulletList",
-  "orderedList",
-  "listItem",
-  "table",
-  "tableRow",
-  "tableCell",
-  "tableHeader",
-  "image",
-  "inlineMath",
-  "blockMath",
-  "hardBreak",
-  "blockquote",
-  "codeBlock",
-  "horizontalRule",
-]);
-const markTypes = new Set([
-  "bold",
-  "italic",
-  "underline",
-  "strike",
-  "code",
-  "link",
-]);
-const attributeNames = new Set([
-  "id",
-  "level",
-  "start",
-  "textAlign",
-  "colspan",
-  "rowspan",
-  "colwidth",
-  "assetId",
-  "src",
-  "alt",
-  "title",
-  "width",
-  "height",
-  "latex",
-  "omml",
-  "language",
-]);
+const nodeTypes = new Set(Object.keys(documentNodeAttributes));
+const markTypes = new Set(Object.keys(documentMarkAttributes));
 /** One document schema is used by the teacher editor, imports, proposals and historical exports. */
 export function normalizeRichDocument(
   input: unknown,
@@ -204,58 +166,18 @@ export function normalizeRichDocument(
       if (!v.attrs || typeof v.attrs !== "object" || Array.isArray(v.attrs))
         fail("INVALID_DOCUMENT", "文档属性格式不正确，尚未保存。");
       const attrs = v.attrs as Record<string, unknown>;
-      if (Object.keys(attrs).some((key) => !attributeNames.has(key)))
-        fail("INVALID_DOCUMENT", "文档含不支持的排版属性，尚未保存。");
-      for (const [key, val] of Object.entries(attrs)) {
-        if (
-          typeof val === "string" &&
-          (val.length > (key === "omml" ? 50000 : 10000) ||
-            /[\u0000]/.test(val))
+      const issue = documentAttributeIssue(type, attrs);
+      if (issue) fail("INVALID_DOCUMENT", `文档${issue}，尚未保存。`);
+      if (
+        typeof attrs.omml === "string" &&
+        /<!DOCTYPE|<!ENTITY|<script|<[^>]*altChunk|r:embed|r:link/i.test(
+          attrs.omml,
         )
-          fail("INVALID_DOCUMENT", "文档属性内容过长或无效，尚未保存。");
-        if (
-          key === "omml" &&
-          typeof val === "string" &&
-          /<!DOCTYPE|<!ENTITY|<script|<[^>]*altChunk|r:embed|r:link/i.test(val)
-        )
-          fail("INVALID_DOCUMENT", "公式包含不支持的外部内容，尚未保存。");
-        if (
-          !["string", "number", "boolean"].includes(typeof val) &&
-          val !== null &&
-          !(
-            key === "colwidth" &&
-            Array.isArray(val) &&
-            val.length < 100 &&
-            val.every((n) => typeof n === "number" && n >= 0 && n <= 10000)
-          )
-        )
-          fail("INVALID_DOCUMENT", "文档属性内容无效，尚未保存。");
-      }
-      for (const [key, maximum] of Object.entries({
-        colspan: 50,
-        rowspan: 50,
-        start: 100000,
-        width: 10000,
-        height: 10000,
-      })) {
-        const value = attrs[key];
-        if (
-          value !== undefined &&
-          value !== null &&
-          (typeof value !== "number" ||
-            !Number.isFinite(value) ||
-            !Number.isInteger(value) ||
-            value < 1 ||
-            value > maximum)
-        )
-          fail(
-            "INVALID_DOCUMENT",
-            "表格、列表或图片尺寸无效，尚未保存。请检查内容后重试。",
-          );
-      }
+      )
+        fail("INVALID_DOCUMENT", "公式包含不支持的外部内容，尚未保存。");
       out.attrs = { ...attrs };
     }
-    if (!["doc", "text", "hardBreak"].includes(type)) {
+    if ((documentStableNodeTypes as readonly string[]).includes(type)) {
       const candidate =
         typeof out.attrs?.id === "string" &&
         /^[a-zA-Z0-9_-]{8,100}$/.test(out.attrs.id)
@@ -310,34 +232,12 @@ export function normalizeRichDocument(
           .parse(mark);
         if (!markTypes.has(parsed.type))
           fail("INVALID_DOCUMENT", "文档含不支持的文字样式，尚未保存。");
-        if (
-          parsed.type === "link" &&
-          !/^https?:\/\//i.test(String(parsed.attrs?.href ?? ""))
-        )
-          fail("INVALID_DOCUMENT", "链接地址无效，尚未保存。");
-        if (
-          parsed.attrs &&
-          (Object.keys(parsed.attrs).some(
-            (key) =>
-              ![
-                "href",
-                "target",
-                "rel",
-                "class",
-                "color",
-                "backgroundColor",
-                "fontFamily",
-                "fontSize",
-              ].includes(key),
-          ) ||
-            Object.values(parsed.attrs).some(
-              (item) =>
-                item !== null &&
-                !["string", "number", "boolean"].includes(typeof item),
-            ) ||
-            JSON.stringify(parsed.attrs).length > 2000)
-        )
-          fail("INVALID_DOCUMENT", "文字样式属性无效，尚未保存。");
+        const issue = documentAttributeIssue(
+          parsed.type,
+          parsed.attrs ?? {},
+          true,
+        );
+        if (issue) fail("INVALID_DOCUMENT", `文档${issue}，尚未保存。`);
         return parsed;
       });
     }
@@ -357,6 +257,35 @@ export function normalizeRichDocument(
     "horizontalRule",
   ]);
   const inlineTypes = new Set(["text", "hardBreak", "inlineMath"]);
+  function checkTable(table: DocumentNode) {
+    const rows = table.content ?? [];
+    const width = (rows[0]?.content ?? []).reduce(
+      (sum, cell) => sum + (Number(cell.attrs?.colspan) || 1),
+      0,
+    );
+    const occupiedUntil: number[] = [];
+    const invalid = () =>
+      fail("INVALID_DOCUMENT", "表格合并范围或行列不完整，尚未保存。请检查表格后重试。");
+    if (!width)
+      fail("INVALID_DOCUMENT", "表格缺少必要段落或单元格，尚未保存。请检查表格后重试。");
+    rows.forEach((row, rowIndex) => {
+      let column = 0;
+      for (const cell of row.content ?? []) {
+        while ((occupiedUntil[column] ?? 0) > rowIndex) column++;
+        const colspan = Number(cell.attrs?.colspan) || 1;
+        const rowspan = Number(cell.attrs?.rowspan) || 1;
+        if (column + colspan > width || rowIndex + rowspan > rows.length)
+          invalid();
+        for (let offset = 0; offset < colspan; offset++) {
+          if ((occupiedUntil[column + offset] ?? 0) > rowIndex) invalid();
+          occupiedUntil[column + offset] = rowIndex + rowspan;
+        }
+        column += colspan;
+      }
+      while (column < width && (occupiedUntil[column] ?? 0) > rowIndex) column++;
+      if (column !== width) invalid();
+    });
+  }
   function checkChildren(parent: DocumentNode) {
     const allowed = [
       "doc",
@@ -383,7 +312,6 @@ export function normalizeRichDocument(
       [
         "doc",
         "table",
-        "tableRow",
         "tableCell",
         "tableHeader",
         "listItem",
@@ -397,6 +325,8 @@ export function normalizeRichDocument(
         "INVALID_DOCUMENT",
         "文档、表格或列表缺少必要段落，尚未保存。请检查内容后重试。",
       );
+    // A row can be empty only when earlier cells cover every column via rowspan.
+    if (parent.type === "table") checkTable(parent);
     if (parent.type === "listItem" && parent.content?.[0]?.type !== "paragraph")
       fail("INVALID_DOCUMENT", "列表项目须以正文段落开始，尚未保存。");
     if (

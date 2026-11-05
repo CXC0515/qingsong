@@ -1,3 +1,4 @@
+import {documentCapabilities} from '../../../src/domain/documentContract';
 import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -173,6 +174,7 @@ export function preparationRuntimeContext(sessionId: string) {
       revision: document.revision,
     },
     sources: detail.sources,
+    documentFormat: documentCapabilities,
     selection:
       selected?.revision === document.revision ? selected.selection : undefined,
     notice:

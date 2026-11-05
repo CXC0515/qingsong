@@ -3,12 +3,14 @@ import ClassPicker from '../components/ClassPicker';
 import ResponsiveDialog from '../components/ResponsiveDialog';
 import {GlassButton} from '../components/glass/Glass';
 import { Bell, Boxes, CalendarDays, ChevronDown, HelpCircle, LogOut, Menu, MoreHorizontal, Network, ShieldCheck, Sparkles, X } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { SchoolClass, TeacherProfile } from '../domain/types';
 import type { NavGroup, PageId } from './navigation';
 
 interface AppLayoutProps {
   activePage: PageId;
+  assistantOpen: boolean;
+  assistant: ReactNode;
   headerContextRef?:(element:HTMLDivElement|null)=>void;
   classes: SchoolClass[];
   expandedGroups: Record<string, boolean>;
@@ -35,6 +37,8 @@ interface AppLayoutProps {
 
 export default function AppLayout({
   activePage,
+  assistantOpen,
+  assistant,
   headerContextRef,
   classes,
   expandedGroups,
@@ -58,6 +62,14 @@ export default function AppLayout({
   isOwner,
   onEnterAdmin,
 }: AppLayoutProps) {
+  const taskLayout = useRef<HTMLDivElement>(null);
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const element = taskLayout.current; if (!element) return;
+    const update = () => setCompact(element.clientWidth < 560);
+    update(); const observer = new ResizeObserver(update); observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   useEffect(()=>{
@@ -123,9 +135,12 @@ export default function AppLayout({
           {showGlobalClassPicker&&<div className="qs-topbar-class"><ClassPicker classes={classes.filter(c=>c.status==='active')} value={selectedClassId} onChange={onSelectClass} label="选择快捷入口班级"/></div>}
           <div className="qs-mobile-account">{accountButton(true)}</div>
         </header>
-        <main className={'app-shell-main qs-main '+(isImmersiveWorkspace?'flex min-h-0 flex-col overflow-hidden':activePage==='workbench'?'overflow-y-auto min-[900px]:flex min-[900px]:min-h-0 min-[900px]:flex-col min-[900px]:overflow-hidden':'overflow-y-auto')}>{children}</main>
+        <div ref={taskLayout} className="qs-task-layout"><div className="qs-task-columns" data-assistant-open={assistantOpen}>
+        <main inert={assistantOpen && compact ? true : undefined} className={'app-shell-main qs-main '+(isImmersiveWorkspace?'flex min-h-0 flex-col overflow-hidden':activePage==='workbench'?'overflow-y-auto min-[900px]:flex min-[900px]:min-h-0 min-[900px]:flex-col min-[900px]:overflow-hidden':'overflow-y-auto')}>{children}</main>
+        {assistant}
+        </div></div>
       </div>
-      <GlassButton id="mobile-ai-launch" containerClassName="qs-mobile-ai-launch" className="qs-mobile-ai-launch-button" variant="primary" onClick={onOpenAssistant} aria-haspopup="dialog"><Sparkles size={20}/>AI 助手</GlassButton>
+      <GlassButton id="mobile-ai-launch" containerClassName="qs-mobile-ai-launch" className="qs-mobile-ai-launch-button" variant="primary" onClick={onOpenAssistant} aria-expanded={assistantOpen} aria-controls="qingsong-assistant-dock"><Sparkles size={20}/>AI 助手</GlassButton>
       {accountMenuOpen&&<ResponsiveDialog title="账号菜单" onClose={()=>setAccountMenuOpen(false)}><p className="break-all text-sm text-slate-500">{accountEmail}</p>{isOwner&&<button type="button" className="qs-account-action" onClick={()=>{setAccountMenuOpen(false);onEnterAdmin();}}><ShieldCheck className="h-4 w-4"/>进入管理后台</button>}<button type="button" className="qs-account-action" onClick={()=>{setAccountMenuOpen(false);onSignOut();}}><LogOut className="h-4 w-4"/>退出登录</button></ResponsiveDialog>}
       {showToast&&<div role="status" className="fixed right-4 top-4 z-50 flex items-center gap-2 rounded-2xl bg-slate-900/90 px-5 py-3 text-sm text-white shadow-lg"><Sparkles className="h-5 w-5"/>{toastMessage}</div>}
     </div>
