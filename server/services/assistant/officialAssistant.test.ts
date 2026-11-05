@@ -25,6 +25,28 @@ const model = createServer(async (req, res) => {
   if (delayNext) { delayNext = false; await new Promise(resolve => setTimeout(resolve, 1500)); if (res.destroyed) return; }
   res.writeHead(200, {'content-type': 'text/event-stream'});
   const frame = (delta: unknown, finish_reason: string | null = null) => ({id: 'fixture', object: 'chat.completion.chunk', created: 1, model: 'fixture', choices: [{index: 0, delta, finish_reason}]});
+  const messageText = input.messages.map((message:any)=>typeof message.content==='string'?message.content:'').join('\n');
+  if (process.env.QS_NATIVE_PREVIEW && !queryScenario && messageText.includes('备课候选验收')) {
+    const tools=input.messages.filter((message:any)=>message.role==='tool').flatMap((message:any)=>{try{return [JSON.parse(message.content)];}catch{return [];}});
+    const previous=tools.at(-1), task=tools.find((value:any)=>value?.id&&value?.result?.baseRevision);
+    const prepId=messageText.match(/"preparation":\{[^}]*"id":"([a-f0-9-]+)"/)?.[1];
+    const docId=messageText.match(/"document":\{"id":"([a-f0-9-]+)"/)?.[1];
+    const selectedId=messageText.match(/"selection":\{"blockIds":\["([a-f0-9-]+)"/)?.[1];
+    let name='qingsong_preparation',args:any;
+    if (!task) args={action:'begin',stage:'核对当前选区'};
+    else if (previous?.id===task.id) {name='qingsong_read';args={ref:{type:'lessonPlan',id:docId,parentId:prepId},section:'content',limit:50};}
+    else if (previous?.data?.items) {
+      const content=structuredClone(previous.data.items);
+      let target:any;
+      const find=(node:any)=>{if(node.attrs?.id===selectedId)target=node;node.content?.forEach(find);};content.forEach(find);
+      target??=content.find((node:any)=>node.type==='paragraph')??content[0];
+      let paragraph:any;const choose=(node:any)=>{if(!paragraph&&node.type==='paragraph')paragraph=node;node.content?.forEach(choose);};choose(target);
+      if(paragraph)paragraph.content=[{type:'text',text:'合成建议：请结合文本说明这一步的依据。'}];
+      args={action:'propose',taskId:task.id,baseRevision:task.result.baseRevision,operationId:crypto.randomUUID(),summary:'仅完善当前选区（本机合成模型）',content:JSON.stringify({type:'doc',content})};
+    }
+    const delta=args?{role:'assistant',tool_calls:[{index:0,id:crypto.randomUUID(),type:'function',function:{name,arguments:JSON.stringify(args)}}]}:{role:'assistant',content:'本机合成修改候选已就绪，请在修改处对照后应用。'};
+    res.write('data: '+JSON.stringify(frame(delta))+'\n\n');res.end('data: '+JSON.stringify(frame({},args?'tool_calls':'stop'))+'\n\ndata: [DONE]\n\n');return;
+  }
   if(queryScenario==='schedule-committee'){
     const previous=input.messages.filter((m:any)=>m.role==='tool').at(-1);let value:any;
     if(previous){try{value=JSON.parse(previous.content);}catch{}}
@@ -153,7 +175,7 @@ const server = createApp().listen(testPort, '127.0.0.1');
 server.on('upgrade', (req, socket, head) => void officialAssistantUpgrade(req, socket, head));
 await new Promise<void>(resolve => server.once('listening', resolve));
 after(async () => {
-  if (process.env.QS_NATIVE_PREVIEW) return;
+  if (process.env.QS_NATIVE_PREVIEW) { await closeOfficialAssistant(); return; }
   await closeOfficialAssistant(); server.closeAllConnections();
   await new Promise<void>(resolve => server.close(() => resolve()));
   model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve()));
@@ -631,9 +653,11 @@ test('owner generation settings: permissions, durable revision, native payload a
    await add('成绩样本.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',await book.xlsx.writeBuffer());
    const {PDFDocument,StandardFonts}=require('pdf-lib'),pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica);pdf.addPage([420,300]).drawText('Unified local acceptance sample',{x:20,y:240,size:14,font});
    await add('阅读样本.pdf','application/pdf',await pdf.save());
+   if (!process.env.QS_PREVIEW_SKIP_PPT) {
    const {spawnSync}=await import('node:child_process');const ppt=path.join(root,'preview-slides.pptx');
    const made=spawnSync(process.env.QS_ASSISTANT_PYTHON??'python3',['-c','from pptx import Presentation; import sys; r=Presentation(); s=r.slides.add_slide(r.slide_layouts[1]); s.shapes.title.text="Local lesson sample"; s.notes_slide.notes_text_frame.text="Teacher notes: synthetic material"; r.save(sys.argv[1])',ppt],{encoding:'utf8'});
    assert.equal(made.status,0,made.stderr);await add('课件样本.pptx','application/vnd.openxmlformats-officedocument.presentationml.presentation',await readFile(ppt));
+   }
    console.log('统一管理员预览：admin-preview@fixture.test / Fixture-password-12345；数据根：'+root);
  }
 

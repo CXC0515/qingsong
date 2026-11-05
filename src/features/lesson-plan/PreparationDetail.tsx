@@ -87,7 +87,7 @@ export default function PreparationDetail({
       setDetail((current) => ({
         ...current,
         documents: current.documents.map((item) =>
-          item.id === next.id ? next : item,
+          item.id === next.id && next.revision >= item.revision ? next : item,
         ),
       })),
     [],
@@ -155,7 +155,7 @@ export default function PreparationDetail({
           preparationId,
           documentId: document.id,
           revision: draft.getRevision(),
-          ...(selection.current.text ? { selection: selection.current } : {}),
+          ...(selection.current.blockIds.length ? { selection: selection.current } : {}),
           ...(instruction ? { instruction } : {}),
         },
       }),
@@ -461,6 +461,10 @@ export default function PreparationDetail({
               onChange={draft.update}
               onSelection={(value) => {
                 selection.current = value;
+              }}
+              onRequestAssistant={({instruction, selection: selected}) => {
+                selection.current = selected;
+                void openAssistant(instruction);
               }}
               onError={report}
               onImageUpload={async (file) => {

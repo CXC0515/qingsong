@@ -1,3 +1,4 @@
+import { documentChanges } from "../../domain/documentChanges";
 import { useState } from "react";
 import { Check, X } from "lucide-react";
 import { GlassButton } from "../../components/glass/Glass";
@@ -26,6 +27,7 @@ export default function PreparationProposals({
 }) {
   const [busy, setBusy] = useState(""),
     [expanded, setExpanded] = useState("");
+  const [showFull, setShowFull] = useState(false);
   const pending = proposals.filter(
     (proposal) =>
       proposal.documentId === document.id && proposal.status === "pending",
@@ -63,64 +65,91 @@ export default function PreparationProposals({
       <div className="qs-prep-section-head">
         <strong>待应用修改 · {pending.length}</strong>
       </div>
-      {pending.map((proposal) => (
-        <article key={proposal.id} className="qs-prep-proposal">
-          <p>{proposal.summary}</p>
-          <small>
-            基于版本 {proposal.baseRevision}
-            {proposal.baseRevision !== document.revision
-              ? " · 当前稿已变化，需核对后重新生成建议"
-              : ""}
-          </small>
-          <div className="qs-prep-inline-actions">
-            <GlassButton
-              onClick={() =>
-                setExpanded((value) =>
-                  value === proposal.id ? "" : proposal.id,
-                )
-              }
-            >
-              {expanded === proposal.id ? "收起对照" : "对照查看"}
-            </GlassButton>
-            <GlassButton
-              disabled={
-                Boolean(busy) || proposal.baseRevision !== document.revision
-              }
-              onClick={() => void apply(proposal)}
-            >
-              <Check size={16} />
-              应用修改
-            </GlassButton>
-            <GlassButton
-              disabled={Boolean(busy)}
-              onClick={() => void discard(proposal.id)}
-            >
-              <X size={16} />
-              不采用
-            </GlassButton>
-          </div>
-          {expanded === proposal.id && (
-            <div className="qs-prep-proposal-comparison">
-              <section>
-                <h4>当前稿 · 版本 {document.revision}</h4>
-                <DocumentEditor
-                  content={document.content}
-                  documentKey={`proposal-before-${document.id}-${document.revision}`}
-                  readOnly
-                />
-              </section>
-              <section>
-                <h4>AI 建议稿 · 尚未应用</h4>
-                <DocumentEditor
-                  content={proposal.content}
-                  documentKey={`proposal-after-${proposal.id}`}
-                  readOnly
-                />
-              </section>
+      {pending.map((proposal) => {
+        const changes = documentChanges(document.content, proposal.content);
+        const comparison = showFull
+          ? { before: document.content, after: proposal.content }
+          : changes;
+        return (
+          <article key={proposal.id} className="qs-prep-proposal">
+            <p>{proposal.summary}</p>
+            <small>
+              {changes.hasChanges
+                ? `修改 ${changes.changed} 处 · 新增 ${changes.added} 处 · 删除 ${changes.removed} 处`
+                : "正文未发生变化"}
+            </small>
+            <small>
+              基于版本 {proposal.baseRevision}
+              {proposal.baseRevision !== document.revision
+                ? " · 当前稿已变化，需核对后重新生成建议"
+                : ""}
+            </small>
+            <div className="qs-prep-inline-actions">
+              <GlassButton
+                onClick={() => {
+                  setExpanded((value) =>
+                    value === proposal.id ? "" : proposal.id,
+                  );
+                  setShowFull(false);
+                }}
+              >
+                {expanded === proposal.id ? "收起对照" : "对照查看"}
+              </GlassButton>
+              <GlassButton
+                disabled={
+                  Boolean(busy) ||
+                  !changes.hasChanges ||
+                  proposal.baseRevision !== document.revision
+                }
+                onClick={() => void apply(proposal)}
+              >
+                <Check size={16} />
+                应用修改
+              </GlassButton>
+              <GlassButton
+                disabled={Boolean(busy)}
+                onClick={() => void discard(proposal.id)}
+              >
+                <X size={16} />
+                不采用
+              </GlassButton>
             </div>
-          )}
-        </article>
-      ))}
+            {expanded === proposal.id && (
+              <div>
+                <GlassButton onClick={() => setShowFull((value) => !value)}>
+                  {showFull ? "只看修改处" : "查看整篇对照"}
+                </GlassButton>
+                <div className="qs-prep-proposal-comparison">
+                  <section>
+                    <h4>当前稿 · 版本 {document.revision}</h4>
+                    <DocumentEditor
+                      content={
+                        comparison.before.content.length
+                          ? comparison.before
+                          : { type: "doc", content: [{ type: "paragraph" }] }
+                      }
+                      documentKey={`proposal-before-${document.id}-${document.revision}`}
+                      readOnly
+                    />
+                  </section>
+                  <section>
+                    <h4>AI 建议稿 · 尚未应用</h4>
+                    <DocumentEditor
+                      content={
+                        comparison.after.content.length
+                          ? comparison.after
+                          : { type: "doc", content: [{ type: "paragraph" }] }
+                      }
+                      documentKey={`proposal-after-${proposal.id}`}
+                      readOnly
+                    />
+                  </section>
+                </div>
+              </div>
+            )}
+          </article>
+        );
+      })}
     </section>
   );
 }
