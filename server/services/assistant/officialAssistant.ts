@@ -1,3 +1,4 @@
+import {PreparationContractError} from '../../../src/domain/preparationToolContract.mjs';
 import {resolvePreparationTarget,preparationRuntimeContext,preparationAssistantTool,stopSessionTasks} from './preparationAssistant';
 import {getNativeWorkspace,setNativeWorkspace,getSessionBinding,PreparationError,updateTask,getTask} from '../preparation/preparationService';
 import {ZodError} from 'zod';
@@ -250,7 +251,7 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
         else throw Error('INVALID_OPERATION');
       } catch (error) {
         if (!res.headersSent) res.writeHead(400);
-        const failure = error instanceof CapabilityError ? error.toFailure() : error instanceof PreparationError ? {code:error.code,message:error.message} : error instanceof ZodError ? {code:'INVALID_PREPARATION_INPUT',message:'备课参数格式不正确，正文未修改，请核对能力说明。'} : error instanceof WorkspaceDataReadError || error instanceof PersonalContextError || error instanceof AssistantMaterialError || error instanceof AssistantMaterialReadError ? {code:error.code,message:error.message} : (error as Error).message === 'MATERIAL_STORAGE_LIMIT' ? { code: 'MATERIAL_STORAGE_LIMIT', message: '附件与解析缓存已达到当前用户512MB限制，原件和对话仍保留，请减少材料或联系管理员。' } : teachingFailure(error);
+        const failure = error instanceof PreparationContractError ? {code:error.code,message:error.message,issues:error.issues,recovery:error.recovery,nextAction:error.nextAction} : error instanceof CapabilityError ? error.toFailure() : error instanceof PreparationError ? {code:error.code,message:error.message,recovery:['TASK_SCOPE_MISMATCH','TASK_TURN_MISMATCH','TASK_ALREADY_FINISHED','PREPARATION_VERIFY_FAILED'].includes(error.code)?'stop':'correct_arguments',nextAction:'按备课错误核对任务、版本和选区；结果不明先用status查状态，不重复写入。'} : error instanceof ZodError ? {code:'INVALID_TOOL_INPUT',message:'操作参数格式不正确，已有内容保留，请按字段说明修正。',issues:error.issues.map(issue=>({field:issue.path.join('.'),problem:issue.message})),recovery:'correct_arguments'} : error instanceof WorkspaceDataReadError || error instanceof PersonalContextError || error instanceof AssistantMaterialError || error instanceof AssistantMaterialReadError ? {code:error.code,message:error.message} : (error as Error).message === 'MATERIAL_STORAGE_LIMIT' ? { code: 'MATERIAL_STORAGE_LIMIT', message: '附件与解析缓存已达到当前用户512MB限制，原件和对话仍保留，请减少材料或联系管理员。' } : teachingFailure(error);
         logEvent('warn', 'assistant_tool_failed', {code: failure.code});
         res.end(JSON.stringify(failure));
       }

@@ -8,6 +8,7 @@ import {
 import { readAssistantMaterial } from "../materialReader";
 import {
   missing,
+  CapabilityError,
   matches,
   paged,
   envelope,
@@ -31,7 +32,7 @@ export function searchPreparation(a: SearchArgs) {
     );
   if (a.type !== "lessonPlan" && a.type !== "preparationSource") return;
   const prepId = String(a.filters.preparationId ?? "");
-  if (!prepId) missing();
+  if (!prepId) throw new CapabilityError('INVALID_FILTER','缺少filters.preparationId，未读取资料。请提供所属备课编号。');
   const detail = getPreparation(prepId);
   const items = a.type === "lessonPlan" ? detail.documents : detail.sources;
   return paged(
@@ -72,7 +73,7 @@ export async function readPreparation(a: ReadArgs, signal?: AbortSignal) {
     return envelope(p.preparation, sourceUrl(id));
   }
   if (type !== "lessonPlan" && type !== "preparationSource") return;
-  if (!parentId) missing();
+  if (!parentId) throw new CapabilityError('INVALID_QUERY','缺少ref.parentId（所属备课编号），未读取教案或资料。请原样使用上下文或search返回的完整ref。');
   getPreparation(parentId);
   if (type === "lessonPlan") {
     if (a.section === "revisions")

@@ -6,6 +6,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { runWithWorkspace, type WorkspaceContext } from '../../context/workspaceContext';
 import { closePreparationDatabase } from '../../database/preparationDatabase';
+import {preparationRepository} from '../../repositories/preparationRepository';
 import * as prep from '../preparation/preparationService';
 import { preparationAssistantTool, resolvePreparationTarget, stopSessionTasks } from './preparationAssistant';
 import { readPreparation } from './capabilities/preparation';
@@ -109,4 +110,46 @@ test('late release from an earlier turn cannot stop the next turn or modify its 
   await assert.rejects(preparationAssistantTool(target.sessionId!,{action:'progress',taskId:next.id,stage:'错误轮次'},'第一轮',undefined,firstLease),/此前的执行轮次/);
   await preparationAssistantTool(target.sessionId!,{action:'finish',taskId:next.id,status:'completed',message:'检查完成'},'下一轮',undefined,nextLease);
   assert.equal(prep.getTask(id,next.id).status,'completed');
+}));
+
+
+test('guardrail: real missing fields are actionable; begin/status/propose retries verify persisted state', async()=>runWithWorkspace(context,async()=>{
+ const {id,doc}=fixture(),native=nativeFixture();
+ const target=await resolvePreparationTarget({mode:'preparation',preparationId:id,documentId:doc.id},native.call);
+ const lease=target.sessionId+':guardrail';
+ const call=(input:any)=>preparationAssistantTool(target.sessionId!,input,'修改第一段',undefined,lease) as Promise<any>;
+ const first=await call({action:'begin'}), retry=await call({action:'begin'});
+ assert.equal(first.taskId,retry.taskId);assert.equal(first.baseRevision,doc.revision);
+ assert.equal(prep.listTasks(id).length,1);assert.equal(first.verification.verified,true);
+ const input={action:'propose',taskId:first.taskId,baseRevision:doc.revision,operationId:op(),content:JSON.stringify(document('改后正文'))};
+ await assert.rejects(call(input),(error:any)=>error.code==='INVALID_PREPARATION_INPUT'&&error.issues.some((i:any)=>i.field==='propose.summary'));
+ await assert.rejects(call({action:'finish',taskId:first.taskId,status:'completed',summary:'完成'}),(error:any)=>error.issues.some((i:any)=>i.field==='finish.message'));
+ assert.equal(prep.listProposals(id).length,0);
+ const submitted={...input,summary:'修改第一段'}, result=await call(submitted), repeated=await call(submitted);
+ assert.equal(result.proposalId,repeated.proposalId);assert.equal(prep.listProposals(id).length,1);
+ assert.equal((await call({action:'status',taskId:first.taskId})).verification.proposal.status,'pending');
+ await assert.rejects(call({...submitted,summary:'不同内容'}),/操作编号/);
+ assert.equal(prep.getDocument(id,doc.id).revision,doc.revision);
+ prep.applyProposal(id,result.proposalId,{operationId:op()});
+ const status=await call({action:'status',taskId:first.taskId});
+ assert.equal(status.verification.proposal.status,'applied');assert.equal(status.verification.proposal.appliedRevision,doc.revision+1);
+ await assert.rejects(preparationAssistantTool(target.sessionId!,{action:'status',taskId:first.taskId},'',undefined,lease+'other'),/不属于/);
+}));
+
+test('missing preparation parent is a parameter error, not a nonexistent document',async()=>runWithWorkspace(context,async()=>{
+ const {doc}=fixture();
+ await assert.rejects(readPreparation({ref:{type:'lessonPlan',id:doc.id},section:'content',filters:{},offset:0,limit:20,textOffset:0}),(error:any)=>error.code==='INVALID_QUERY'&&error.message.includes('ref.parentId'));
+}));
+
+
+test('verify mismatch rolls back candidate and completion together',async()=>runWithWorkspace(context,async()=>{
+ const {id,doc}=fixture(),native=nativeFixture();
+ const target=await resolvePreparationTarget({mode:'preparation',preparationId:id,documentId:doc.id},native.call);
+ const task:any=await preparationAssistantTool(target.sessionId!,{action:'begin'},'修改');
+ const original=preparationRepository.list;
+ preparationRepository.list=function(table:any,parent?:string):any {const rows=original.call(this,table,parent);return table==='preparation_proposals'?rows.map((row:any)=>({...row,summary:'模拟存储不一致'})):rows;};
+ try{await assert.rejects(preparationAssistantTool(target.sessionId!,{action:'propose',taskId:task.id,baseRevision:doc.revision,content:JSON.stringify(document('新稿')),summary:'预期摘要',operationId:op()},'修改'),/核验失败/);}
+ finally{preparationRepository.list=original;}
+ assert.equal(prep.listProposals(id).length,0);assert.equal(prep.getTask(id,task.id).status,'running');
+ assert.equal(prep.getDocument(id,doc.id).revision,doc.revision);
 }));
