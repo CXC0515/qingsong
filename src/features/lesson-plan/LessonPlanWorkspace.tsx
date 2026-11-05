@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, FileText, Plus, Search } from "lucide-react";
 import { GlassButton } from "../../components/glass/Glass";
 import {
@@ -16,7 +16,7 @@ import {
   getPreparation,
   listPreparations,
 } from "../../services/preparationApi";
-import PreparationDetail from "./PreparationDetail";
+const PreparationDetail = lazy(() => import("./PreparationDetail"));
 import "./preparation.css";
 
 export default function LessonPlanWorkspace({
@@ -122,12 +122,14 @@ export default function LessonPlanWorkspace({
   if (detail)
     return (
       <div key={detail.preparation.id} className="contents">
+        <Suspense fallback={<p role="status">正在载入教案编辑器…</p>}>
         <PreparationDetail
           initial={detail}
           initialDocumentId={documentId}
           onBack={() => void back()}
           onShowToast={onShowToast}
         />
+        </Suspense>
       </div>
     );
   return (

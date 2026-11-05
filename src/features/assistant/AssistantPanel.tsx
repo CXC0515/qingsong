@@ -146,6 +146,7 @@ function OfficialAssistantPanel({entry}:{entry?:AssistantEntry}) {
         setTargetStage(labels[data.stage] ?? '正在打开助手…');
       } else if (data.type === 'qingsong:context-opened') {
         clearTimeout(acknowledgementTimer); setTargetStage('');
+        window.dispatchEvent(new CustomEvent('qingsong:preparation-session-opened', {detail: {...entry, ...data.target, error:data.error}}));
         console.info('[青松助手] 打开会话完成',{durationMs:Math.round(performance.now()-started),timings,ok:!data.error});
         if (data.error) setTargetError(data.error);
       }
@@ -165,9 +166,11 @@ function OfficialAssistantPanel({entry}:{entry?:AssistantEntry}) {
       acknowledgementTimer = setTimeout(() => {
         send('qingsong:cancel-context'); setTargetStage('');
         setTargetError('打开教案会话等待超时，教案和原会话保留。请重试，不会重复发送消息。');
+        window.dispatchEvent(new CustomEvent('qingsong:preparation-session-opened', {detail:{...entry,error:'会话打开超时，请在助手中重试打开；不会重复发送消息。'}}));
       },30000);
     }).catch(cause => {
       if (controller.signal.aborted) return;
+      window.dispatchEvent(new CustomEvent('qingsong:preparation-session-opened', {detail:{...entry,error:'会话未能打开，教案保留，请在助手中重试打开。'}}));
       setTargetStage('');
       setTargetError(cause?.name === 'TimeoutError' ? '工作空间连接超时，教案和原会话保留，请重试。' : cause instanceof Error ? cause.message : '工作空间未能打开，已有内容保留，请重试。');
     });

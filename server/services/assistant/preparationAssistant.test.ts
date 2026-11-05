@@ -8,7 +8,7 @@ import { runWithWorkspace, type WorkspaceContext } from '../../context/workspace
 import { closePreparationDatabase } from '../../database/preparationDatabase';
 import {preparationRepository} from '../../repositories/preparationRepository';
 import * as prep from '../preparation/preparationService';
-import { preparationAssistantTool, resolvePreparationTarget, stopSessionTasks } from './preparationAssistant';
+import { preparationAssistantTool, resolvePreparationTarget, stopSessionTasks, preparationSavedOutcome } from './preparationAssistant';
 import { readPreparation } from './capabilities/preparation';
 import type { RichDocument } from '../../../src/domain/document';
 
@@ -48,6 +48,44 @@ test('concurrent opens reuse a workspace/session, null projections recreate a de
     await assert.rejects(resolvePreparationTarget(request,native.call),/当前账号可访问/);
     assert.equal(native.calls.length,before);
   });
+}));
+
+test('multiple conversations stay unique to a document, select most recent, and create idempotently', async () => runWithWorkspace(context, async () => {
+  const {id,doc} = fixture(), other = fixture(), native = nativeFixture();
+  const request = {mode:'preparation',preparationId:id,documentId:doc.id};
+  const first = await resolvePreparationTarget(request,native.call);
+  const newSessionId = op();
+  const [second, duplicate] = await Promise.all([resolvePreparationTarget({...request,newSessionId},native.call),resolvePreparationTarget({...request,newSessionId},native.call)]);
+  assert.equal(second.sessionId,newSessionId); assert.equal(duplicate.sessionId,newSessionId);
+  assert.equal(prep.listPreparationSessions(id).length,2);
+  await new Promise(resolve => setTimeout(resolve,5));
+  await resolvePreparationTarget({...request,sessionId:first.sessionId},native.call);
+  assert.equal((await resolvePreparationTarget(request,native.call)).sessionId,first.sessionId);
+  const creates = native.calls.filter(c => c === 'session/create').length;
+  await assert.rejects(resolvePreparationTarget({...request,preparationId:other.id,documentId:other.doc.id,sessionId:first.sessionId},native.call),(e:any) => e.status === 409);
+  native.sessions.delete(second.sessionId!);
+  await assert.rejects(resolvePreparationTarget({...request,sessionId:second.sessionId},native.call),(e:any) => e.status === 404);
+  await assert.rejects(resolvePreparationTarget({...request,sessionId:first.sessionId},async (method,input) => {if(method === 'session/projections') throw Error('temporary lookup failure'); return native.call(method,input);}),/temporary lookup failure/);
+  assert.equal(native.calls.filter(c => c === 'session/create').length,creates);
+  assert.equal(prep.getSessionBinding(first.sessionId!)!.documentId,doc.id);
+  const legacyId = 'session-' + op(); native.sessions.add(legacyId);
+  prep.bindSession(id,doc.id,legacyId,first.workspaceId);
+  assert.equal((await resolvePreparationTarget({...request,sessionId:legacyId},native.call)).sessionId,legacyId);
+  await assert.rejects(preparationAssistantTool(op(),{action:'begin'},'修改教案'),/具体教案打开/);
+}));
+
+test('readback reports persisted revision, session-owned candidates and tasks without writing', async () => runWithWorkspace(context,async () => {
+  const {id,doc} = fixture(), native = nativeFixture();
+  const target = await resolvePreparationTarget({mode:'preparation',preparationId:id,documentId:doc.id},native.call);
+  const task:any = await preparationAssistantTool(target.sessionId!,{action:'begin'},'修改');
+  const result:any = await preparationAssistantTool(target.sessionId!,{action:'propose',taskId:task.id,baseRevision:doc.revision,operationId:op(),summary:'修改',content:JSON.stringify(document('候选'))},'修改');
+  const outcome = preparationSavedOutcome(target.sessionId!);
+  assert.equal(outcome.bound,true);
+  if (outcome.bound) {assert.equal(outcome.revision,doc.revision); assert.equal(outcome.pending,1); assert.equal(outcome.applied,0);}
+  prep.applyProposal(id,result.proposalId,{operationId:op()});
+  assert.equal(preparationSavedOutcome(target.sessionId!).bound,true);
+  assert.equal((preparationSavedOutcome(target.sessionId!) as any).revision,doc.revision+1);
+  await runWithWorkspace({...context,userId:'other-owner'},async () => assert.deepEqual(preparationSavedOutcome(target.sessionId!),{bound:false}));
 }));
 
 test('selected paragraphs are a persisted task boundary; a later navigation cannot broaden an ongoing task', async () => runWithWorkspace(context,async () => {

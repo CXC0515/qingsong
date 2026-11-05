@@ -16,6 +16,8 @@ import type { DocumentNode, RichDocument } from "../../../src/domain/document";
 export const preparationTargetSchema = z
   .object({
     mode: z.enum(["default", "preparation"]),
+    sessionId: z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/).optional(),
+    newSessionId: z.uuid().optional(),
     preparationId: z.uuid().optional(),
     documentId: z.uuid().optional(),
     revision: z.number().int().positive().optional(),
@@ -30,7 +32,8 @@ export const preparationTargetSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
-    if ((value.documentId || value.selection) && !value.preparationId)
+    if (value.sessionId && value.newSessionId) ctx.addIssue({code:"custom",message:"请选择已有会话或新建会话，不能同时操作。"});
+    if ((value.sessionId || value.newSessionId || value.documentId || value.selection) && !value.preparationId)
       ctx.addIssue({
         code: "custom",
         message: "请先指定备课，再选择教案或正文。",
@@ -109,10 +112,13 @@ export async function resolvePreparationTarget(
       preparations.setNativeWorkspace(kind, workspaceId!);
     }
     if (!detail || !document) return { workspaceId: workspaceId! };
-    let binding = preparations.findPreparationSession(
-      detail.preparation.id,
-      document.id,
-    );
+    const requested = args.sessionId ?? args.newSessionId;
+    let binding = requested ? preparations.getSessionBinding(requested)
+      : preparations.findPreparationSession(detail.preparation.id, document.id);
+    if (binding && (binding.preparationId !== detail.preparation.id || binding.documentId !== document.id))
+      throw new preparations.PreparationError('SESSION_ALREADY_BOUND','这个会话属于另一份教案，未更改关联。请使用本教案会话。',409);
+    if (args.sessionId && !binding)
+      throw new preparations.PreparationError('SESSION_NOT_FOUND','当前教案没有这条会话，请重新选择。',404);
     if (binding) {
       try {
         if (
@@ -121,15 +127,19 @@ export async function resolvePreparationTarget(
           }))
         )
           binding = undefined;
-      } catch {
-        binding = undefined;
+      } catch (cause) {
+        // A failed lookup is not evidence of deletion; do not silently create duplicates.
+        throw cause;
       }
     }
     if (!binding) {
+      if (args.sessionId) throw new preparations.PreparationError('SESSION_NOT_FOUND','该会话已删除，原教案保留。请选择其他会话或新建。',404);
+      if (args.newSessionId && await native("session/projections", {sessionId:args.newSessionId}))
+        throw new preparations.PreparationError('SESSION_CREATION_UNCONFIRMED','会话创建结果尚未确认，未覆盖已有会话。请重新选择会话。',409);
       const created = await native("session/create", {
         workspaceId,
         agentPreset: "qingsong",
-        sessionId: randomUUID(),
+        sessionId: args.newSessionId ?? randomUUID(),
       });
       await native("session/rename", {
         sessionId: created.sessionId,
@@ -142,6 +152,7 @@ export async function resolvePreparationTarget(
         workspaceId!,
       );
     }
+    binding = preparations.bindSession(detail.preparation.id, document.id, binding.sessionId, workspaceId!);
     const contextKey = key(binding.sessionId);
     contexts.delete(contextKey);
     contexts.set(contextKey, {
@@ -160,6 +171,16 @@ export async function resolvePreparationTarget(
       instruction: args.instruction,
     };
   });
+}
+/** Read back business storage; never infer writes from a model failure. */
+export function preparationSavedOutcome(sessionId: string) {
+  const binding = preparations.getSessionBinding(sessionId);
+  if (!binding) return {bound:false as const};
+  const document = preparations.getDocument(binding.preparationId, binding.documentId ?? preparations.getPreparation(binding.preparationId).documents[0].id);
+  const tasks = preparations.listTasks(binding.preparationId).filter(task => task.sessionId === sessionId && task.documentId === document.id);
+  const proposalIds = new Set(tasks.map(task => (task.result as TaskSnapshot | undefined)?.proposalId).filter(Boolean));
+  const proposals = preparations.listProposals(binding.preparationId).filter(proposal => proposalIds.has(proposal.id));
+  return {bound:true as const, preparationId:binding.preparationId, documentId:document.id, title:preparations.getPreparation(binding.preparationId).preparation.title + ' · ' + document.title, revision:document.revision, pending:proposals.filter(p => p.status === 'pending').length, applied:proposals.filter(p => p.status === 'applied').length, tasks:tasks.map(task => ({status:task.status,updatedAt:task.updatedAt})).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))};
 }
 export function preparationRuntimeContext(sessionId: string) {
   const binding = preparations.getSessionBinding(sessionId);

@@ -31,6 +31,8 @@ test('HTTP contract returns explicit unsaved conflicts and hides other teachers 
     assert.equal(conflict.status, 409);
     assert.equal((await conflict.json()).saved, false);
     const forbidden = await send(`${base}/${id}`, 'GET', undefined, 'teacher-b');
+    assert.equal((await send(`${base}/${id}/sessions`, 'GET', undefined, 'teacher-b')).status,404);
+    assert.deepEqual((await (await send(`${base}/${id}/sessions`)).json()).sessions,[]);
     assert.equal(forbidden.status, 404);
     assert.equal((await forbidden.json()).code, 'PREPARATION_NOT_FOUND');
     const invalid = await send(base, 'POST', { title: '', operationId: randomUUID() });

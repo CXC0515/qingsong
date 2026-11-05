@@ -33,6 +33,10 @@ router.get(
     preparation: service.getPreparation(id(request, "id")),
   })),
 );
+router.get(
+  "/preparations/:id/sessions",
+  handle((request) => ({ sessions: service.listPreparationSessions(id(request, "id")) })),
+);
 router.patch(
   "/preparations/:id",
   handle((request) => ({

@@ -45,6 +45,7 @@ import { useDocumentDraft } from "./useDocumentDraft";
 import { PreparationSettings, ForkDialog } from "./PreparationDialogs";
 import { getKnowledgeGraph } from "../../services/resourceApi";
 import type { KnowledgeEntity } from "../../domain/types";
+import PreparationConversations from "./PreparationConversations";
 
 const DocumentEditor = lazy(
   () => import("../../components/document/DocumentEditor"),
@@ -147,8 +148,8 @@ export default function PreparationDetail({
     setError(message);
     onShowToast(message);
   };
-  const openAssistant = async (instruction?: string) => {
-    if (!(await draft.flush())) return;
+  const openAssistant = async (instruction?: string, conversation?: {sessionId?: string; newSessionId?: string}) => {
+    if (!(await draft.flush())) return false;
     window.dispatchEvent(
       new CustomEvent("qingsong:preparation-assistant", {
         detail: {
@@ -157,9 +158,11 @@ export default function PreparationDetail({
           revision: draft.getRevision(),
           ...(selection.current.blockIds.length ? { selection: selection.current } : {}),
           ...(instruction ? { instruction } : {}),
+          ...conversation,
         },
       }),
     );
+    return true;
   };
   const changeDocument = async (id: string) => {
     if (await draft.flush()) {
@@ -279,10 +282,7 @@ export default function PreparationDetail({
             <Save size={16} />
             保存
           </GlassButton>
-          <GlassButton onClick={() => void openAssistant()}>
-            <MessageSquare size={16} />
-            AI 助手
-          </GlassButton>
+          <PreparationConversations preparationId={preparationId} documentId={document.id} onOpen={conversation => openAssistant(undefined, conversation)} />
         </div>
       </WorkspaceToolbar>
       <div className="qs-prep-document-actions">
