@@ -1,6 +1,6 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -8,7 +8,7 @@ import { runWithWorkspace, type WorkspaceContext } from '../../context/workspace
 import { closePreparationDatabase } from '../../database/preparationDatabase';
 import {preparationRepository} from '../../repositories/preparationRepository';
 import * as prep from '../preparation/preparationService';
-import { preparationAssistantTool, resolvePreparationTarget, stopSessionTasks, preparationSavedOutcome } from './preparationAssistant';
+import { resolveSelectedPreparationSession, assertPreparationSessionReady, preparationAssistantTool, resolvePreparationTarget, stopSessionTasks, preparationSavedOutcome } from './preparationAssistant';
 import { readPreparation } from './capabilities/preparation';
 import type { RichDocument } from '../../../src/domain/document';
 
@@ -190,4 +190,30 @@ test('verify mismatch rolls back candidate and completion together',async()=>run
  finally{preparationRepository.list=original;}
  assert.equal(prep.listProposals(id).length,0);assert.equal(prep.getTask(id,task.id).status,'running');
  assert.equal(prep.getDocument(id,doc.id).revision,doc.revision);
+}));
+
+
+test('native selection binds only a same-workspace empty session, preserves existing ownership and rejects unbound preparation turns', async () => runWithWorkspace(context,async () => {
+  const a=fixture(),b=fixture(),native=nativeFixture();
+  const target=await resolvePreparationTarget({mode:'preparation',preparationId:a.id,documentId:a.doc.id},native.call);
+  const {officialMaterialHome}=await import('./officialAttachments');
+  const directory=await realpath(path.join(officialMaterialHome(context),'preparation-workspace'));
+  const rows=[{sessionId:'native-empty',cwd:directory,blank:true,running:false},{sessionId:'native-used',cwd:directory,blank:false,running:false},{sessionId:'foreign-space',cwd:'/unrelated',blank:true,running:false}];
+  const call=async(method:string,args:any)=>method==='session/list'?{items:rows}:native.call(method,args);
+  await assert.rejects(assertPreparationSessionReady('native-empty',call),/未关联教案/);
+  assert.equal((await resolveSelectedPreparationSession({sessionId:'native-used',preparationId:a.id,documentId:a.doc.id},call)).bound,false);
+  assert.equal((await resolveSelectedPreparationSession({sessionId:'foreign-space',preparationId:a.id,documentId:a.doc.id},call)).bound,false);
+  assert.equal((await resolveSelectedPreparationSession({sessionId:'unknown',preparationId:a.id,documentId:a.doc.id},call)).bound,false);
+  const selected=await resolveSelectedPreparationSession({sessionId:'native-empty',preparationId:a.id,documentId:a.doc.id},call);
+  assert.equal(selected.bound,true);
+  await assertPreparationSessionReady('native-empty',call);
+  const revisit=await resolveSelectedPreparationSession({sessionId:'native-empty',preparationId:b.id,documentId:b.doc.id},call);
+  assert.equal(revisit.bound&&revisit.preparationId,a.id);
+  assert.equal(prep.getSessionBinding('native-empty')?.preparationId,a.id);
+  assert.equal(prep.listPreparationSessions(a.id).length,2);
+  assert.equal((await resolveSelectedPreparationSession({sessionId:target.sessionId!},call)).bound,true);
+  await runWithWorkspace({...context,userId:'isolation-owner'},async()=>{
+    assert.equal((await resolveSelectedPreparationSession({sessionId:'native-empty'},call)).bound,false);
+    await assert.rejects(resolveSelectedPreparationSession({sessionId:'native-empty',preparationId:a.id,documentId:a.doc.id},call));
+  });
 }));

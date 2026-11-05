@@ -48,7 +48,10 @@ export default function LessonPlanWorkspace({
         setDetail(next);
       }
     } catch (cause) {
-      if (serial === sequence.current) setError((cause as Error).message);
+      if (serial === sequence.current) {
+        setError((cause as Error).message);
+        window.dispatchEvent(new CustomEvent('qingsong:preparation-navigation-failed',{detail:{message:(cause as Error).message}}));
+      }
     } finally {
       if (serial === sequence.current) setLoading(false);
     }

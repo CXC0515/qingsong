@@ -687,6 +687,17 @@ test('preparation: native workspace binding, candidate creation and explicit tea
  assert.equal((await call('/api/preparations/'+prep+'/sessions')).sessions.length,2);
  await call('/api/assistant/official/api/qingsong/preparation-target',{...body,sessionId:target.sessionId});
  assert.equal((await call('/api/assistant/official/api/qingsong/preparation-target',body)).target.sessionId,target.sessionId);
+ const empty=(await rpc(cookie,'session/create',{request:{workspaceId:target.workspaceId}})).value.sessionId;
+ const blocked=await fetch(apiRoot+'/api/assistant/official/api/session/prompt',{method:'POST',headers:{Origin:origin,Cookie:cookie,'content-type':'application/json','x-demo-csrf':'1'},body:JSON.stringify({type:'client-request',rpcId:crypto.randomUUID(),method:'session/prompt',payload:{args:{request:{sessionId:empty,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:'尚未绑定不可提交'}]}}}})});
+ assert.equal(blocked.status,409,await blocked.text());
+ const selected=await call('/api/assistant/official/api/qingsong/preparation-selection',{sessionId:empty,preparationId:prep,documentId:doc});
+ assert.equal(selected.target.bound,true);assert.equal(selected.target.preparationId,prep);
+ const {preparation:other}=await call('/api/preparations',{title:'另一个教案',subject:'数学',operationId:crypto.randomUUID()});
+ const retained=await call('/api/assistant/official/api/qingsong/preparation-selection',{sessionId:empty,preparationId:other.preparation.id,documentId:other.documents[0].id});
+ assert.equal(retained.target.preparationId,prep,'native navigation must preserve original lesson');
+ const fresh=(await rpc(cookie,'session/create',{request:{workspaceId:target.workspaceId,sessionId:empty}})).value.sessionId;
+ assert.notEqual(fresh,empty,'new-session must never reuse a bound empty session');
+ assert.equal((await call('/api/preparations/'+prep+'/sessions')).sessions.length,3);
  const initialOutcome=await call('/api/assistant/official/api/qingsong/preparation-outcome?sessionId='+target.sessionId);
  assert.equal(initialOutcome.bound,true); assert.equal(initialOutcome.pending,0);
  queryScenario='preparation';

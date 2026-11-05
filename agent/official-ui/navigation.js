@@ -128,6 +128,7 @@
           measure();
           return {
             timings, totalMs: Math.round(now() - started),
+            preparationId: target.preparationId, documentId: target.documentId,
             workspaceId: target.workspaceId,
             sessionId: target.sessionId,
           };
