@@ -17,7 +17,7 @@ export default function PreparationConversations({preparationId, documentId, onO
     const load = async (sessionId?: string) => {
       try {
         const rows = (await listPreparationSessions(preparationId)).filter(row => row.documentId === documentId).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt));
-        if (active) {setSessions(rows); if (sessionId) setSelected(sessionId); setError('');}
+        if (active) {setSessions(rows);setSelected(sessionId??rows[0]?.sessionId??'');setError('');}
       } catch {if (active) setError('会话列表未能读取，教案保留。点击 AI 助手可重试打开最近会话。');}
     };
     void load();

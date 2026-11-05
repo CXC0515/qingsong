@@ -1,5 +1,5 @@
 import {PreparationContractError} from '../../../src/domain/preparationToolContract.mjs';
-import {resolvePreparationTarget,preparationRuntimeContext,preparationAssistantTool,stopSessionTasks,preparationSavedOutcome} from './preparationAssistant';
+import {resolveSelectedPreparationSession,assertPreparationSessionReady,resolvePreparationTarget,preparationRuntimeContext,preparationAssistantTool,stopSessionTasks,preparationSavedOutcome} from './preparationAssistant';
 import {getNativeWorkspace,setNativeWorkspace,getSessionBinding,PreparationError,updateTask,getTask} from '../preparation/preparationService';
 import {ZodError} from 'zod';
 import {semanticPersonalContext,queueConversationMemory,drainMemoryWorkers} from './memoryService';
@@ -57,7 +57,7 @@ type Instance = {
 };
 async function nativeWorkspaceCall(runtime: {port: number}, cookie: string, method: string, request: unknown): Promise<any> {
   return new Promise((resolve, reject) => {
-    const payload = JSON.stringify({type: 'client-request', rpcId: randomUUID(), method, payload: {args: {request}}});
+    const payload = JSON.stringify({type: 'client-request', rpcId: randomUUID(), method, payload: {args: method === 'session/list' ? {_request:request} : {request}}});
     const call = httpRequest({hostname: '127.0.0.1', port: runtime.port, path: '/api/' + method, method: 'POST', headers: {host: new URL(runtimeConfig.appUrl).host, cookie, 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(payload))}}, response => {
       let body = ''; response.on('data', chunk => body += chunk); response.on('end', () => { try { const result = JSON.parse(body).result; if (!result?.ok) throw Error('WORKSPACE_FAILED'); resolve(result.value); } catch { reject(Error('WORKSPACE_FAILED')); } });
     });
@@ -366,6 +366,15 @@ export async function officialAssistantProxy(req: Request, res: Response) {
     } catch {res.status(400).json({message:'保存状态暂时无法核对，请查看教案和修改建议后再继续。'});}
     return;
   }
+  if (target.pathname === '/api/qingsong/preparation-selection' && req.method === 'POST') {
+    try {
+      const context=getWorkspaceContext();
+      const instance=await ensureInstance(context,()=>checkIdentity(req.headers,context),createHash('sha256').update(req.headers.cookie??'').digest('hex'));
+      const target=await runWithWorkspace(context,()=>resolveSelectedPreparationSession(req.body,(method,request)=>nativeWorkspaceCall(instance.runtime,instance.cookie,method,request)));
+      res.json({target});
+    } catch(error) {res.status(error instanceof PreparationError?error.status:400).json({message:'教案关联未能核对，原教案和会话保留，请重试。'});}
+    return;
+  }
   if (target.pathname === '/api/qingsong/preparation-target' && req.method === 'POST') {
     try {
       const context=getWorkspaceContext();
@@ -421,8 +430,17 @@ export async function officialAssistantProxy(req: Request, res: Response) {
     const instance = await ensureInstance(context, () => checkIdentity(req.headers, context), createHash('sha256').update(req.headers.cookie ?? '').digest('hex'));
     if(res.destroyed){releaseImages();return;}
     const instanceMs = performance.now() - requestStarted;
+    if (target.pathname === '/api/session/create') {
+      const request=req.body?.payload?.args?.request;
+      if (request?.sessionId && getSessionBinding(request.sessionId)) request.sessionId=randomUUID();
+    }
     if (target.pathname === '/api/session/prompt') {
       const request = req.body?.payload?.args?.request;
+      if (typeof request?.sessionId === 'string') {
+        try {await assertPreparationSessionReady(request.sessionId,(method,args)=>nativeWorkspaceCall(instance.runtime,instance.cookie,method,args));}
+        catch(error) {res.status(error instanceof PreparationError?error.status:503).json({message:error instanceof PreparationError?error.message:'教案关联暂时无法核对，本条消息尚未提交，请稍后重试。'});return;}
+      }
+
       if (request?.mode !== 'steer' && instance.fingerprint !== await fingerprint()) {
         res.status(409).json({message:'管理员已更新生成配置，请等待当前一轮结束后重新发送。本条消息尚未提交。'}); return;
       }

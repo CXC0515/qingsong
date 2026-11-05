@@ -6,8 +6,58 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     const materialToken = id => '[[青松材料:' + id + ']]';
     const materialUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const connectionId = (window.name || '').replace(/^qingsong-assistant:/, '');
+    let hostTarget = {}, hostOpening = false, selectionVersion = 0;
+    const guardListeners = new Set();
+    let guard = null;
+    const showGuard = value => {guard=value;guardListeners.forEach(fn=>fn());};
+    const selectedSession = () => Object.values(ctx.sessions.list.getSnapshot().byId).find(row => (row.retainedBy.mainView??0)>0)?.id;
+    function AssociationGuard() {
+      const value=React.useSyncExternalStore(fn=>{guardListeners.add(fn);return()=>guardListeners.delete(fn);},()=>guard);
+      const dialog=React.useRef(null);
+      React.useEffect(()=>{if(value)dialog.current?.showModal();else dialog.current?.close();},[value]);
+      return value && React.createElement('dialog',{ref:dialog,className:'qs-association-guard',onCancel:event=>event.preventDefault(),'aria-label':'核对教案关联'},React.createElement('div',{role:value.error?'alert':'status'},
+        React.createElement('p',null,value.error||'正在核对会话与教案关联…'),
+        value.error&&React.createElement('button',{onClick:()=>void reconcileSelection(value.sessionId)},'重新核对'),
+        value.error&&hostTarget.sessionId&&React.createElement('button',{onClick:()=>{selectionVersion++;ctx.uiWorkspace.openSession(hostTarget.sessionId);showGuard(null);}},'返回原会话')));
+    }
+    ctx.slots.inject('shell.overlay',()=>ctx.slots.register({name:'shell.overlay',id:'qingsong-association-guard',priority:-110},()=>React.createElement(AssociationGuard)));
+    async function reconcileSelection(sessionId) {
+      const version=++selectionVersion, context=hostTarget;
+      if(hostOpening||!sessionId||sessionId===context.sessionId) {showGuard(null);return;}
+      showGuard({sessionId});
+      try {
+        const response=await fetch('./api/qingsong/preparation-selection',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sessionId,...(context.preparationId?{preparationId:context.preparationId,documentId:context.documentId}:{})}),signal:AbortSignal.timeout(15000)});
+        if(!response.ok)throw Error('教案关联未能核对，原内容保留，请重试。');
+        const {target}=await response.json();
+        if(version!==selectionVersion||selectedSession()!==sessionId||hostOpening)return;
+        if(context.preparationId&&!target.bound)throw Error('这条旧会话未关联教案，未改动原对话。请返回原会话，或从教案新建会话。');
+        const requestId=crypto.randomUUID();
+        await new Promise((resolve,reject)=>{
+          const finish=error=>{clearTimeout(timer);window.removeEventListener('message',receive);error?reject(Error(error)):resolve();};
+          const receive=event=>{const data=event.data;if(event.origin===location.origin&&event.source===parent&&data?.connectionId===connectionId&&data?.type==='qingsong:selection-opened'&&data?.requestId===requestId)finish(data.error);};
+          const timer=setTimeout(()=>finish('教案页面未能同步，原内容保留，请重试或返回原会话。'),20000);
+          window.addEventListener('message',receive);
+          parent.postMessage({type:'qingsong:native-selection',connectionId,requestId,target},location.origin);
+        });
+        if(version!==selectionVersion||hostOpening)return;
+        hostTarget=target.bound?target:{workspaceId:context.workspaceId,sessionId};
+        window.dispatchEvent(new CustomEvent('qingsong:association-checked',{detail:{sessionId}}));
+        showGuard(null);
+      } catch(error) {if(version===selectionVersion&&!hostOpening)showGuard({sessionId,error:error.message});}
+    }
+    ctx.effect(()=>{
+      let previous;
+      return ctx.sessions.list.subscribe(()=>{
+        const sessionId=selectedSession();
+        if(sessionId===previous)return;
+        previous=sessionId;
+        if(!hostOpening)void reconcileSelection(sessionId);
+      });
+    });
     function SessionAssociation({sessionId}) {
       const [label,setLabel] = React.useState('正在核对教案关联…');
+      const [check,setCheck]=React.useState(0);
+      React.useEffect(()=>{const checked=event=>{if(event.detail?.sessionId===sessionId)setCheck(value=>value+1);};window.addEventListener('qingsong:association-checked',checked);return()=>window.removeEventListener('qingsong:association-checked',checked);},[sessionId]);
       React.useEffect(() => {
         const controller = new AbortController();
         setLabel('正在核对教案关联…');
@@ -16,7 +66,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
           .then(value => {if(!controller.signal.aborted) setLabel(value.bound ? '关联教案：'+value.title : '未关联教案：请从具体教案打开助手后修改正文。');})
           .catch(() => {if(!controller.signal.aborted) setLabel('教案关联尚未核对，请从具体教案打开助手。');});
         return () => controller.abort();
-      },[sessionId]);
+      },[sessionId,check]);
       return React.createElement('span',{className:'qs-session-association',title:label},label);
     }
     function FailureNotice({node, sessionId, retry}) {
@@ -169,13 +219,15 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     // Parent chooses an entry; native catalogs, navigation and unsent drafts remain DSH-owned.
     ctx.effect(() => {
       let current;
-      const cancel = () => {current?.controller.abort(); current = undefined;};
+      const cancel = () => {current?.controller.abort(); current = undefined; hostOpening=false;selectionVersion++;showGuard(null);};
       const receive = async event => {
         const data = event.data;
         if (event.origin !== location.origin || event.source !== parent || data?.connectionId !== connectionId) return;
         if (data.type === 'qingsong:cancel-context') {if (current?.requestId === data.requestId) cancel(); return;}
+        if(data.type==='qingsong:prepare-context'){cancel();hostOpening=true;current={requestId:data.requestId,controller:new AbortController()};selectionVersion++;showGuard({});return;}
         if (data.type !== 'qingsong:open-context') return;
         cancel();
+        hostOpening=true;selectionVersion++;showGuard({});
         // Invalidates a previous SDK workspace open; a specific session never falls back to a blank one.
         ctx.layout.beginNavigation();
         const navigation = {requestId:data.requestId,controller:new AbortController()}; current = navigation;
@@ -185,6 +237,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
             onStage:stage => parent.postMessage({type:'qingsong:context-progress',connectionId,requestId:data.requestId,stage},location.origin),
             onTiming:timing => parent.postMessage({type:'qingsong:context-timing',connectionId,requestId:data.requestId,...timing},location.origin),
           });
+          if (current === navigation) {hostTarget={...data.target,...target};showGuard(null);}
           if (current === navigation) parent.postMessage({type:'qingsong:context-opened',connectionId,requestId:data.requestId,target},location.origin);
         } catch (error) {
           if (current !== navigation || navigation.controller.signal.aborted) return;
@@ -195,8 +248,9 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
             'session-content':'教案会话未能读取，', 'session-navigation':'教案会话未能打开，',
             'workspace-navigation':'工作区未能打开，', 'draft':'备课要求未能放入输入框，',
           };
+          showGuard(null);
           parent.postMessage({type:'qingsong:context-opened',connectionId,requestId:data.requestId,stage,error:(messages[stage]??'助手未能打开，')+'教案和原会话保留，请重试。'},location.origin);
-        } finally {if (current === navigation) current = undefined;}
+        } finally {if (current === navigation) {current = undefined;hostOpening=false;}}
       };
       window.addEventListener('message',receive);
       return () => {cancel(); window.removeEventListener('message',receive);};

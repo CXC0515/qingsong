@@ -3,7 +3,7 @@ import { parsePreparationInput } from "../../../src/domain/preparationToolContra
 import { documentCapabilities } from "../../../src/domain/documentContract";
 import { preparationRepository } from "../../repositories/preparationRepository";
 import { randomUUID } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { getWorkspaceContext } from "../../context/workspaceContext";
@@ -172,6 +172,43 @@ export async function resolvePreparationTarget(
     };
   });
 }
+/** Reconcile native sidebar selection without ever moving an existing binding. */
+export async function resolveSelectedPreparationSession(input: unknown, native: NativeCall) {
+  const args = z.object({sessionId:z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/),preparationId:z.uuid().optional(),documentId:z.uuid().optional()}).strict().parse(input);
+  return serializedTarget(async () => {
+    const existing = preparations.getSessionBinding(args.sessionId);
+    if (existing) {
+      const document = preparations.getDocument(existing.preparationId, existing.documentId!);
+      preparations.bindSession(existing.preparationId,document.id,args.sessionId,existing.nativeWorkspaceId);
+      return {bound:true as const,sessionId:args.sessionId,workspaceId:existing.nativeWorkspaceId,preparationId:existing.preparationId,documentId:document.id,revision:document.revision};
+    }
+    if (!args.preparationId || !args.documentId) return {bound:false as const,sessionId:args.sessionId};
+    const document = preparations.getDocument(args.preparationId,args.documentId);
+    const catalog = await native("session/list",{});
+    const session = catalog.items.find((item:any) => item.sessionId === args.sessionId);
+    const workspaceId = preparations.getNativeWorkspace("preparation");
+    if (!workspaceId) return {bound:false as const,sessionId:args.sessionId};
+    const directory = await realpath(path.join(officialMaterialHome(getWorkspaceContext()),"preparation-workspace"));
+    if (!workspaceId || !session || !session.blank || session.running || session.cwd !== directory)
+      return {bound:false as const,sessionId:args.sessionId};
+    await native("session/rename",{sessionId:args.sessionId,title:preparations.getPreparation(args.preparationId).preparation.title+" · "+document.title});
+    preparations.bindSession(args.preparationId,document.id,args.sessionId,workspaceId);
+    contexts.set(key(args.sessionId),{revision:document.revision,at:Date.now()});
+    return {bound:true as const,sessionId:args.sessionId,workspaceId,preparationId:args.preparationId,documentId:document.id,revision:document.revision};
+  });
+}
+
+/** Every native entry must bind a preparation-space Session before submitting a turn. */
+export async function assertPreparationSessionReady(sessionId: string, native: NativeCall) {
+  if (preparations.getSessionBinding(sessionId)) return;
+  if (!preparations.getNativeWorkspace("preparation")) return;
+  const catalog = await native("session/list",{});
+  const session = catalog.items.find((item:any) => item.sessionId === sessionId);
+  const directory = await realpath(path.join(officialMaterialHome(getWorkspaceContext()),"preparation-workspace"));
+  if (session?.cwd === directory)
+    throw new preparations.PreparationError("PREPARATION_CONTEXT_REQUIRED","这条备课会话还未关联教案，本条消息尚未提交。请打开具体教案后新建会话，原有对话保留。",409);
+}
+
 /** Read back business storage; never infer writes from a model failure. */
 export function preparationSavedOutcome(sessionId: string) {
   const binding = preparations.getSessionBinding(sessionId);

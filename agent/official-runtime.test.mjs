@@ -120,3 +120,26 @@ test('connection observer reports catalog failures, recovers, answers trusted pr
  assert.ok(messages.every(m=>m.data.connectionId==='attempt-one'&&m.origin==='https://fixture.test'));
  dispose();assert.equal(workStore.callbacks.size,0);assert.equal(sessionStore.callbacks.size,0);assert.equal(listeners.size,0);
 });
+
+test('sidebar selection reconciles once, ignores stale responses and keeps the original binding',async()=>{
+ const source=await readFile(new URL('./official-ui/client.js',import.meta.url),'utf8');
+ const effects=[],listeners=new Set(),posted=[],requests=[];let plugin,observer,selected='a';
+ const parent={postMessage:data=>posted.push(data)};
+ const rows={a:{id:'a',retainedBy:{mainView:1}}};
+ const window={name:'qingsong-assistant:binding-test',__ModuleLoader__:{load:module=>{plugin=module.factory(()=>({}));}},addEventListener:(name,fn)=>{if(name==='message')listeners.add(fn);},removeEventListener:(name,fn)=>listeners.delete(fn),dispatchEvent:()=>{}};
+ vm.runInNewContext(source,{window,parent,location:{origin:'https://fixture.test'},AbortController,AbortSignal,setTimeout,clearTimeout,crypto:globalThis.crypto,CustomEvent:class{constructor(type,init){this.type=type;this.detail=init.detail;}},fetch:(_url,options)=>new Promise(resolve=>requests.push({body:JSON.parse(options.body),resolve})),globalThis:{QingsongAssistantNavigation:{openContext:async(_ctx,target)=>target}}});
+ plugin.apply({slots:{inject:()=>{}},effect:fn=>effects.push(fn),sessions:{list:{getSnapshot:()=>({byId:rows}),subscribe:fn=>{observer=fn;return()=>{};}}},layout:{beginNavigation:()=>{}}});
+ const offSelection=effects[0](),offMessages=effects.at(-2)();
+ const send=async data=>{for(const listener of [...listeners])await listener({origin:'https://fixture.test',source:parent,data:{connectionId:'binding-test',...data}});};
+ await send({type:'qingsong:open-context',requestId:'open-a',target:{workspaceId:'w',preparationId:'lesson-a',documentId:'doc-a',sessionId:'a'}});
+ const select=id=>{rows[selected].retainedBy={};selected=id;rows[id]={id,retainedBy:{mainView:1}};observer();};
+ select('b');select('c');assert.equal(requests.length,2);assert.equal(requests[1].body.preparationId,'lesson-a');
+ requests[0].resolve({ok:true,json:async()=>({target:{bound:true,sessionId:'b',preparationId:'lesson-b',documentId:'doc-b'}})});
+ await new Promise(resolve=>setTimeout(resolve,0));assert.ok(!posted.some(message=>message.type==='qingsong:native-selection'));
+ requests[1].resolve({ok:true,json:async()=>({target:{bound:true,sessionId:'c',preparationId:'lesson-c',documentId:'doc-c'}})});
+ await new Promise(resolve=>setTimeout(resolve,0));const request=posted.find(message=>message.type==='qingsong:native-selection');assert.equal(request.target.preparationId,'lesson-c');
+ await send({type:'qingsong:selection-opened',requestId:request.requestId});await new Promise(resolve=>setTimeout(resolve,0));
+ select('d');assert.equal(requests.at(-1).body.preparationId,'lesson-c');
+ requests.at(-1).resolve({ok:false});await new Promise(resolve=>setTimeout(resolve,0));
+ offMessages();offSelection();
+});

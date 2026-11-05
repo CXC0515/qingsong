@@ -123,6 +123,17 @@ function OfficialAssistantPanel({entry}:{entry?:AssistantEntry}) {
     window.addEventListener('message',receive);startTimer();
     return()=>{window.removeEventListener('message',receive);stopTimer();};
   },[connectionId]);
+  useEffect(() => {
+    const receive=(event:MessageEvent)=>{
+      const data=event.data;
+      if(event.origin!==location.origin||event.source!==frame.current?.contentWindow||data?.connectionId!==connectionId||data?.type!=='qingsong:native-selection')return;
+      const target=data.target;
+      if(typeof data.requestId!=='string'||typeof target?.sessionId!=='string')return;
+      window.dispatchEvent(new CustomEvent('qingsong:native-preparation-selection',{detail:{...target,complete:(error?:string)=>frame.current?.contentWindow?.postMessage({type:'qingsong:selection-opened',connectionId,requestId:data.requestId,error},location.origin)}}));
+    };
+    window.addEventListener('message',receive);
+    return()=>window.removeEventListener('message',receive);
+  },[connectionId]);
   const [targetError, setTargetError] = useState('');
   const [targetStage, setTargetStage] = useState('');
   const [targetAttempt, setTargetAttempt] = useState(0);
@@ -152,6 +163,7 @@ function OfficialAssistantPanel({entry}:{entry?:AssistantEntry}) {
       }
     };
     window.addEventListener('message', acknowledge);
+    send('qingsong:prepare-context');
     const {requestKey: _requestKey, ...body} = entry;
     void apiFetch('/api/assistant/official/api/qingsong/preparation-target', {
       method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.any([controller.signal,AbortSignal.timeout(30000)]),
@@ -171,11 +183,12 @@ function OfficialAssistantPanel({entry}:{entry?:AssistantEntry}) {
     }).catch(cause => {
       if (controller.signal.aborted) return;
       window.dispatchEvent(new CustomEvent('qingsong:preparation-session-opened', {detail:{...entry,error:'会话未能打开，教案保留，请在助手中重试打开。'}}));
+      send('qingsong:cancel-context');
       setTargetStage('');
       setTargetError(cause?.name === 'TimeoutError' ? '工作空间连接超时，教案和原会话保留，请重试。' : cause instanceof Error ? cause.message : '工作空间未能打开，已有内容保留，请重试。');
     });
     return () => {controller.abort(); clearTimeout(acknowledgementTimer); send('qingsong:cancel-context'); window.removeEventListener('message',acknowledge);};
-  }, [ready,entry,connectionId,targetAttempt]);
+  }, [ready,entry?.requestKey,connectionId,targetAttempt]);
   const retry=()=>{closeMaterialPick();setConnectionId(crypto.randomUUID());};
   return <GlassSurface className="qs-assistant-panel qs-official-assistant flex h-full min-h-0 flex-col overflow-hidden">
     <style>{".qs-official-assistant>.lg-content{display:flex;flex-direction:column;min-height:0;flex:1;padding:0;gap:0;overflow:hidden}.qs-official-frame{display:flex;flex:1;min-height:0;margin:12px;border-radius:18px;overflow:hidden;background:#fff}"}</style>
