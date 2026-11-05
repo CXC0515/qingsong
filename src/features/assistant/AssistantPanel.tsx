@@ -129,17 +129,24 @@ function OfficialAssistantPanel({entry}:{entry?:AssistantEntry}) {
   useEffect(() => {
     if (!ready || !entry) return;
     const controller = new AbortController(), requestId = crypto.randomUUID();
+    const started = performance.now();
+    const timings: Record<string, number> = {};
     let acknowledgementTimer: ReturnType<typeof setTimeout> | undefined;
     setTargetError(''); setTargetStage('正在打开工作空间…');
     const send = (type: string, extra = {}) => frame.current?.contentWindow?.postMessage({type,connectionId,requestId,...extra},location.origin);
     const acknowledge = (event: MessageEvent) => {
       const data = event.data;
       if (event.origin !== location.origin || event.source !== frame.current?.contentWindow || data?.connectionId !== connectionId || data?.requestId !== requestId) return;
+      if (data.type === 'qingsong:context-timing') {
+        timings[data.stage] = data.durationMs;
+        console.info('[青松助手] 会话阶段耗时', {stage:data.stage, durationMs:data.durationMs});
+      }
       if (data.type === 'qingsong:context-progress') {
         const labels: Record<string,string> = {'workspace-directory':'正在同步备课工作区…','session-directory':'正在同步教案会话…','session-content':'正在读取教案会话…','session-navigation':'正在打开教案会话…','draft':'正在准备备课要求…','workspace-navigation':'正在打开工作空间…'};
         setTargetStage(labels[data.stage] ?? '正在打开助手…');
       } else if (data.type === 'qingsong:context-opened') {
         clearTimeout(acknowledgementTimer); setTargetStage('');
+        console.info('[青松助手] 打开会话完成',{durationMs:Math.round(performance.now()-started),timings,ok:!data.error});
         if (data.error) setTargetError(data.error);
       }
     };
@@ -153,6 +160,7 @@ function OfficialAssistantPanel({entry}:{entry?:AssistantEntry}) {
       return value.target as PreparationAssistantTarget;
     }).then(target => {
       if (controller.signal.aborted) return;
+      timings.targetResolution = Math.round(performance.now() - started);
       send('qingsong:open-context', {target});
       acknowledgementTimer = setTimeout(() => {
         send('qingsong:cancel-context'); setTargetStage('');

@@ -20,7 +20,11 @@ export function mountGlass(host, options={}) {
   const existing=host.querySelector(':scope > .lg-content');
   if(!existing)throw new Error('Provide one direct .lg-content child; business content stays outside filter layers');
   let input={...defaults,...options,motion:{...defaults.motion,...options.motion}},config=normalize(input);
-  const saved={class:host.getAttribute('class'),style:host.getAttribute('style'),theme:host.getAttribute('data-lg-theme'),profile:host.getAttribute('data-lg-profile'),fallback:host.getAttribute('data-lg-fallback')};
+  // React owns className and business styles. Only restore values this instance still owns.
+  const addedSurface=!host.classList.contains('lg-surface');
+  const ownedAttributes=new Map(),ownedStyles=new Map();
+  const attribute=(key,value)=>{if(!ownedAttributes.has(key))ownedAttributes.set(key,{before:host.getAttribute(key)});host.setAttribute(key,value);ownedAttributes.get(key).written=String(value);};
+  const style=(key,value)=>{if(!ownedStyles.has(key))ownedStyles.set(key,{before:host.style.getPropertyValue(key),priority:host.style.getPropertyPriority(key)});host.style.setProperty(key,value);ownedStyles.get(key).written=value;};
   const layer=document.createElement('div');layer.className='lg-backdrop';layer.setAttribute('aria-hidden','true');
   const canvas=document.createElement('canvas');canvas.className='lg-light';canvas.setAttribute('aria-hidden','true');
   const prism=document.createElement('canvas');prism.className='lg-light lg-prism';prism.setAttribute('aria-hidden','true');
@@ -45,14 +49,14 @@ export function mountGlass(host, options={}) {
   function geometry(){
     if(destroyed)return;
     const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;
-    host.style.setProperty('--lg-radius',Math.min(config.radius,w/2,h/2)+'px');host.style.setProperty('--lg-blur',config.blur+'px');
+    style('--lg-radius',Math.min(config.radius,w/2,h/2)+'px');style('--lg-blur',config.blur+'px');
     light.configure(w,h,config.radius,config.rimWidth);spectral.configure(w,h,config.radius,config.rimWidth);draw();
   }
   function material(){
-    host.dataset.lgTheme=config.theme;host.dataset.lgProfile=config.blur===0?'clear':'control';
+    attribute('data-lg-theme',config.theme);attribute('data-lg-profile',config.blur===0?'clear':'control');
     const nativeOptions={radius:config.radius,band:config.edgeWidth,strength:config.refraction?config.displacement:0,blur:config.blur,dispersion:config.refraction?config.dispersion:0};
     const enabled=config.nativeRefraction&&('backdropFilter' in layer.style);
-    host.dataset.lgFallback=String(!enabled);
+    attribute('data-lg-fallback',String(!enabled));
     if(enabled){if(native)native.set(nativeOptions);else native=new NativeBackdrop(layer,nativeOptions);}
     else{if(native){native.destroy();native=null;}layer.style.backdropFilter=`blur(${config.blur}px)`;layer.style.webkitBackdropFilter=layer.style.backdropFilter;}
     geometry();
@@ -74,7 +78,9 @@ export function mountGlass(host, options={}) {
     destroy(){
       if(destroyed)return;destroyed=true;stop();observer.disconnect();intersection.disconnect();
       reduced.removeEventListener('change',reconcile);document.removeEventListener('visibilitychange',reconcile);native?.destroy();layer.remove();canvas.remove();prism.remove();active.delete(host);
-      for(const [key,attr]of Object.entries({class:'class',style:'style',theme:'data-lg-theme',profile:'data-lg-profile',fallback:'data-lg-fallback'})){if(saved[key]===null)host.removeAttribute(attr);else host.setAttribute(attr,saved[key]);}
+      if(addedSurface)host.classList.remove('lg-surface');
+      for(const [key,value]of ownedAttributes)if(host.getAttribute(key)===value.written){if(value.before===null)host.removeAttribute(key);else host.setAttribute(key,value.before);}
+      for(const [key,value]of ownedStyles)if(host.style.getPropertyValue(key)===value.written){if(value.before)host.style.setProperty(key,value.before,value.priority);else host.style.removeProperty(key);}
     }
   };
   active.set(host,api);return api;

@@ -32,7 +32,7 @@ export function GlassSurface({ children, className = '', preset = 'toolbar', ...
     }
     return ()=>{disposed=true;observer?.disconnect();glass?.destroy();};
   }, [preset, theme]);
-  return <div ref={host} className={'qs-glass ' + className} {...props}><div className="lg-content">{children}</div></div>;
+  return <div ref={host} className={'qs-glass lg-surface ' + className} {...props}><div className="lg-content">{children}</div></div>;
 }
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export function GlassButton({ className = '', children, variant = 'secondary', containerClassName = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & {variant?:ButtonVariant;containerClassName?:string}) {

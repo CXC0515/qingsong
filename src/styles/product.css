@@ -265,3 +265,10 @@
 :where(.qs-app,.qs-dialog) :is(.bg-white,.bg-slate-50,.bg-gray-50,.bg-zinc-50) { background-color:var(--qs-solid); }
 :where(.qs-app,.qs-dialog) :is(.border-slate-100,.border-slate-200,.border-gray-200,.border-zinc-200,.border-emerald-300) { border-color:var(--qs-line); }
 @media(prefers-reduced-transparency:reduce) { .qs-temperature-thumb.qs-glass .lg-backdrop { background:var(--theme-primary)!important; } }
+
+/* Workbench retains its accepted .85 / 1.25 split; task pages keep their own width. */
+@container(min-width:820px){
+ .qs-task-columns[data-page="workbench"][data-assistant-open=true]{grid-template-columns:minmax(260px,.85fr) minmax(0,1.25fr)}
+ .qs-task-columns[data-page="workbench"][data-assistant-open=true]:has(>.qs-assistant-dock[data-resized=true]){grid-template-columns:minmax(260px,1fr) auto}
+ .qs-task-columns[data-page="workbench"]>.qs-assistant-dock{width:var(--qs-assistant-width,auto);max-width:100%;min-width:0}
+}

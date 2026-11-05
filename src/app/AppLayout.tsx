@@ -135,7 +135,7 @@ export default function AppLayout({
           {showGlobalClassPicker&&<div className="qs-topbar-class"><ClassPicker classes={classes.filter(c=>c.status==='active')} value={selectedClassId} onChange={onSelectClass} label="选择快捷入口班级"/></div>}
           <div className="qs-mobile-account">{accountButton(true)}</div>
         </header>
-        <div ref={taskLayout} className="qs-task-layout"><div className="qs-task-columns" data-assistant-open={assistantOpen}>
+        <div ref={taskLayout} className="qs-task-layout"><div className="qs-task-columns" data-assistant-open={assistantOpen} data-page={activePage}>
         <main inert={assistantOpen && compact ? true : undefined} className={'app-shell-main qs-main '+(isImmersiveWorkspace?'flex min-h-0 flex-col overflow-hidden':activePage==='workbench'?'overflow-y-auto min-[900px]:flex min-[900px]:min-h-0 min-[900px]:flex-col min-[900px]:overflow-hidden':'overflow-y-auto')}>{children}</main>
         {assistant}
         </div></div>
