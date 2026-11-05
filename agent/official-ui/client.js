@@ -145,6 +145,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
           const target = await globalThis.QingsongAssistantNavigation.openContext(ctx, data.target, {
             signal:navigation.controller.signal,
             onStage:stage => parent.postMessage({type:'qingsong:context-progress',connectionId,requestId:data.requestId,stage},location.origin),
+            onTiming:timing => parent.postMessage({type:'qingsong:context-timing',connectionId,requestId:data.requestId,...timing},location.origin),
           });
           if (current === navigation) parent.postMessage({type:'qingsong:context-opened',connectionId,requestId:data.requestId,target},location.origin);
         } catch (error) {

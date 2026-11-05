@@ -430,6 +430,35 @@ export default function PreparationDetail({
         />
       </div>
       <div className="qs-prep-workspace" data-panel={panel}>
+        <aside className="qs-prep-materials">
+          <PreparationSources
+            preparationId={preparationId}
+            sources={detail.sources}
+            onChanged={refresh}
+            onError={report}
+            onRead={(source) => {
+              setReader(source);
+              setReaderPage(1);
+            }}
+            onImport={importSource}
+          />
+          {Boolean(detail.preparation.knowledgeIds?.length) && (
+            <section className="qs-prep-knowledge-summary">
+              <strong>本课涉及的知识</strong>
+              <ul>
+                {detail.preparation.knowledgeIds?.map((id) => (
+                  <li key={id}>
+                    {knowledge.find((node) => node.id === id)?.name ??
+                      "已关联知识"}
+                  </li>
+                ))}
+              </ul>
+              <button type="button" onClick={() => setSettings(true)}>
+                调整关联
+              </button>
+            </section>
+          )}
+        </aside>
         <main className="qs-prep-writing">
           <PreparationProposals
             preparationId={preparationId}
@@ -487,35 +516,6 @@ export default function PreparationDetail({
             </GlassButton>
           </div>
         </main>
-        <aside className="qs-prep-materials">
-          <PreparationSources
-            preparationId={preparationId}
-            sources={detail.sources}
-            onChanged={refresh}
-            onError={report}
-            onRead={(source) => {
-              setReader(source);
-              setReaderPage(1);
-            }}
-            onImport={importSource}
-          />
-          {Boolean(detail.preparation.knowledgeIds?.length) && (
-            <section className="qs-prep-knowledge-summary">
-              <strong>本课涉及的知识</strong>
-              <ul>
-                {detail.preparation.knowledgeIds?.map((id) => (
-                  <li key={id}>
-                    {knowledge.find((node) => node.id === id)?.name ??
-                      "已关联知识"}
-                  </li>
-                ))}
-              </ul>
-              <button type="button" onClick={() => setSettings(true)}>
-                调整关联
-              </button>
-            </section>
-          )}
-        </aside>
       </div>
       {history && (
         <DocumentHistory

@@ -136,7 +136,7 @@
 }
 .qs-prep-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: 300px minmax(0, 1fr);
   align-items: start;
   gap: 16px;
   min-width: 0;
@@ -1014,7 +1014,7 @@
 }
 @container preparation (min-width: 1120px) {
   .qs-prep-workspace {
-    grid-template-columns: minmax(0, 1fr) 340px;
+    grid-template-columns: 340px minmax(0, 1fr);
   }
 }
 @container preparation (max-width: 919px) {

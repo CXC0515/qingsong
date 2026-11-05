@@ -11,28 +11,40 @@ import AssistantPanel, { type AssistantEntry } from "./AssistantPanel";
 
 const MIN_WIDTH = 320;
 const DEFAULT_WIDTH = 400;
-const storedWidth = (key: string) => {
+const storedPreference = (key: string) => {
   try {
     const value = Number(localStorage.getItem(key));
-    return value >= MIN_WIDTH && value <= 600 ? value : DEFAULT_WIDTH;
+    if (value >= MIN_WIDTH && value <= 600) return { width: value, resized: true };
   } catch {
-    return DEFAULT_WIDTH;
+    // Storage is optional; retain the surface's default layout.
   }
+  return { width: DEFAULT_WIDTH, resized: false };
 };
 /** One persistent iframe across teacher pages. Hiding the dock does not discard its draft. */
 export default function AssistantDock({
   open,
+  surface,
   entry,
   identityKey,
   onClose,
 }: {
   open: boolean;
+  surface: "workbench" | "task";
   entry: AssistantEntry;
   identityKey: string;
   onClose: () => void;
 }) {
-  const storageKey = `qingsong:assistant-width:${identityKey}`;
-  const [width, setWidth] = useState(() => storedWidth(storageKey));
+  const dock = useRef<HTMLElement>(null);
+  const storageKey = `qingsong:assistant-width:${identityKey}:${surface}`;
+  const [preference, setPreference] = useState(() => ({
+    key: storageKey,
+    ...storedPreference(storageKey),
+  }));
+  // Derive the new surface's preference during render, without resizing/remounting the iframe.
+  if (preference.key !== storageKey) {
+    setPreference({ key: storageKey, ...storedPreference(storageKey) });
+  }
+  const { width, resized } = preference;
   const closeButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -61,7 +73,7 @@ export default function AssistantDock({
   const clamp = (value: number) => Math.max(MIN_WIDTH, Math.min(600, value));
   const saveWidth = (value: number) => {
     const next = clamp(value);
-    setWidth(next);
+    setPreference({ key: storageKey, width: next, resized: true });
     try {
       localStorage.setItem(storageKey, String(next));
     } catch {
@@ -78,9 +90,9 @@ export default function AssistantDock({
   const resizeKey = (event: KeyboardEvent<HTMLButtonElement>) => {
     const next =
       event.key === "ArrowLeft"
-        ? width + 24
+        ? (dock.current?.getBoundingClientRect().width ?? width) + 24
         : event.key === "ArrowRight"
-          ? width - 24
+          ? (dock.current?.getBoundingClientRect().width ?? width) - 24
           : event.key === "Home"
             ? MIN_WIDTH
             : event.key === "End"
@@ -93,11 +105,17 @@ export default function AssistantDock({
   };
   return (
     <aside
+      ref={dock}
+      data-resized={resized}
       id="qingsong-assistant-dock"
       className="qs-assistant-dock"
       hidden={!open}
       aria-label="AI 助手侧栏"
-      style={{ "--qs-assistant-width": `${width}px` } as CSSProperties}
+      style={
+        (surface !== "workbench" || resized
+          ? { "--qs-assistant-width": `${width}px` }
+          : {}) as CSSProperties
+      }
     >
       <button
         className="qs-assistant-resize"
@@ -109,7 +127,7 @@ export default function AssistantDock({
         aria-valuemax={600}
         aria-valuenow={width}
         onPointerDown={(event) => {
-          drag.current = { x: event.clientX, width };
+          drag.current = { x: event.clientX, width: dock.current?.getBoundingClientRect().width ?? width };
           event.currentTarget.setPointerCapture(event.pointerId);
         }}
         onPointerMove={move}

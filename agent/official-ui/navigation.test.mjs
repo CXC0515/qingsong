@@ -188,3 +188,19 @@ test("the native web plugin injects the tested helper before client activation",
   );
   assert.ok(!script.text.toLowerCase().includes("</script"));
 });
+
+
+test("known sessions skip catalog RPC but still await content and report timings", async () => {
+  const f = fixture();
+  f.workspaces.set({ items: [{ workspaceId: "w1" }], state: "idle" });
+  f.sessions.set({ byId: { s1: { id: "s1" } }, phase: "ready" });
+  f.ctx.sessions.refresh = () => { throw new Error("redundant catalog request"); };
+  const timings = [];
+  const result = await openContext(f.ctx, { workspaceId: "w1", sessionId: "s1" }, {
+    onTiming: timing => timings.push(timing),
+  });
+  assert.deepEqual(f.calls, ["retain:s1", "open:s1", "release:s1"]);
+  assert.deepEqual(timings.map(t => t.stage), ["workspace-directory", "session-directory", "session-content", "session-navigation"]);
+  assert.ok(timings.every(t => Number.isFinite(t.durationMs) && t.durationMs >= 0));
+  assert.ok(result.totalMs >= 0);
+});

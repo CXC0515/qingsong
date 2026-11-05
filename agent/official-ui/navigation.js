@@ -47,18 +47,30 @@
   async function openContext(
     ctx,
     target,
-    { signal: callerSignal, timeoutMs = 22000, onStage = () => {} } = {},
+    { signal: callerSignal, timeoutMs = 22000, onStage = () => {}, onTiming = () => {} } = {},
   ) {
     const controller = new AbortController();
     const signal = callerSignal
       ? AbortSignal.any([callerSignal, controller.signal])
       : controller.signal;
+    const now = () => global.performance?.now() ?? Date.now();
+    const started = now();
+    let stageStarted = started;
+    const timings = [];
     let stage = "workspace-directory";
+    const measure = () => {
+      const finished = now();
+      const timing = { stage, durationMs: Math.round(finished - stageStarted) };
+      timings.push(timing);
+      onTiming(timing);
+      stageStarted = finished;
+    };
     const timer = setTimeout(
       () => controller.abort(new NavigationError(stage)),
       timeoutMs,
     );
     const changeStage = (value) => {
+      if (value !== stage) measure();
       stage = value;
       onStage(value);
       signal.throwIfAborted();
@@ -81,7 +93,8 @@
       if (target.sessionId) {
         changeStage("session-directory");
         // Host-created sessions are not safe to retain until the native catalog knows them.
-        await abortable(ctx.sessions.refresh(), signal);
+        if (!ctx.sessions.list.getSnapshot().byId[target.sessionId])
+          await abortable(ctx.sessions.refresh(), signal);
         // A first refresh may have joined an older in-flight pull that began before Host creation.
         if (!ctx.sessions.list.getSnapshot().byId[target.sessionId])
           await abortable(ctx.sessions.refresh(), signal);
@@ -112,7 +125,9 @@
               whenDraftExists: "append",
             });
           }
+          measure();
           return {
+            timings, totalMs: Math.round(now() - started),
             workspaceId: target.workspaceId,
             sessionId: target.sessionId,
           };
@@ -128,7 +143,8 @@
         signal,
       );
       signal.throwIfAborted();
-      return { workspaceId: target.workspaceId };
+      measure();
+      return { workspaceId: target.workspaceId, timings, totalMs: Math.round(now() - started) };
     } catch (error) {
       if (callerSignal?.aborted) throw callerSignal.reason;
       throw error instanceof NavigationError

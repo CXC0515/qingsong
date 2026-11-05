@@ -750,7 +750,7 @@ export default function App() {
       headerContextRef={setClassroomHeaderTarget}
       activePage={activePage}
       assistantOpen={assistantOpen}
-      assistant={workbenchVisited || assistantOpen ? <AssistantDock identityKey={authState.user.id} open={assistantOpen} entry={assistantEntry} onClose={() => setAssistantOpen(false)}/> : null}
+      assistant={workbenchVisited || assistantOpen ? <AssistantDock surface={activePage==='workbench'?'workbench':'task'} identityKey={authState.user.id} open={assistantOpen} entry={assistantEntry} onClose={() => setAssistantOpen(false)}/> : null}
       classes={classes}
       expandedGroups={expandedGroups}
       navGroups={navGroups}
