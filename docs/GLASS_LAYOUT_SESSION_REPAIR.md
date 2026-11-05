@@ -32,4 +32,8 @@
 2. Luna图片能力生效配置和真实模型样本；公开网页读取及Timebook原链接；六点块拖动，仍未实施。
 3. 真机软键盘、Safari/Edge、长历史会话及教学质量待真实场景验收。
 
-修改历史：v1.1 记录实现、实际壳层测量及未完成边界；Linux/发布结果待补。
+修改历史：v1.1 记录实现、实际壳层测量及未完成边界；Linux检查通过，发布结果待补。
+
+## Linux发布前检查
+
+PR #127。隔离候选使用Node24.22.1；teacher-dashboard用户及PrivateTmp/ProtectHome/ProtectSystem约束下，类型、构建、85项定向检查与4项完整HTTP/DSH检查全部通过，无失败或跳过；本机停住的DOCX/图片测试在Linux完整通过。模拟供应商、真实模型/OCR调用0。候选日志：/opt/teacher-dashboard/candidates/glass-layout-session-repair/qa/checks.log。本机类型、构建、81项（不含停住的DOCX套件）通过。
