@@ -1,5 +1,5 @@
 import {PreparationContractError} from '../../../src/domain/preparationToolContract.mjs';
-import {resolvePreparationTarget,preparationRuntimeContext,preparationAssistantTool,stopSessionTasks} from './preparationAssistant';
+import {resolvePreparationTarget,preparationRuntimeContext,preparationAssistantTool,stopSessionTasks,preparationSavedOutcome} from './preparationAssistant';
 import {getNativeWorkspace,setNativeWorkspace,getSessionBinding,PreparationError,updateTask,getTask} from '../preparation/preparationService';
 import {ZodError} from 'zod';
 import {semanticPersonalContext,queueConversationMemory,drainMemoryWorkers} from './memoryService';
@@ -356,6 +356,15 @@ export async function officialAssistantProxy(req: Request, res: Response) {
   catch { res.status(400).end(); return; }
   if (target.pathname === '/api/settings/describe' && req.method === 'POST' && req.body?.type === 'client-request' && req.body?.method === 'settings/describe') {
     res.json({type: 'server-response', rpcId: req.body.rpcId, result: {ok: true, value: {writable: false, hasDocument: false, namespaces: [{ns: 'locale', autoGenerate: false, schema: {type: 'object', properties: {preference: {type: 'string'}}}, value: {preference: 'zh-CN-x-qingsong'}, applies: 'live', secrets: [], revision: 0}]}}}); return;
+  }
+  if (target.pathname === '/api/qingsong/preparation-outcome' && req.method === 'GET') {
+    try {
+      const sessionId = target.searchParams.get('sessionId');
+      if (!sessionId || !/^[a-zA-Z0-9_-]{1,160}$/.test(sessionId)) {res.status(400).json({message:'请选择要核对的会话。'}); return;}
+      res.setHeader('Cache-Control','no-store');
+      res.json(preparationSavedOutcome(sessionId));
+    } catch {res.status(400).json({message:'保存状态暂时无法核对，请查看教案和修改建议后再继续。'});}
+    return;
   }
   if (target.pathname === '/api/qingsong/preparation-target' && req.method === 'POST') {
     try {

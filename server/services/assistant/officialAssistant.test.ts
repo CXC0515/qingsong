@@ -22,6 +22,7 @@ const model = createServer(async (req, res) => {
   let text = ''; for await (const chunk of req) text += chunk;
   const input = JSON.parse(text);
   capturedRequests.push(input);
+  if (process.env.QS_NATIVE_PREVIEW && JSON.stringify(input.messages).includes('本机503失败验收')) {res.writeHead(503,{'content-type':'application/json'});res.end(JSON.stringify({message:'Service temporarily unavailable',type:'api_error'}));return;}
   if (delayNext) { delayNext = false; await new Promise(resolve => setTimeout(resolve, 1500)); if (res.destroyed) return; }
   res.writeHead(200, {'content-type': 'text/event-stream'});
   const frame = (delta: unknown, finish_reason: string | null = null) => ({id: 'fixture', object: 'chat.completion.chunk', created: 1, model: 'fixture', choices: [{index: 0, delta, finish_reason}]});
@@ -679,6 +680,15 @@ test('preparation: native workspace binding, candidate creation and explicit tea
  const {target}=await call('/api/assistant/official/api/qingsong/preparation-target',body);
  assert.ok(target.workspaceId&&target.sessionId);
  assert.equal((await call('/api/assistant/official/api/qingsong/preparation-target',body)).target.sessionId,target.sessionId);
+ const secondId=crypto.randomUUID();
+ const second=await call('/api/assistant/official/api/qingsong/preparation-target',{...body,newSessionId:secondId});
+ assert.equal(second.target.sessionId,secondId);
+ assert.equal((await call('/api/assistant/official/api/qingsong/preparation-target',{...body,newSessionId:secondId})).target.sessionId,secondId);
+ assert.equal((await call('/api/preparations/'+prep+'/sessions')).sessions.length,2);
+ await call('/api/assistant/official/api/qingsong/preparation-target',{...body,sessionId:target.sessionId});
+ assert.equal((await call('/api/assistant/official/api/qingsong/preparation-target',body)).target.sessionId,target.sessionId);
+ const initialOutcome=await call('/api/assistant/official/api/qingsong/preparation-outcome?sessionId='+target.sessionId);
+ assert.equal(initialOutcome.bound,true); assert.equal(initialOutcome.pending,0);
  queryScenario='preparation';
  try {
   assert.ok((await rpc(cookie,'session/prompt',{request:{sessionId:target.sessionId,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:'请为这份合成教案提供修改建议'}]}})).ok);
@@ -687,6 +697,7 @@ test('preparation: native workspace binding, candidate creation and explicit tea
   assert.equal(latest.proposals.length,1,JSON.stringify(latest.tasks));
   assert.equal(latest.documents[0].revision,1,'AI candidate must not replace current draft');
   assert.equal(latest.tasks[0].status,'completed');
+  assert.equal((await call('/api/assistant/official/api/qingsong/preparation-outcome?sessionId='+target.sessionId)).pending,1);
   const applied=await call('/api/preparations/'+prep+'/proposals/'+latest.proposals[0].id+'/apply',{operationId:crypto.randomUUID()});
   assert.equal(applied.document.revision,2);
   assert.match(JSON.stringify(applied.document.content),/合成教案闭环/);

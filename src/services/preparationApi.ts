@@ -8,6 +8,7 @@ import type {
   Preparation,
   PreparationDetail,
   PreparationSource,
+  PreparationSessionBinding,
 } from "../domain/preparation";
 
 export class PreparationApiError extends Error {
@@ -212,3 +213,6 @@ export const cancelPreparationTask = async (id: string, taskId: string) =>
     `${base}/${encodeURIComponent(id)}/tasks/${encodeURIComponent(taskId)}/cancel`,
     json("POST", { operationId: crypto.randomUUID() }),
   );
+
+export const listPreparationSessions = async (id: string) =>
+  (await request<{ sessions: PreparationSessionBinding[] }>(`${base}/${encodeURIComponent(id)}/sessions`)).sessions;

@@ -109,16 +109,30 @@ export default function App() {
   const [activePage, setActivePageState] = useState<PageId>(() => assistantSourceRoute(window.location.href).page);
   const [settingsVisited,setSettingsVisited]=useState(false);
   useEffect(()=>{if(activePage==='settings')setSettingsVisited(true);},[activePage]);
-  const [assistantOpen, setAssistantOpen] = useState(() => assistantSourceRoute(window.location.href).page === 'workbench' && window.matchMedia('(min-width:1100px)').matches);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [wideWorkbench, setWideWorkbench] = useState(() => window.matchMedia('(min-width:1100px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(min-width:1100px)');
+    const update = () => setWideWorkbench(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  const assistantPinned = activePage === 'workbench' && wideWorkbench;
+  const assistantVisible = assistantPinned || assistantOpen;
   const preparationAssistantContext=useRef<PreparationAssistantContext>({});
   const [assistantEntry,setAssistantEntry]=useState<AssistantEntry>({mode:'default',requestKey:0});
   useEffect(()=>{
-    const update=(event:Event)=>{preparationAssistantContext.current=(event as CustomEvent<PreparationAssistantContext>).detail??{};};
+    const update=(event:Event)=>{
+      const context=(event as CustomEvent<PreparationAssistantContext>).detail??{};
+      preparationAssistantContext.current=context;
+      setAssistantEntry(current => current.mode==='preparation' && (current.preparationId!==context.preparationId || current.documentId!==context.documentId)
+        ? {...context,mode:'preparation',requestKey:Date.now()} : current);
+    };
     const open=(event:Event)=>{const context=(event as CustomEvent<PreparationAssistantContext>).detail??{};preparationAssistantContext.current=context;setAssistantEntry({...context,mode:'preparation',requestKey:Date.now()});setWorkbenchVisited(true);setAssistantOpen(true);};
     window.addEventListener('qingsong:preparation-context',update);window.addEventListener('qingsong:preparation-assistant',open);
     return()=>{window.removeEventListener('qingsong:preparation-context',update);window.removeEventListener('qingsong:preparation-assistant',open);};
   },[]);
-  useEffect(()=>{if(activePage==='workbench')setAssistantEntry({mode:'default',requestKey:Date.now()});},[activePage]);
+  useEffect(()=>{setAssistantEntry(activePage==='lesson-plan'?{...preparationAssistantContext.current,mode:'preparation',requestKey:Date.now()}:{mode:'default',requestKey:Date.now()});},[activePage]);
   const [workbenchVisited, setWorkbenchVisited] = useState(() => assistantSourceRoute(window.location.href).page==='workbench');
   useEffect(() => { if (activePage === 'workbench') setWorkbenchVisited(true); }, [activePage]);
   const [lessonRoute,setLessonRoute]=useState<LessonRoute|null>(()=>readLessonRoute(authState.user.id));
@@ -749,8 +763,8 @@ export default function App() {
     <AppLayout
       headerContextRef={setClassroomHeaderTarget}
       activePage={activePage}
-      assistantOpen={assistantOpen}
-      assistant={workbenchVisited || assistantOpen ? <AssistantDock surface={activePage==='workbench'?'workbench':'task'} identityKey={authState.user.id} open={assistantOpen} entry={assistantEntry} onClose={() => setAssistantOpen(false)}/> : null}
+      assistantOpen={assistantVisible}
+      assistant={workbenchVisited || assistantVisible ? <AssistantDock surface={activePage==='workbench'?'workbench':'task'} identityKey={authState.user.id} open={assistantVisible} pinned={assistantPinned} entry={assistantEntry} onClose={() => setAssistantOpen(false)}/> : null}
       classes={classes}
       expandedGroups={expandedGroups}
       navGroups={navGroups}

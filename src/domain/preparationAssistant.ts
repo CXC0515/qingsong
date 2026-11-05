@@ -1,5 +1,7 @@
 /** Trusted UI selection; the server resolves ownership and the native session. */
 export interface PreparationAssistantContext {
+  sessionId?: string;
+  newSessionId?: string;
   preparationId?: string;
   documentId?: string;
   revision?: number;

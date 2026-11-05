@@ -1,8 +1,8 @@
 import { documentChanges } from "../../domain/documentChanges";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Check, X } from "lucide-react";
 import { GlassButton } from "../../components/glass/Glass";
-import DocumentEditor from "../../components/document/DocumentEditor";
+const DocumentEditor = lazy(() => import("../../components/document/DocumentEditor"));
 import type { DocumentRecord } from "../../domain/document";
 import type { DocumentProposal } from "../../domain/preparation";
 import {
@@ -122,7 +122,7 @@ export default function PreparationProposals({
                 <div className="qs-prep-proposal-comparison">
                   <section>
                     <h4>当前稿 · 版本 {document.revision}</h4>
-                    <DocumentEditor
+                    <Suspense fallback={<p role="status">正在载入预览…</p>}><DocumentEditor
                       content={
                         comparison.before.content.length
                           ? comparison.before
@@ -130,11 +130,11 @@ export default function PreparationProposals({
                       }
                       documentKey={`proposal-before-${document.id}-${document.revision}`}
                       readOnly
-                    />
+                    /></Suspense>
                   </section>
                   <section>
                     <h4>AI 建议稿 · 尚未应用</h4>
-                    <DocumentEditor
+                    <Suspense fallback={<p role="status">正在载入预览…</p>}><DocumentEditor
                       content={
                         comparison.after.content.length
                           ? comparison.after
@@ -142,7 +142,7 @@ export default function PreparationProposals({
                       }
                       documentKey={`proposal-after-${proposal.id}`}
                       readOnly
-                    />
+                    /></Suspense>
                   </section>
                 </div>
               </div>

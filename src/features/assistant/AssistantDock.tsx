@@ -24,12 +24,14 @@ const storedPreference = (key: string) => {
 export default function AssistantDock({
   open,
   surface,
+  pinned = false,
   entry,
   identityKey,
   onClose,
 }: {
   open: boolean;
   surface: "workbench" | "task";
+  pinned?: boolean;
   entry: AssistantEntry;
   identityKey: string;
   onClose: () => void;
@@ -59,7 +61,7 @@ export default function AssistantDock({
     };
   }, [open]);
   useEffect(() => {
-    if (!open) return;
+    if (!open || pinned) return;
     const escape = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape" && !document.querySelector("dialog[open]")) {
         event.preventDefault();
@@ -68,7 +70,7 @@ export default function AssistantDock({
     };
     window.addEventListener("keydown", escape);
     return () => window.removeEventListener("keydown", escape);
-  }, [open, onClose]);
+  }, [open, pinned, onClose]);
   const drag = useRef<{ x: number; width: number } | null>(null);
   const clamp = (value: number) => Math.max(MIN_WIDTH, Math.min(600, value));
   const saveWidth = (value: number) => {
@@ -143,7 +145,7 @@ export default function AssistantDock({
           <strong>AI 助手</strong>
           {entry.mode === "preparation" && <small>当前备课</small>}
         </span>
-        <button
+        {!pinned && <button
           ref={closeButton}
           type="button"
           onClick={onClose}
@@ -152,7 +154,7 @@ export default function AssistantDock({
           <ArrowLeft className="qs-assistant-return" size={18} />
           <PanelRightClose className="qs-assistant-collapse" size={18} />
           <span>{entry.mode === "preparation" ? "返回教案" : "返回页面"}</span>
-        </button>
+        </button>}
       </header>
       <AssistantPanel entry={entry} />
     </aside>

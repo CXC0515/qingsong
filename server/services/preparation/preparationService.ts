@@ -1129,6 +1129,7 @@ export function findPreparationSession(
   requirePreparation(preparationId);
   return repo
     .sessions<PreparationSessionBinding>(preparationId)
+    .sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))
     .find((binding) => !documentId || binding.documentId === documentId);
 }
 export function listPreparationSessions(

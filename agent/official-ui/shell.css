@@ -64,3 +64,9 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 .qs-materials-error{position:absolute;bottom:calc(100% + 8px);left:0;z-index:40;width:min(280px,70vw);padding:10px;border-radius:12px;background:#fff5f2;color:#9b3131;font-size:13px;line-height:1.5}
 .qs-materials-button:focus-visible,.qs-materials-options button:focus-visible{outline:2px solid #426b56;outline-offset:2px}
 .qs-materials-error{display:flex;align-items:center;gap:8px}.qs-materials-error>span{min-width:0;flex:1}.qs-materials-error>button{display:grid;place-items:center;flex:none;width:44px;min-height:44px;padding:0;border:0;border-radius:10px;background:transparent;color:inherit;cursor:pointer}
+.qs-failure-notice{margin:8px 0;padding:12px;border:1px solid #dca78c;border-radius:12px;color:var(--text-color,#543c2d);font-size:14px;overflow-wrap:anywhere}
+.qs-failure-notice p{margin:0 0 8px}
+.qs-failure-notice button,.qs-failure-notice summary{min-height:44px;cursor:pointer}
+.qs-failure-notice pre{white-space:pre-wrap;font-size:12px;max-height:220px;overflow:auto}
+.qs-session-association{display:block;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--text-secondary,#647168)}
+@media(max-width:440px){.qs-session-association{max-width:135px}}

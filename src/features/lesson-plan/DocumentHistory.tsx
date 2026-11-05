@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Download, RotateCcw } from "lucide-react";
 import { GlassButton } from "../../components/glass/Glass";
 import ResponsiveDialog from "../../components/ResponsiveDialog";
-import DocumentEditor from "../../components/document/DocumentEditor";
+const DocumentEditor = lazy(() => import("../../components/document/DocumentEditor"));
 import type { DocumentRecord, DocumentRevision } from "../../domain/document";
 import {
   exportPreparationDocument,
@@ -189,11 +189,11 @@ export default function DocumentHistory({
             </p>
           )}
           {selected && (
-            <DocumentEditor
+            <Suspense fallback={<p role="status">正在载入预览…</p>}><DocumentEditor
               documentKey={`${document.id}:history:${selected.revision}`}
               content={selected.content}
               readOnly
-            />
+            /></Suspense>
           )}
         </section>
       </div>

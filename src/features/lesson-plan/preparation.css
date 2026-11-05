@@ -15,6 +15,7 @@
   min-width: 160px;
 }
 .qs-prep-subject-filter,
+.qs-prep-conversations > select,
 .qs-prep-document-actions > select,
 .qs-editor-toolbar select {
   min-height: 44px;
@@ -25,6 +26,7 @@
   color: inherit;
 }
 .dark .qs-prep-subject-filter,
+.dark .qs-prep-conversations > select,
 .dark .qs-prep-document-actions > select,
 .dark .qs-editor-toolbar select {
   background: #1e2924;
@@ -34,6 +36,14 @@
   border: 1px solid #6f85752b;
   border-radius: 20px;
   background: #ffffffa6;
+}
+.qs-prep-conversations {display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;max-width:100%}
+.qs-prep-conversations > select {min-width:0;max-width:190px}
+.qs-prep-conversations > [role=alert] {flex-basis:100%;font-size:13px;color:#a12d2d}
+@media(max-width:639px) {
+  .qs-prep-main-actions {flex-wrap:wrap}
+  .qs-prep-conversations {flex-basis:100%;justify-content:flex-end}
+  .qs-prep-conversations > select {flex:1;width:0;max-width:none;font-size:16px}
 }
 .dark .qs-prep-list {
   background: #18231fde;

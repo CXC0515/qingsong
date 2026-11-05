@@ -6,6 +6,43 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     const materialToken = id => '[[青松材料:' + id + ']]';
     const materialUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const connectionId = (window.name || '').replace(/^qingsong-assistant:/, '');
+    function SessionAssociation({sessionId}) {
+      const [label,setLabel] = React.useState('正在核对教案关联…');
+      React.useEffect(() => {
+        const controller = new AbortController();
+        setLabel('正在核对教案关联…');
+        fetch('./api/qingsong/preparation-outcome?sessionId='+encodeURIComponent(sessionId),{signal:AbortSignal.any([controller.signal,AbortSignal.timeout(10000)]),cache:'no-store'})
+          .then(async response => {if(!response.ok) throw Error(); return response.json();})
+          .then(value => {if(!controller.signal.aborted) setLabel(value.bound ? '关联教案：'+value.title : '未关联教案：请从具体教案打开助手后修改正文。');})
+          .catch(() => {if(!controller.signal.aborted) setLabel('教案关联尚未核对，请从具体教案打开助手。');});
+        return () => controller.abort();
+      },[sessionId]);
+      return React.createElement('span',{className:'qs-session-association',title:label},label);
+    }
+    function FailureNotice({node, sessionId, retry}) {
+      const failure = retry ? node.data.current.failure : node.data;
+      const [outcome, setOutcome] = React.useState('正在核对教案保存状态…');
+      const [attempt, setAttempt] = React.useState(0);
+      React.useEffect(() => {
+        if (retry) return;
+        const controller = new AbortController();
+        setOutcome('正在核对教案保存状态…');
+        fetch('./api/qingsong/preparation-outcome?sessionId=' + encodeURIComponent(sessionId), {signal:AbortSignal.any([controller.signal,AbortSignal.timeout(10000)]), cache:'no-store'})
+          .then(async response => {if (!response.ok) throw Error(); return response.json();})
+          .then(value => {if (!controller.signal.aborted) setOutcome(globalThis.QingsongAssistantFailure.saved(value));})
+          .catch(() => {if (!controller.signal.aborted) setOutcome('保存状态尚未核对成功。请检查教案和修改建议，避免重复提交。');});
+        return () => controller.abort();
+      }, [sessionId, node.key, attempt, retry]);
+      const current = retry ? node.data.current : null;
+      return React.createElement('div', {className:'qs-failure-notice',role:'status'},
+        React.createElement('p',null,globalThis.QingsongAssistantFailure.reason(failure)),
+        retry ? React.createElement('p',null,current.retryState === 'scheduled' ? '系统正在按既定次数重试当前模型请求，请稍候；不会重发整轮操作。' : current.retryState === 'cancelled' ? '本次模型重试已取消。' : '已尝试重新连接模型服务。') : React.createElement('p',null,outcome),
+        !retry && React.createElement('button',{type:'button',onClick:()=>setAttempt(value=>value+1)},'重新核对保存状态'),
+        React.createElement('details',null,React.createElement('summary',null,'技术详情'),React.createElement('pre',null,JSON.stringify({code:failure?.code,message:failure?.message,...(retry ? {delayMs:Math.round(current.delayMs),retry:current.retry,maxRetries:current.maxRetries} : {})},null,2))));
+    }
+    for (const [key,retry] of [['model-retry',true],['turn-error',false]]) {
+      ctx.slots.inject('conversation.chat.node',()=>ctx.slots.register({name:'conversation.chat.node',key,priority:-100},props=>React.createElement(FailureNotice,{...props,retry})));
+    }
     ctx.effect(() => ctx.inputTriggers.registerSource({
       name: materialSource, trigger: '@', candidates: async () => [], onPick: () => undefined,
       codec: {clipboardText: materialToken, serialize: async id => {
@@ -63,6 +100,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         open&&React.createElement('div',{className:'qs-materials-options',role:'menu'},
           React.createElement('button',{type:'button',role:'menuitem',onClick:()=>{setOpen(false);fileInput.current.click();}},icon('M21 11.5 12 20.5a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8L15 6.5'),'上传文件'),
           React.createElement('button',{type:'button',role:'menuitem',onClick:pickPool},icon('M3 7h7l2-3h9v16H3Z'),'从材料池选择')),
+        React.createElement(SessionAssociation,{sessionId}),
         error&&React.createElement('span',{className:'qs-materials-error',role:'alert'},React.createElement('span',null,error),React.createElement('button',{type:'button','aria-label':'关闭材料提示',onClick:()=>setError('')},icon('M6 6l12 12M18 6 6 18'))));
     }
     ctx.slots.inject('conversation.input.left',()=>ctx.slots.register({
