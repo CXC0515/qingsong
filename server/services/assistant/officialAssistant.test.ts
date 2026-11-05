@@ -107,9 +107,13 @@ const model = createServer(async (req, res) => {
   if (queryScenario === 'preparation') {
     const previous = input.messages.filter((m:any)=>m.role==='tool').at(-1);
     let value:any; try { value=JSON.parse(previous?.content??'null'); } catch {}
-    const args = value?.id && value?.result?.baseRevision
-      ? {action:'propose',taskId:value.id,baseRevision:value.result.baseRevision,operationId:crypto.randomUUID(),summary:'合成课堂任务建议',content:JSON.stringify({type:'doc',content:[{type:'heading',attrs:{level:2},content:[{type:'text',text:'教学目标'}]},{type:'paragraph',content:[{type:'text',text:'合成教案闭环：依据原文寻找证据。'}]}]})}
-      : !previous ? {action:'begin',stage:'整理合成课堂任务'} : undefined;
+    let args:any;
+    if(!previous)args={action:'begin',stage:'整理合成课堂任务'};
+    else if(value?.verification?.action==='begin')args={action:'propose',taskId:value.taskId,baseRevision:value.baseRevision,operationId:crypto.randomUUID(),content:JSON.stringify({type:'doc',content:[{type:'heading',attrs:{level:2},content:[{type:'text',text:'教学目标'}]},{type:'paragraph',content:[{type:'text',text:'合成教案闭环：依据原文寻找证据。'}]}]})};
+    else if(value?.code==='INVALID_PREPARATION_INPUT'){
+      const prior=input.messages.filter((m:any)=>m.role==='assistant'&&m.tool_calls?.length).at(-1);
+      args={...JSON.parse(prior.tool_calls[0].function.arguments),summary:'根据字段错误补充修改摘要'};
+    }
     const delta = args ? {role:'assistant',tool_calls:[{index:0,id:crypto.randomUUID(),type:'function',function:{name:'qingsong_preparation',arguments:JSON.stringify(args)}}]} : {role:'assistant',content:'修改候选已就绪，等待教师确认。'};
     res.write('data: '+JSON.stringify(frame(delta))+'\n\n');
     res.end('data: '+JSON.stringify(frame({},args?'tool_calls':'stop'))+'\n\ndata: [DONE]\n\n'); return;
@@ -690,7 +694,11 @@ test('preparation: native workspace binding, candidate creation and explicit tea
   const history=await call('/api/preparations/'+prep+'/documents/'+doc+'/revisions/1');
   assert.equal(history.document.revision,1);
   for(let i=0;i<160;i++) {const session=await page(cookie,target.sessionId);if(session.records?.some(record=>record.event?.type==='turn/end'))break;await new Promise(resolve=>setTimeout(resolve,50));}
-  assert.ok((await page(cookie,target.sessionId)).records.some(record=>record.event?.type==='turn/end'));
+  const records=(await page(cookie,target.sessionId)).records;
+  assert.ok(records.some(record=>record.event?.type==='turn/end'));
+  const toolResults=records.filter(record=>record.event?.type==='tool/result').map(record=>JSON.parse(record.event.data.message.content[0].text));
+  assert.ok(toolResults.some(result=>result.code==='INVALID_PREPARATION_INPUT'&&result.issues.some(issue=>issue.field==='propose.summary')),'real DSH must return field-level guardrail errors');
+  assert.ok(toolResults.some(result=>result.verification?.verified&&result.verification.action==='propose'),'real DSH must expose verified proposal status');
  } finally {queryScenario=undefined;}
 });
 

@@ -917,7 +917,11 @@ export function applyProposal(
       },
       preparationId,
     );
-    return document;
+    const persisted=getDocument(preparationId,document.id);
+    const applied=repo.get<DocumentProposal>('preparation_proposals',proposalId);
+    if(applied?.status!=='applied'||applied.appliedRevision!==persisted.revision||canonical(persisted.content)!==canonical(document.content))
+      fail('PREPARATION_VERIFY_FAILED','应用结果核验失败，本次事务已撤回。请核对教案后重试。',409);
+    return persisted;
   });
 }
 export function discardProposal(

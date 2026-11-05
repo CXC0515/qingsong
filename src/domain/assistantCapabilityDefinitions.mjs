@@ -2,8 +2,8 @@
 export const assistantCapabilityVersion = 'qingsong-read-v4';
 export const assistantObjects = {
   preparation: {label:'备课空间',filters:['subject'],sections:['detail','sources','documents','tasks']},
-  lessonPlan: {label:'教案正文与版本（必须提供preparationId）',filters:['preparationId'],sections:['detail','content','revisions']},
-  preparationSource: {label:'本次备课已选资料（必须提供preparationId）',filters:['preparationId'],sections:['detail','original']},
+  lessonPlan: {label:'教案正文与版本（search用filters.preparationId，read用ref.parentId）',filters:['preparationId'],sections:['detail','content','revisions']},
+  preparationSource: {label:'本次备课已选资料（search用filters.preparationId，read用ref.parentId）',filters:['preparationId'],sections:['detail','original']},
   class: {label:'班级（支持简称；关联描述先查相应记录）', filters:['status'], sections:['detail','students','committee','seating','summary']},
   student: {label:'学生档案', filters:['classId','enrollmentStatus'], sections:['detail','observations','homework','weaknessEvidence','classroom','behavior']},
   classroomTask: {label:'课堂任务', filters:['classId','from','to','lifecycle','negativeOnly'], sections:['detail','participants','events']},
@@ -46,9 +46,9 @@ const paging = {
 export const capabilityArgumentDefinitions = {
  discover:{type},
  search:{type:{...type,required:true},query:{type:'string',trim:true,maxLength:200,default:'',description:'按姓名、学号、标题或正文查找，不填表示列举'},filters:{type:'object',properties:filters,default:{},additionalProperties:false,description:'仅使用当前对象支持的筛选项，先查看discover'},...paging},
- read:{ref:{type:'object',required:true,additionalProperties:false,description:'search返回的ref原样传入；不是字符串编号',properties:{type:{...type,required:true},id:{...id('对象真实编号'),required:true},parentId:id('学生的所属班级、课堂任务的班级或批改材料的taskId，按search返回保留')}},
+ read:{ref:{type:'object',required:true,additionalProperties:false,description:'search返回的ref原样传入；不是字符串编号',properties:{type:{...type,required:true},id:{...id('对象真实编号'),required:true},parentId:id('学生/课堂任务所属班级、批改材料taskId、教案/备课资料的preparationId；按search返回保留')}},
  section:{type:'string',enum:[...new Set(Object.values(assistantObjects).flatMap(object=>object.sections))],maxLength:64,default:'detail',description:'要读取的内容，取值以该对象的sections为准；默认detail'},
- filters:{type:'object',properties:filters,default:{},additionalProperties:false,description:'读取仅支持学生和课堂表现的明确筛选条件，以discover为准'},...paging,
+ filters:{type:'object',properties:filters,default:{},additionalProperties:false,description:'读取筛选按对象区分；lessonPlan仅支持revision；备课编号必须放ref.parentId，以discover为准'},...paging,
  textOffset:{type:'integer',minimum:0,maximum:10000000,default:0,description:'长文本续读偏移，按上次textWindow.nextTextOffset填写'}},
 };
 // DSH rc.3 supports scalar types/enums and annotations, but not numeric or string bounds.
