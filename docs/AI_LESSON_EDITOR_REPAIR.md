@@ -1,7 +1,7 @@
 # 备课编辑与助手协作修复
 
-版本：v1.0 · 2026-11-05（Asia/Shanghai）
-状态：用户已批准代码、交互完善、文件互通验证及部署；本地检查完成，待Linux检查和发布。
+版本：v1.1 · 2026-11-05（Asia/Shanghai）
+状态：PR #123已合并并部署ef6e0cf，待用户正式账号、真实模型及真机体验验收。
 
 ## 原始问题与目标
 
@@ -54,6 +54,18 @@
 - 实测文档：https://icnphsiltmy8.feishu.cn/docx/PVFJdRyGjoiBtZxjB14cXOjen5d 。仅合成验收资料。飞书会增加文档标题、调整字体字号、链接色/高亮，字母编号转数字，导回时表头语义和灰底可能不保留；不宣称无损往返。原Word与导回Word均转PDF看图；本地渲染使用临时fontconfig，未改系统设置。
 - 证据：/tmp/qs-editor-final-tests.log、/tmp/qs-editor-final-lint.log、/tmp/qs-editor-final-build.log、/tmp/qs-editor-feishu-qa/roundtrip/validation.json及pdf-qa/。Linux与发布另记。
 
+## Linux检查及生产发布
+
+- PR #123：https://github.com/CXC0515/qingsong/pull/123 ，合并提交ef6e0cf6998d2e3687f012b238bacb2f4b70c36c。母文件夹main快进同步后打包，归档SHA256 a27f8ff500f8ba50e3d59cc7a9fe8e448f5c2dea841523997493ec58c322fcc2，558份源码逐文件校验，与已测候选一致。
+- 固定Node24.22.1、teacher-dashboard身份、PrivateTmp/ProtectHome/ProtectSystem约束下，独立依赖安装、类型、构建、77项定向及4项原生DSH/HTTP测试全部通过，无跳过；真实模型调用0。安装缓存及TMPDIR放候选磁盘，不占小容量/tmp。测试峰值约1.3GB，不代表生产常驻内存。
+- 发布前确认活动批改/OCR/备课及原生模型轮次均0。手工恢复点/var/lib/teacher-dashboard/backups/product-2026-11-05-pre-editor-ef6e0cf：680文件、12SQLite，在线backup API和回读验证通过；未删除任何已有备份或会话。
+- 首轮恢复点创建因备份父目录权限失败，脚本在切换current前停止并恢复旧服务/备份timer。改为以备份目录现有root管理身份运行相同在线备份，没有放宽目录权限或恢复业务数据；复验源码后再次发布成功。
+- current=/opt/teacher-dashboard/releases/ef6e0cf6998d2e3687f012b238bacb2f4b70c36c；应用active/running/NRestarts0，记忆服务和备份timer active。12数据库/183表完整性ok、外键错误0，前后schema及表计数一致。
+- 公网live/ready及首页200，备课与助手匿名入口401；74份资源完整下载且哈希匹配release。首页SHA256 64d4c8aaf104622787613219a0e42c1ff6a0934eef01b1865806f976945b762c；入口index-CgaEgORI.js。资源和协议检查不替代教师体验验收。
+- 服务器证据目录/var/log/teacher-dashboard-editor-repair-2026-11-05/含Linux检查、源码清单、首次失败、最终切换、备份回执及前后计数；仅运维可读。原发布暂留供用户体验后按既有约定收敛，不清理真实数据与备份。
+
 ## 修改历史
 
 - v1.0：记录批准范围、根因、实现边界与真实交互验收。
+
+- v1.1：补充真实浏览器与飞书往返缺口修复、Linux检查及PR #123发布回执。
