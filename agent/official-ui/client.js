@@ -113,7 +113,17 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         setRecovering(true);setRecovery('正在整理历史，原会话和教案保留…');
         try {const result=await ctx.remote.commands.execute(sessionId,'/compact',[]);if(!result?.ok||result.value?.result?.kind!=='success')throw Error('历史整理未能完成。');setRecovery('历史已整理。请核对教案和修改建议，再发送你的修改要求；本次没有自动重跑。');setCompactFailed(false);}catch{setRecovery('历史整理未完成。原会话和教案保留，可新建关联会话继续。');setCompactFailed(true);}finally{setRecovering(false);}
       };
-      const newSession=()=>{const scope=ctx.sessions.scope(sessionId);const draft=scope?ctx.conversation.input.for(scope).snapshot.draft:'';setRecovering(true);parent.postMessage({type:'qingsong:preparation-recovery',connectionId,target:{preparationId:savedValue.preparationId,documentId:savedValue.documentId,revision:savedValue.revision,...(savedValue.selection&&!savedValue.selection.stale?{selection:{blockIds:savedValue.selection.blockIds,text:savedValue.selection.text,...(savedValue.selection.location?{location:savedValue.selection.location}:{})}}:{}),instruction:draft||savedValue.lastInstruction||'请继续修改当前教案。\n修改建议如下：\n'}},location.origin);};
+      const pendingRecovery=React.useRef(null);
+      React.useEffect(()=>()=>pendingRecovery.current?.(),[]);
+      const newSession=()=>{
+        const scope=ctx.sessions.scope(sessionId),draft=scope?ctx.conversation.input.for(scope).snapshot.draft:'';
+        const requestId=crypto.randomUUID();setRecovering(true);setRecovery('正在打开新的关联会话，原会话保留…');
+        const finish=error=>{clearTimeout(timer);window.removeEventListener('message',receive);pendingRecovery.current=null;setRecovering(false);if(error)setRecovery('新会话尚未打开。原会话和输入保留，请使用助手上方“重试打开”。');};
+        const receive=event=>{const data=event.data;if(event.origin===location.origin&&event.source===parent&&data?.connectionId===connectionId&&data?.type==='qingsong:recovery-result'&&data?.requestId===requestId)finish(data.error);};
+        const timer=setTimeout(()=>finish('timeout'),65000);window.addEventListener('message',receive);
+        pendingRecovery.current=()=>{clearTimeout(timer);window.removeEventListener('message',receive);};
+        parent.postMessage({type:'qingsong:preparation-recovery',connectionId,requestId,target:{preparationId:savedValue.preparationId,documentId:savedValue.documentId,revision:savedValue.revision,...(savedValue.selection&&!savedValue.selection.stale?{selection:{blockIds:savedValue.selection.blockIds,text:savedValue.selection.text,...(savedValue.selection.location?{location:savedValue.selection.location}:{})}}:{}),instruction:draft||savedValue.lastInstruction||'请继续修改当前教案。\n修改建议如下：\n'}},location.origin);
+      };
       React.useEffect(() => {
         if (retry) return;
         const controller = new AbortController();
@@ -128,7 +138,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       return React.createElement('div', {className:'qs-failure-notice',role:'status'},
         React.createElement('p',null,globalThis.QingsongAssistantFailure.reason(failure)),
         retry ? React.createElement('p',null,current.retryState === 'scheduled' ? '系统正在按既定次数重试当前模型请求，请稍候；不会重发整轮操作。' : current.retryState === 'cancelled' ? '本次模型重试已取消。' : '已尝试重新连接模型服务。') : React.createElement('p',null,outcome),
-        overflow&&!retry&&React.createElement('div',{className:'qs-failure-recovery'},React.createElement('button',{type:'button',disabled:recovering,onClick:()=>void compact()},recovering?'正在整理…':'整理历史后继续'),compactFailed&&savedValue?.bound&&React.createElement('button',{type:'button',disabled:recovering,onClick:newSession},'新建关联会话继续'),recovery&&React.createElement('p',{role:'status'},recovery)),
+        overflow&&!retry&&React.createElement('div',{className:'qs-failure-recovery'},React.createElement('button',{type:'button',disabled:recovering,onClick:()=>void compact()},recovering?'处理中…':'整理历史后继续'),compactFailed&&savedValue?.bound&&React.createElement('button',{type:'button',disabled:recovering,onClick:newSession},'新建关联会话继续'),recovery&&React.createElement('p',{role:'status'},recovery)),
         !retry && React.createElement('button',{type:'button',onClick:()=>setAttempt(value=>value+1)},'重新核对保存状态'),
         React.createElement('details',null,React.createElement('summary',null,'技术详情'),React.createElement('pre',null,JSON.stringify({code:failure?.code,message:failure?.message,...(retry ? {delayMs:Math.round(current.delayMs),retry:current.retry,maxRetries:current.maxRetries} : {})},null,2))));
     }

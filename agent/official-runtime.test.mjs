@@ -216,3 +216,24 @@ test('shell association follows the actual session, hides ordinary chats and ign
  dispose();pending[3].resolve({ok:true,json:async()=>({bound:true,title:'已销毁的回执'})});
  await new Promise(resolve=>setTimeout(resolve,0));assert.equal(posted.at(-1).title,undefined);
 });
+
+test('failed recovery acknowledgement releases the error card without replaying a prompt',async()=>{
+ const source=await readFile(new URL('./official-ui/client.js',import.meta.url),'utf8');
+ const slots=[],posted=[],listeners=new Set(),states=[],refs=[];let plugin,index=0;
+ const saved={bound:true,preparationId:'prep',documentId:'doc',revision:7};
+ const React={createElement:(type,props,...children)=>({type,props:{...props,children}}),useState:initial=>{const i=index++;const value=i===2?saved:i===5?true:initial;states[i]=value;return[value,next=>{states[i]=next;}];},useRef:initial=>{const ref={current:initial};refs.push(ref);return ref;},useEffect:()=>{}};
+ const parent={postMessage:data=>posted.push(data)};
+ const window={name:'qingsong-assistant:recovery',__ModuleLoader__:{load:module=>{plugin=module.factory(()=>React);}},addEventListener:(name,fn)=>{if(name==='message')listeners.add(fn);},removeEventListener:(_name,fn)=>listeners.delete(fn)};
+ vm.runInNewContext(source,{window,parent,location:{origin:'https://fixture.test'},crypto:globalThis.crypto,setTimeout,clearTimeout,globalThis:{QingsongAssistantFailure:{isOverflow:()=>true,reason:()=>'',saved:()=>''}}});
+ plugin.apply({slots:{inject:(_name,register)=>register(),register:(options,render)=>{slots.push({options,render});}},effect:()=>{},sessions:{scope:()=>({})},conversation:{input:{for:()=>({snapshot:{draft:'教师当前修改要求'}})}}});
+ const outer=slots.find(slot=>slot.options.key==='turn-error').render({node:{data:{code:'CONTEXT_WINDOW_EXCEEDED'}},sessionId:'old-session'});
+ const tree=outer.type(outer.props);
+ const find=value=>{if(!value||typeof value!=='object')return;if(value.type==='button'&&value.props.children.includes('新建关联会话继续'))return value;for(const child of value.props?.children?.flat(Infinity)??[]){const result=find(child);if(result)return result;}};
+ try {
+  find(tree).props.onClick();assert.equal(states[4],true);assert.equal(posted.length,1);assert.equal(posted[0].target.instruction,'教师当前修改要求');
+  const reply={origin:'https://fixture.test',source:parent,data:{type:'qingsong:recovery-result',connectionId:'recovery',requestId:posted[0].requestId,error:'open failed'}};
+  for(const listener of [...listeners])listener({...reply,origin:'https://evil.test'});assert.equal(states[4],true);
+  for(const listener of [...listeners])listener(reply);
+  assert.equal(states[4],false);assert.match(states[3],/原会话和输入保留/);assert.equal(posted.length,1);assert.equal(listeners.size,0);
+ } finally {refs.forEach(ref=>ref.current?.());}
+});
