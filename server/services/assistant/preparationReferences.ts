@@ -10,6 +10,26 @@ export interface PreparationReference {
 }
 const referenceKey = (id: string) => 'preparation-reference:' + z.uuid().parse(id);
 const sessionKey = (id: string) => 'preparation-references:' + z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/).parse(id);
+export function listPreparationReferenceCandidates(query = '') {
+  const needle = query.trim().toLocaleLowerCase();
+  return preparations.listPreparations().flatMap(preparation =>
+    preparations.getPreparation(preparation.id).documents.map(document => ({
+      preparationId: preparation.id, documentId: document.id, revision: document.revision,
+      title: preparation.title === document.title ? document.title : preparation.title + ' · ' + document.title,
+    })),
+  ).filter(item => !needle || item.title.toLocaleLowerCase().includes(needle)).slice(0, 50);
+}
+export function preparationReferenceStatus(id: string) {
+  const reference = getPreparationReference(id);
+  const latest = preparations.getDocument(reference.preparationId, reference.documentId);
+  return {...reference, latestRevision: latest.revision, stale: latest.revision !== reference.revision};
+}
+export function updatePreparationReference(id: string) {
+  const reference = preparationReferenceStatus(id);
+  if (reference.selection && reference.stale)
+    throw new preparations.PreparationError('SELECTION_CHANGED', '选区所在正文已有新版，请回到教案重新选择；当前输入和旧引用保留。', 409);
+  return createPreparationReference({preparationId: reference.preparationId, documentId: reference.documentId, selection: reference.selection});
+}
 export function createPreparationReference(input: PreparationAssistantContext): PreparationReference {
   const detail = preparations.getPreparation(input.preparationId!);
   const document = preparations.getDocument(detail.preparation.id, input.documentId ?? detail.documents[0].id, input.revision);

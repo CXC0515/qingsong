@@ -77,3 +77,11 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 .qs-selection-quote>button {position:absolute;right:4px;top:0;min-width:44px;min-height:44px;border:0;background:transparent;color:inherit;font-size:12px;cursor:pointer}
 .qs-selection-quote p {margin:4px 0}
 .qs-selection-quote-error {font-size:12px}
+.qs-lesson-picker{position:absolute;bottom:52px;left:0;width:min(320px,calc(100vw - 64px));max-height:min(340px,55dvh);overflow:auto;padding:12px;background:var(--dsw-specific-input-major,#fff);border:1px solid #71887955;border-radius:14px;box-shadow:0 10px 32px #14291b25;z-index:12}
+.qs-lesson-picker>div{display:flex;justify-content:space-between;align-items:center}
+.qs-lesson-picker input{box-sizing:border-box;width:100%;min-height:44px;font-size:16px;padding:8px;border:1px solid #71887955;border-radius:8px}
+.qs-lesson-picker button{display:block;text-align:left;min-height:44px;width:100%;padding:8px;white-space:normal;overflow-wrap:anywhere}
+.qs-lesson-picker>div button{width:auto}
+.qs-lesson-updates{display:flex;flex-wrap:wrap;gap:4px;font-size:12px}
+.qs-lesson-updates:empty{display:none}
+.qs-lesson-updates button{min-height:44px;padding:6px 10px;border:1px solid #71887955;border-radius:10px;text-align:left}

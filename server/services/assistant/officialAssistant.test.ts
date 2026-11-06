@@ -681,6 +681,19 @@ test('preparation: native workspace binding, candidate creation and explicit tea
  const {target}=await call('/api/assistant/official/api/qingsong/preparation-target',body);
  assert.ok(target.workspaceId&&target.reference.id);
  assert.equal(target.sessionId,undefined);
+ const endpoint='/api/assistant/official/api/qingsong/lesson-references';
+ const candidates=await call(endpoint+'?q='+encodeURIComponent('陋室铭合成验收'));
+ assert.ok(candidates.items.some((item:any)=>item.documentId===doc));
+ const picked=(await call(endpoint,{preparationId:prep,documentId:doc})).reference;
+ assert.equal(picked.id,target.reference.id);
+ const otherCookie=await register('reference-outsider@fixture.test','引用隔离班');
+ const denied=await fetch(apiRoot+endpoint+'?id='+picked.id,{headers:{Cookie:otherCookie}});
+ assert.equal(denied.status,404);
+ const hidden=await fetch(apiRoot+endpoint+'?q='+encodeURIComponent('陋室铭合成验收'),{headers:{Cookie:otherCookie}});
+ assert.deepEqual((await hidden.json()).items,[]);
+ const invalid=await fetch(apiRoot+endpoint,{method:'POST',headers:{Origin:origin,Cookie:cookie,'content-type':'application/json','x-demo-csrf':'1'},body:JSON.stringify({referenceId:picked.id,preparationId:prep})});
+ assert.equal(invalid.status,400);
+
  target.sessionId=(await rpc(cookie,"session/create",{request:{workspaceId:target.workspaceId}})).value.sessionId;
  assert.equal((await call("/api/preparations/"+prep+"/sessions")).sessions.length,0);
  const initialOutcome=await call("/api/assistant/official/api/qingsong/preparation-outcome?sessionId="+target.sessionId);
@@ -696,6 +709,12 @@ test('preparation: native workspace binding, candidate creation and explicit tea
   assert.equal((await call('/api/assistant/official/api/qingsong/preparation-outcome?sessionId='+target.sessionId)).pending,1);
   const applied=await call('/api/preparations/'+prep+'/proposals/'+latest.proposals[0].id+'/apply',{operationId:crypto.randomUUID()});
   assert.equal(applied.document.revision,2);
+  const status=(await call(endpoint+'?id='+picked.id)).references[0];
+  assert.equal(status.stale,true);assert.equal(status.latestRevision,2);
+  const refreshed=(await call(endpoint,{referenceId:picked.id})).reference;
+  assert.equal(refreshed.revision,2);assert.notEqual(refreshed.id,picked.id);
+  assert.equal((await call(endpoint+'?id='+picked.id)).references[0].revision,1);
+
   assert.match(JSON.stringify(applied.document.content),/合成教案闭环/);
   assert.equal((await call('/api/preparations/'+prep+'/documents/'+doc+'/revisions')).revisions.length,2);
   const history=await call('/api/preparations/'+prep+'/documents/'+doc+'/revisions/1');
