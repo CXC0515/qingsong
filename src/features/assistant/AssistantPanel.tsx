@@ -23,6 +23,7 @@ function OfficialAssistantPanel({entry,onAssociationChange}:Props) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [connectionId,setConnectionId]=useState(()=>crypto.randomUUID());
   const [phase,setPhase]=useState<'page'|'catalogs'>('page');
+  const [sessionLoad,setSessionLoad]=useState<{phase:'loading'|'slow'|'stalled'|'error';durationMs:number}|null>(null);
   const [elapsed,setElapsed]=useState(0);
   const [slow,setSlow]=useState(false);
   const [ready, setReady] = useState(false);
@@ -102,12 +103,18 @@ function OfficialAssistantPanel({entry,onAssociationChange}:Props) {
   useEffect(() => {
     let started=performance.now(),connected=false,timer:ReturnType<typeof setInterval>|null=null;
     setReady(false);setError('');setPhase('page');setElapsed(0);setSlow(false);
+    setSessionLoad(null);
     const startTimer=()=>{if(timer!==null||connected)return;timer=setInterval(()=>{const seconds=Math.floor((performance.now()-started)/1000);setElapsed(seconds);if(seconds>=15)setSlow(true);if(seconds>=45)setError(current=>current||'连接尚未完成，已有会话保留。可重新连接；不会自动重发消息。');},1000);};
     const stopTimer=()=>{if(timer!==null)clearInterval(timer);timer=null;};
     const receive=(event:MessageEvent)=>{
       if(event.origin!==location.origin||event.source!==frame.current?.contentWindow)return;
       if(event.data?.type==='qingsong:settings'){setSettings(true);return;}
       if(event.data?.connectionId!==connectionId)return;
+      if(event.data?.type==='qingsong:session-load'){
+        if(event.data.phase==='empty'||event.data.phase==='ready')setSessionLoad(null);
+        else if(['loading','slow','stalled','error'].includes(event.data.phase))setSessionLoad({phase:event.data.phase,durationMs:Number(event.data.durationMs)||0});
+        return;
+      }
       if(event.data?.type==='qingsong:connection'){
         if(event.data.phase==='catalogs'||event.data.phase==='reconnecting'){
           if(connected||timer===null){connected=false;started=performance.now();setReady(false);setElapsed(0);setSlow(false);setError('');startTimer();}
@@ -228,6 +235,12 @@ function OfficialAssistantPanel({entry,onAssociationChange}:Props) {
   return <GlassSurface className="qs-assistant-panel qs-official-assistant flex h-full min-h-0 flex-col overflow-hidden">
     <style>{".qs-official-assistant>.lg-content{display:flex;flex-direction:column;min-height:0;flex:1;padding:0;gap:0;overflow:hidden}.qs-official-frame{display:flex;flex:1;min-height:0;margin:12px;border-radius:18px;overflow:hidden;background:#fff}"}</style>
     {!ready&&<div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-sm"><p role={error?'alert':'status'} className={error?'text-red-700':'text-gray-500'}>{error||(phase==='page'?'正在载入助手界面…':'正在同步工作区与会话…')}{!error&&elapsed>0?` ${elapsed}秒`:''}{slow&&!error?'，连接较慢，已有会话保留。':''}</p>{(slow||error)&&<GlassButton disabled={busy} onClick={retry}>重新连接</GlassButton>}</div>}
+    {ready&&sessionLoad&&<p role={sessionLoad.phase==='error'?'alert':'status'} className={'shrink-0 px-4 py-2 text-sm '+(sessionLoad.phase==='error'?'text-red-700':'text-gray-600')}>
+      {sessionLoad.phase==='loading'&&`正在读取当前会话，历史记录保留。${sessionLoad.durationMs>0?` ${Math.ceil(sessionLoad.durationMs/1000)}秒`:''}`}
+      {sessionLoad.phase==='slow'&&`当前会话读取较慢，历史记录保留。${Math.ceil(sessionLoad.durationMs/1000)}秒`}
+      {sessionLoad.phase==='stalled'&&'当前会话仍未就绪，请从侧栏重新选择；历史记录保留。'}
+      {sessionLoad.phase==='error'&&'当前会话内容未能就绪，请从侧栏重新选择；历史记录保留。'}
+    </p>}
     {targetStage && <p role="status" className="px-4 py-2 text-sm text-gray-500">{targetStage}</p>}
     {targetError && <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-sm text-red-700"><p role="alert">{targetError}</p><GlassButton onClick={() => setTargetAttempt(value => value + 1)}>重试打开</GlassButton></div>}
     {associationWarning && <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-sm text-amber-800" role="status"><p>{associationWarning}</p><button type="button" className="min-h-11 px-3" onClick={()=>setAssociationWarning('')}>知道了</button></div>}

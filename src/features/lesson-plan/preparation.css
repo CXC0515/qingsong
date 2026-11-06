@@ -1216,13 +1216,18 @@
 .qs-prep-materials::backdrop {background:#0006}
 .qs-prep-materials-header {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
 .qs-prep-materials-header button {display:grid;place-items:center;width:44px;min-height:44px;border:0;background:transparent;color:inherit;border-radius:12px}
-.qs-prep-current-task,.qs-prep-task-notice {display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px}
+.qs-prep-current-task {display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px}
 .qs-prep-current-task>span {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.qs-prep-needs-input {flex-wrap:wrap;white-space:normal}
-.qs-prep-needs-input>span {flex-basis:100%;white-space:normal;overflow-wrap:anywhere}
-.qs-prep-needs-input>button {display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 8px}
-.qs-prep-task-notice>span {flex:1;min-width:0}
-.qs-prep-task-notice button {flex:none;min-height:44px;padding:0 10px}
+.qs-prep-task-alerts {position:absolute;z-index:20;right:0;top:calc(100% + 8px);display:grid;gap:10px;width:min(360px,calc(100vw - 24px));max-height:min(50dvh,360px);overflow-y:auto;padding:12px;border:1px solid #71887933;border-radius:12px;background:#f5f8f2;box-shadow:0 8px 24px #0002}
+.dark .qs-prep-task-alerts {background:#1b2420}
+.qs-prep-task-alert {display:flex;align-items:flex-start;gap:8px;min-width:0;font-size:13px;line-height:1.45}
+.qs-prep-task-alert+ .qs-prep-task-alert {padding-top:10px;border-top:1px solid #71887933}
+.qs-prep-task-alert>span {flex:1;min-width:0;overflow-wrap:anywhere;white-space:normal}
+.qs-prep-needs-input {flex-wrap:wrap}
+.qs-prep-needs-input>span {flex-basis:100%}
+.qs-prep-task-alert-actions {display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.qs-prep-task-alert button {display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 10px;flex:none;white-space:nowrap}
+.qs-prep-needs-input .qs-prep-task-alert-actions>button:last-child {width:44px;padding:0}
 @media(prefers-reduced-motion:no-preference){.qs-prep-materials:modal {animation:qs-prep-materials-in .18s ease-out}@keyframes qs-prep-materials-in {from{transform:translateX(-100%)}to{transform:translateX(0)}}}
 
 /* One title/save row and one action row; secondary actions move together. */
@@ -1236,8 +1241,8 @@
 .qs-prep-tasks {position:relative}
 .qs-prep-tasks ul {padding:0;list-style:none;display:grid;gap:12px}
 .qs-prep-tasks li {overflow-wrap:anywhere}
-.qs-prep-current-task,.qs-prep-task-notice {position:absolute;z-index:20;right:0;top:100%;width:min(300px,calc(100vw - 32px));padding:10px;border:1px solid #71887933;border-radius:12px;background:#f5f8f2;box-shadow:0 8px 24px #0002}
-.dark .qs-prep-current-task,.dark .qs-prep-task-notice {background:#1b2420}
+.qs-prep-current-task {position:absolute;z-index:20;right:0;top:calc(100% + 8px);width:min(300px,calc(100vw - 24px));padding:10px;border:1px solid #71887933;border-radius:12px;background:#f5f8f2;box-shadow:0 8px 24px #0002}
+.dark .qs-prep-current-task {background:#1b2420}
 @container preparation (max-width:639px) {
  .qs-prep-title-group strong {font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  .qs-prep-title-group>div {min-width:0}

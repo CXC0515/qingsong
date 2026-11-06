@@ -7,7 +7,7 @@ vm.runInNewContext(
   await readFile(new URL("./navigation.js", import.meta.url), "utf8"),
   realm,
 );
-const { openContext } = realm.QingsongAssistantNavigation;
+const { openContext, observeSelectedSession } = realm.QingsongAssistantNavigation;
 function source(initial) {
   let state = initial;
   const listeners = new Set();
@@ -203,4 +203,92 @@ test("known sessions skip catalog RPC but still await content and report timings
   assert.deepEqual(timings.map(t => t.stage), ["workspace-directory", "session-directory", "session-content", "session-navigation"]);
   assert.ok(timings.every(t => Number.isFinite(t.durationMs) && t.durationMs >= 0));
   assert.ok(result.totalMs >= 0);
+});
+
+test("selected native session reports content readiness without exposing the session id", async () => {
+  const f = fixture(), messages = [];
+  f.sessions.set({ byId: { secretSessionId: { id: "secretSessionId", retainedBy: { mainView: 1 } } }, phase: "ready" });
+  let resolveReady, released = 0;
+  f.ctx.sessions.retain = (id, options) => {
+    assert.equal(id, "secretSessionId");
+    assert.ok(options.signal instanceof AbortSignal);
+    return { ready: new Promise(resolve => { resolveReady = resolve; }), release: () => released++ };
+  };
+  const stop = observeSelectedSession(f.ctx, state => messages.push(state), { setInterval: () => 1, clearInterval: () => {} });
+  assert.equal(messages[0].phase, "loading");
+  resolveReady({ sessionId: "secretSessionId" });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(messages.at(-1).phase, "ready");
+  assert.ok(!JSON.stringify(messages).includes("secretSessionId"));
+  assert.equal(released, 1);
+  stop();
+});
+
+test("selected session changes cancel old observation and ignore late readiness", async () => {
+  const f = fixture(), messages = [], pending = new Map(), releases = [];
+  f.ctx.sessions.retain = (id, options) => {
+    let resolve;
+    const ready = new Promise(done => { resolve = done; });
+    pending.set(id, { resolve, signal: options.signal });
+    return { ready, release: () => releases.push(id) };
+  };
+  f.sessions.set({ byId: { first: { id: "first", retainedBy: { mainView: 1 } } }, phase: "ready" });
+  const stop = observeSelectedSession(f.ctx, state => messages.push(state), { setInterval: () => 1, clearInterval: () => {} });
+  f.sessions.set({ byId: { second: { id: "second", retainedBy: { mainView: 1 } } }, phase: "ready" });
+  assert.equal(pending.get("first").signal.aborted, true);
+  pending.get("first").resolve();
+  pending.get("second").resolve();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(messages.map(state => state.phase), ["loading", "loading", "ready"]);
+  assert.deepEqual(releases, ["first", "second"]);
+  stop();
+});
+
+test("selected session content rejection reports failure and releases its reference", async () => {
+  const f = fixture(), messages = [];
+  f.sessions.set({ byId: { s1: { id: "s1", retainedBy: { mainView: 1 } } }, phase: "ready" });
+  let rejectReady, released = 0;
+  f.ctx.sessions.retain = () => ({ ready: new Promise((_resolve, reject) => { rejectReady = reject; }), release: () => released++ });
+  const stop = observeSelectedSession(f.ctx, state => messages.push(state), { setInterval: () => 1, clearInterval: () => {} });
+  rejectReady(new Error("private underlying failure"));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(messages.at(-1).phase, "error");
+  assert.ok(!JSON.stringify(messages).includes("private underlying failure"));
+  assert.equal(released, 1);
+  stop();
+});
+
+test("stalled content stops ticking, can finish later, and releases on disposal", async () => {
+  const f = fixture(), messages = [];
+  let clock = 0, tick, resolveReady, cancelled = 0, released = 0;
+  f.sessions.set({ byId: { s1: { id: 's1', retainedBy: { mainView: 1 } } }, phase: 'ready' });
+  f.ctx.sessions.retain = () => ({ ready: new Promise(resolve => { resolveReady = resolve; }), release: () => released++ });
+  const stop = observeSelectedSession(f.ctx, state => messages.push(state), { now: () => clock, setInterval: callback => { tick = callback; return 1; }, clearInterval: () => cancelled++ });
+  clock = 15000; tick();
+  assert.equal(messages.at(-1).phase, 'slow');
+  clock = 45000; tick();
+  assert.equal(messages.at(-1).phase, 'stalled');
+  assert.equal(cancelled, 1);
+  resolveReady();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(messages.at(-1).phase, 'ready');
+  stop();
+  assert.equal(released, 1);
+  assert.equal(f.sessions.observers, 0);
+});
+
+test("retention notifications during a selection change cannot restart an old observation", () => {
+  const f = fixture();
+  const rows = id => ({ byId: { [id]: { id, retainedBy: { mainView: 1 } } }, phase: 'ready' });
+  const retained = [];
+  f.sessions.set(rows('first'));
+  f.ctx.sessions.retain = id => {
+    retained.push(id);
+    f.sessions.set(f.sessions.getSnapshot());
+    return { ready: new Promise(() => {}), release: () => f.sessions.set(f.sessions.getSnapshot()) };
+  };
+  const stop = observeSelectedSession(f.ctx, () => {}, { setInterval: () => 1, clearInterval: () => {} });
+  f.sessions.set(rows('second'));
+  assert.deepEqual(retained, ['first', 'second']);
+  stop();
 });

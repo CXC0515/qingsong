@@ -335,11 +335,27 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         parent.postMessage(message,location.origin);
         if(ready)parent.postMessage({type:'qingsong:ready',connectionId},location.origin);
       };
+      let offSelectedSession=()=>{};
       const probe=event=>{if(event.origin===location.origin&&event.source===parent&&event.data?.type==='qingsong:probe'&&event.data.connectionId===connectionId)check(true);};
       window.addEventListener('message',probe);
-      try{offWork=ctx.workspaces.list.subscribe(()=>check());offSessions=ctx.sessions.list.subscribe(()=>check());check();}
+      try{
+        offWork=ctx.workspaces.list.subscribe(()=>check());
+        offSessions=ctx.sessions.list.subscribe(()=>check());
+        check();
+      }
       catch{parent.postMessage({type:'qingsong:connection',connectionId,phase:'error',pending:'initialization'},location.origin);}
-      return()=>{disposed=true;offWork();offSessions();window.removeEventListener('message',probe);};
+      try{
+        let lastSessionPhase='';
+        offSelectedSession=window.QingsongAssistantNavigation.observeSelectedSession(ctx, state=>{
+          if(disposed)return;
+          if(state.phase!==lastSessionPhase){
+            lastSessionPhase=state.phase;
+            console.info('[青松助手] 当前会话内容载入',{stage:'session-content',phase:state.phase,durationMs:state.durationMs});
+          }
+          parent.postMessage({type:'qingsong:session-load',connectionId,...state},location.origin);
+        });
+      }catch{parent.postMessage({type:'qingsong:session-load',connectionId,phase:'error',durationMs:0},location.origin);}
+      return()=>{disposed=true;offWork();offSessions();offSelectedSession();window.removeEventListener('message',probe);};
     });
   },
 })});
