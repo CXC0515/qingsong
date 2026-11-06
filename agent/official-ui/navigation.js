@@ -122,7 +122,7 @@
             changeStage("draft");
             ctx.conversation.input.requestDraftInitialization(binding, {
               prompt: target.instruction,
-              whenDraftExists: "append",
+              whenDraftExists: "keep",
             });
           }
           measure();

@@ -57,7 +57,7 @@ function fixture() {
     conversation: {
       input: {
         requestDraftInitialization: (binding, options) => {
-          assert.equal(options.whenDraftExists, "append");
+          assert.equal(options.whenDraftExists, "keep");
           calls.push("draft:" + options.prompt);
         },
       },

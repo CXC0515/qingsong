@@ -1,3 +1,4 @@
+import type { DocumentSelection } from "../components/document/documentSelection";
 /** Trusted UI selection; the server resolves ownership and the native session. */
 export interface PreparationAssistantContext {
   sessionId?: string;
@@ -5,7 +6,7 @@ export interface PreparationAssistantContext {
   preparationId?: string;
   documentId?: string;
   revision?: number;
-  selection?: { blockIds: string[]; text: string };
+  selection?: DocumentSelection;
   instruction?: string;
 }
 export interface PreparationAssistantTarget {

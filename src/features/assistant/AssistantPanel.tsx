@@ -148,6 +148,23 @@ function OfficialAssistantPanel({entry,onAssociationChange}:Props) {
     window.addEventListener('message',receive);
     return()=>window.removeEventListener('message',receive);
   },[connectionId]);
+  useEffect(()=>{
+    const pending=new Set<()=>void>();
+    const receive=(event:MessageEvent)=>{
+      const data=event.data;
+      if(event.origin!==location.origin||event.source!==frame.current?.contentWindow||data?.connectionId!==connectionId||data?.type!=='qingsong:preparation-recovery')return;
+      const target=data.target;
+      if(typeof target?.preparationId!=='string'||typeof target?.documentId!=='string'||typeof data.requestId!=='string')return;
+      const newSessionId=crypto.randomUUID();
+      const dispose=()=>{clearTimeout(timer);window.removeEventListener('qingsong:preparation-session-opened',opened);pending.delete(dispose);};
+      const finish=(error?:string)=>{dispose();frame.current?.contentWindow?.postMessage({type:'qingsong:recovery-result',connectionId,requestId:data.requestId,error},location.origin);};
+      const opened=(event:Event)=>{const result=(event as CustomEvent).detail;if(result?.newSessionId===newSessionId)finish(result.error);};
+      const timer=setTimeout(()=>finish('会话打开尚未确认。'),62000);
+      window.addEventListener('qingsong:preparation-session-opened',opened);pending.add(dispose);
+      window.dispatchEvent(new CustomEvent('qingsong:preparation-assistant',{detail:{...target,newSessionId}}));
+    };
+    window.addEventListener('message',receive);return()=>{window.removeEventListener('message',receive);pending.forEach(dispose=>dispose());};
+  },[connectionId]);
   const [targetError, setTargetError] = useState('');
   const [targetStage, setTargetStage] = useState('');
   const [targetAttempt, setTargetAttempt] = useState(0);

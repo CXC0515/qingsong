@@ -43,7 +43,6 @@ import { useDocumentDraft } from "./useDocumentDraft";
 import { PreparationSettings, ForkDialog } from "./PreparationDialogs";
 import { getKnowledgeGraph } from "../../services/resourceApi";
 import type { KnowledgeEntity } from "../../domain/types";
-import PreparationConversations from "./PreparationConversations";
 import PreparationTasks from "./PreparationTasks";
 
 const DocumentEditor = lazy(
@@ -68,12 +67,14 @@ export default function PreparationDetail({
   const [history, setHistory] = useState(false),
     [settings, setSettings] = useState(false),
     [forking, setForking] = useState(false);
+  const [more, setMore] = useState(false);
+  const [toolsCompact, setToolsCompact] = useState(true);
   const [knowledge, setKnowledge] = useState<KnowledgeEntity[]>([]);
   const surface=useRef<HTMLDivElement>(null), materials=useRef<HTMLDialogElement>(null);
   const [compact,setCompact]=useState(true), [materialsOpen,setMaterialsOpen]=useState(false), [materialsCollapsed,setMaterialsCollapsed]=useState(false);
   useEffect(()=>{
     const node=surface.current!;
-    const update=()=>setCompact(node.getBoundingClientRect().width<1120);
+    const update=()=>{const width=node.getBoundingClientRect().width;setCompact(width<1120);setToolsCompact(width<1050);};
     const observer=new ResizeObserver(update);observer.observe(node);update();
     return()=>observer.disconnect();
   },[]);
@@ -248,6 +249,39 @@ export default function PreparationDetail({
   const sourcePreview = reader
     ? `/api/preparations/${preparationId}/sources/${reader.id}/preview`
     : "";
+  const secondaryActions = () => <>
+        <GlassButton onClick={() => {setMore(false);setSettings(true);}}>
+          <Settings2 size={16} />
+          备课信息
+        </GlassButton>
+        <GlassButton
+          onClick={async () => {
+            if (await draft.flush()) {setMore(false);setHistory(true);}
+          }}
+        >
+          <History size={16} />
+          历史版本
+        </GlassButton>
+        <GlassButton onClick={() => {setMore(false);setForking(true);}}>
+          <FilePlus2 size={16} />
+          另存教学版本
+        </GlassButton>
+        <div className="qs-prep-export-actions">
+          <GlassButton
+            disabled={Boolean(busy)}
+            onClick={() => void exportCurrent("docx")}
+          >
+            <Download size={16} />
+            Word
+          </GlassButton>
+          <GlassButton
+            disabled={Boolean(busy)}
+            onClick={() => void exportCurrent("pdf")}
+          >
+            PDF
+          </GlassButton>
+        </div>
+  </>;
   return (
     <div className="qs-prep-detail" ref={surface}>
       <WorkspaceToolbar label="备课操作">
@@ -294,10 +328,9 @@ export default function PreparationDetail({
             <Save size={16} />
             保存
           </GlassButton>
-          <PreparationConversations preparationId={preparationId} documentId={document.id} onOpen={conversation => openAssistant(undefined, conversation)} />
         </div>
       </WorkspaceToolbar>
-      <div className="qs-prep-document-actions">
+      <div className="qs-prep-document-actions" role="group" aria-label="教案操作">
         <select
           aria-label="选择教学版本"
           value={document.id}
@@ -309,38 +342,18 @@ export default function PreparationDetail({
             </option>
           ))}
         </select>
-        <GlassButton onClick={() => setSettings(true)}>
-          <Settings2 size={16} />
-          本课要求
-        </GlassButton>
         <GlassButton
-          onClick={async () => {
-            if (await draft.flush()) setHistory(true);
-          }}
+          aria-expanded={compact?materialsOpen:!materialsCollapsed}
+          aria-controls="qs-preparation-materials"
+          onClick={()=>compact?setMaterialsOpen(true):setMaterialsCollapsed(value=>!value)}
         >
-          <History size={16} />
-          历史版本
+          <BookOpen size={16}/><span>{!compact&&!materialsCollapsed?"收起资料":"本次资料"}</span><span className="qs-prep-count"> · {detail.sources.length}</span>
         </GlassButton>
-        <GlassButton onClick={() => setForking(true)}>
-          <FilePlus2 size={16} />
-          另存教学版本
-        </GlassButton>
-        <div className="qs-prep-export-actions">
-          <GlassButton
-            disabled={Boolean(busy)}
-            onClick={() => void exportCurrent("docx")}
-          >
-            <Download size={16} />
-            Word
-          </GlassButton>
-          <GlassButton
-            disabled={Boolean(busy)}
-            onClick={() => void exportCurrent("pdf")}
-          >
-            PDF
-          </GlassButton>
-        </div>
+        <PreparationTasks preparationId={preparationId} tasks={detail.tasks} onChanged={refresh} onError={report}/>
+        {toolsCompact && <GlassButton aria-expanded={more} onClick={()=>setMore(true)}>更多</GlassButton>}
+        {!toolsCompact && <div className="qs-prep-secondary-actions">{secondaryActions()}</div>}
       </div>
+      {toolsCompact && more && <ResponsiveDialog title="更多教案操作" onClose={()=>setMore(false)}><div className="qs-prep-secondary-actions">{secondaryActions()}</div></ResponsiveDialog>}
       {(error || draft.error) && (
         <div className="qs-prep-feedback" role="alert">
           <p>{error || draft.error}</p>
@@ -386,16 +399,6 @@ export default function PreparationDetail({
             : "正在生成文件，教案已经保存…"}
         </p>
       )}
-      <div className="qs-prep-context-tools">
-        <GlassButton
-          aria-expanded={compact?materialsOpen:!materialsCollapsed}
-          aria-controls="qs-preparation-materials"
-          onClick={()=>compact?setMaterialsOpen(true):setMaterialsCollapsed(value=>!value)}
-        >
-          <BookOpen size={16}/>{!compact&&!materialsCollapsed?"收起资料":"本次资料"} · {detail.sources.length}
-        </GlassButton>
-        <PreparationTasks preparationId={preparationId} tasks={detail.tasks} onChanged={refresh} onError={report}/>
-      </div>
       <div className="qs-prep-workspace" data-materials-collapsed={compact||materialsCollapsed}>
         <dialog ref={materials} id="qs-preparation-materials" className="qs-prep-materials" aria-label="本次备课资料"
           onCancel={event=>{event.preventDefault();setMaterialsOpen(false);}}
@@ -427,7 +430,7 @@ export default function PreparationDetail({
                   </li>
                 ))}
               </ul>
-              <button type="button" onClick={() => setSettings(true)}>
+              <button type="button" onClick={() => {setMore(false);setSettings(true);}}>
                 调整关联
               </button>
             </section>
@@ -450,7 +453,7 @@ export default function PreparationDetail({
               type="button"
               onClick={() =>
                 void openAssistant(
-                  "请根据本课要求和已选资料编写或完善当前教案，先形成待应用的修改建议。",
+                  "请完善当前教案。\n修改建议如下：\n",
                 )
               }
             >

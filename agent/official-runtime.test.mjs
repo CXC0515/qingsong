@@ -10,6 +10,9 @@ import {request} from 'node:http';
 import {bootstrapModels} from './runtime.mjs';
 import {prepareOfficialRuntime, startOfficialRuntime} from './official-runtime.mjs';
 import {allowOfficialCall} from './official-policy.mjs';
+import {BasicCompactionEngine} from '@deepseek-ai/dsh-compaction-basic';
+import {Session} from '@deepseek-ai/dsh-session';
+import {createUserMessage} from '@deepseek-ai/dsh-llm';
 
 test('teacher calls reject configuration, arbitrary directories and forged attachments', () => {
   assert.equal(allowOfficialCall('session/create', {args: {request: {}}}), true);
@@ -24,6 +27,37 @@ test('teacher calls reject configuration, arbitrary directories and forged attac
   assert.equal(allowOfficialCall('session/updateQueue', {args: {request: {action: {kind: 'edit', content: [{type: 'image'}]}}}}), false);
   assert.equal(allowOfficialCall('settings/follow', {args: {}}, true), false);
 });
+test('only argument-free compact is admitted through the command boundary',()=>{
+  const args={agentId:'session-owned',line:'/compact',submittedAttachments:[]};
+  assert.equal(allowOfficialCall('commands/execute',{args}),true);
+  for(const patch of [{line:'/compact now'},{line:'/feedback'},{submittedAttachments:[{type:'file',receiptId:'x'}]},{agentId:'../other'},{cwd:'/tmp'}])
+    assert.equal(allowOfficialCall('commands/execute',{args:{...args,...patch}}),false);
+  assert.equal(allowOfficialCall('commands/execute',{args},true),false);
+});
+test('native compaction preserves source history, shrinks the surface and retains recent instructions',async()=>{
+  const session=Session.create('compaction-fixture');
+  session.append('turn/start',{turn:0});
+  for(const text of ['旧资料'.repeat(9000),'旧候选'.repeat(9000),'请只修改当前引用段落，其他正文保持。'])
+    session.append('user/message',createUserMessage({content:[{type:'text',text}],source:{kind:'user'}}),{surfaceOp:'append'});
+  const originalSeqs=[...session.surface.nodes];
+  const measure=s=>{
+    const nodes=s.surface.nodes.map(seq=>{const tokens=Math.ceil(JSON.stringify(s.eventAt(seq).data).length/2);return {seq,tokens,heuristicTokens:tokens};});
+    return {nodes,totalTokens:nodes.reduce((sum,n)=>sum+n.tokens,0)};
+  };
+  const ctx={reflect:{provide:()=>{}},on:()=>{},get:()=>undefined,tokenMeter:{measure,estimateMessage:m=>Math.ceil(JSON.stringify(m).length/2)},waterfall:()=>false};
+  const engine=new BasicCompactionEngine(ctx,{auto:false,headroomTokens:4096,maxTokens:2048});
+  engine.summarize=async()=>({summary:[{type:'text',text:'已完成初稿；教案第7版。仅修改教师当前引用内容，不编造学情。'}],provider:'fixture',model:'fixture',maxTokens:2048});
+  const before=measure(session).totalTokens;
+  const result=await engine.compactRegion(originalSeqs[0],originalSeqs[1],{session},new AbortController().signal);
+  assert.ok(measure(session).totalTokens<before/2);
+  assert.equal(session.surface.nodes.at(-1),originalSeqs[2]);
+  assert.equal(session.eventAt(originalSeqs[0]).data.content[0].text,'旧资料'.repeat(9000),'original append-only event must remain readable');
+  assert.match(JSON.stringify(session.eventAt(result.summarySeq).data),/教案第7版/);
+  const surfaceBeforeFailure=[...session.surface.nodes];
+  engine.summarize=async()=>{throw Error('fixture summary service unavailable');};
+  await assert.rejects(engine.compactRegion(surfaceBeforeFailure[0],surfaceBeforeFailure[0],{session},new AbortController().signal),/summary service unavailable/);
+  assert.deepEqual(session.surface.nodes,surfaceBeforeFailure,'failed summary must preserve the usable surface');
+});
 test('official process boots, serves extension, creates teaching sessions and stops', {timeout: 90000}, async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'qs-native-test-'));
   const home = path.join(root, 'teacher');
@@ -33,6 +67,19 @@ test('official process boots, serves extension, creates teaching sessions and st
   try {
     const profile = await prepareOfficialRuntime({home, configHome});
     const prompt = profile.find(row => row.id === 'system-prompt').config;
+    const preset=profile.flatMap(row=>row.insert??[]).find(row=>row.id==='qingsong-preset');
+    const compact=preset.config.plugins.find(row=>row.id==='compaction').config.find(row=>row.id==='compaction-basic').config;
+    // Exercise the native capacity calculation rather than repeating our config.
+    // DSH's unconfigured 65,536-token headroom fails on this same 32k route.
+    const header={config:{provider:'qingsong',model:'fixture',maxTokens:4096}};
+    const agent={session:{requestHeader:()=>header,seq:0,surface:{nodes:[],replaceGeneration:0}}};
+    let measured=24000,pruned=0;
+    const ctx={reflect:{provide:()=>{}},on:()=>{},tokenMeter:{measure:()=>({totalTokens:measured,nodes:[]})},llm:{resolveModelInfo:async()=>({context:{contextWindow:32768},defaultMaxTokens:4096})},get:()=>({pruneSession:()=>{pruned++;measured=18000;}})};
+    const defaults=new BasicCompactionEngine(ctx,{auto:false});
+    await assert.rejects(defaults.compactIfNeeded(agent,'pressure',new AbortController().signal),/leaving no pressure budget/);
+    const configured=new BasicCompactionEngine(ctx,compact);
+    assert.equal(await configured.compactIfNeeded(agent,'pressure',new AbortController().signal),null);
+    assert.equal(pruned,1,'native pressure path must trim oversized old tool results before another request');
     assert.equal(createHash('sha256').update(prompt.personaPrefix).digest('hex'), '9a33fa2f391fd75597f86819f24b8c5413d1dac0233f7320ba53e42be1c6932a', 'preserve the exact user-approved prompt');
     assert.equal(prompt.includeHarnessIdentity, false);
     assert.equal(prompt.includeRuntimeContext, false);
@@ -68,6 +115,9 @@ test('official process boots, serves extension, creates teaching sessions and st
     const catalog = await rpc('session/modelCatalog', {});
     assert.equal(catalog.ok, true);
     assert.match(JSON.stringify(catalog), /fixture/);
+    const condensed=await rpc('commands/execute',{agentId:made.value.sessionId,line:'/compact',submittedAttachments:[]});
+    assert.equal(condensed.ok,true,JSON.stringify(condensed));
+    assert.equal(condensed.value.result.kind,'success',JSON.stringify(condensed));
     console.log('native runtime fixture root:', root);
   } finally { await runtime?.close(); await rm(root, {recursive: true, force: true}); }
 });
@@ -165,4 +215,25 @@ test('shell association follows the actual session, hides ordinary chats and ign
  listeners.get('qingsong:association-checked')({detail:{sessionId:'chat'}});assert.equal(pending.length,4);
  dispose();pending[3].resolve({ok:true,json:async()=>({bound:true,title:'已销毁的回执'})});
  await new Promise(resolve=>setTimeout(resolve,0));assert.equal(posted.at(-1).title,undefined);
+});
+
+test('failed recovery acknowledgement releases the error card without replaying a prompt',async()=>{
+ const source=await readFile(new URL('./official-ui/client.js',import.meta.url),'utf8');
+ const slots=[],posted=[],listeners=new Set(),states=[],refs=[];let plugin,index=0;
+ const saved={bound:true,preparationId:'prep',documentId:'doc',revision:7};
+ const React={createElement:(type,props,...children)=>({type,props:{...props,children}}),useState:initial=>{const i=index++;const value=i===2?saved:i===5?true:initial;states[i]=value;return[value,next=>{states[i]=next;}];},useRef:initial=>{const ref={current:initial};refs.push(ref);return ref;},useEffect:()=>{}};
+ const parent={postMessage:data=>posted.push(data)};
+ const window={name:'qingsong-assistant:recovery',__ModuleLoader__:{load:module=>{plugin=module.factory(()=>React);}},addEventListener:(name,fn)=>{if(name==='message')listeners.add(fn);},removeEventListener:(_name,fn)=>listeners.delete(fn)};
+ vm.runInNewContext(source,{window,parent,location:{origin:'https://fixture.test'},crypto:globalThis.crypto,setTimeout,clearTimeout,globalThis:{QingsongAssistantFailure:{isOverflow:()=>true,reason:()=>'',saved:()=>''}}});
+ plugin.apply({slots:{inject:(_name,register)=>register(),register:(options,render)=>{slots.push({options,render});}},effect:()=>{},sessions:{scope:()=>({})},conversation:{input:{for:()=>({snapshot:{draft:'教师当前修改要求'}})}}});
+ const outer=slots.find(slot=>slot.options.key==='turn-error').render({node:{data:{code:'CONTEXT_WINDOW_EXCEEDED'}},sessionId:'old-session'});
+ const tree=outer.type(outer.props);
+ const find=value=>{if(!value||typeof value!=='object')return;if(value.type==='button'&&value.props.children.includes('新建关联会话继续'))return value;for(const child of value.props?.children?.flat(Infinity)??[]){const result=find(child);if(result)return result;}};
+ try {
+  find(tree).props.onClick();assert.equal(states[4],true);assert.equal(posted.length,1);assert.equal(posted[0].target.instruction,'教师当前修改要求');
+  const reply={origin:'https://fixture.test',source:parent,data:{type:'qingsong:recovery-result',connectionId:'recovery',requestId:posted[0].requestId,error:'open failed'}};
+  for(const listener of [...listeners])listener({...reply,origin:'https://evil.test'});assert.equal(states[4],true);
+  for(const listener of [...listeners])listener(reply);
+  assert.equal(states[4],false);assert.match(states[3],/原会话和输入保留/);assert.equal(posted.length,1);assert.equal(listeners.size,0);
+ } finally {refs.forEach(ref=>ref.current?.());}
 });
