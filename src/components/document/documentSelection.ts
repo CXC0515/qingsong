@@ -14,7 +14,9 @@ export function readDocumentSelection(
   editor: Editor,
   scope: "selection" | "table" | "block" = "selection",
 ): DocumentSelection {
-  const { from, to, $from } = editor.state.selection;
+  const { $from } = editor.state.selection;
+  let {from,to}=editor.state.selection;
+  if(scope==='block' && from===to && !editor.isActive('table')) {from=$from.start();to=$from.end();}
   const blocks: {id:string;from:number;to:number}[]=[];
   let table: {id:string;row:number;column:number}|undefined;
   for(let depth=$from.depth;depth>0;depth--) {

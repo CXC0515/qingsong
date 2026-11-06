@@ -64,3 +64,11 @@ test('partial text selection reports stable paragraph and character offsets with
   assert.deepEqual(result.location?.blocks,[{id:'paragraph-a',from:1,to:3}]);
   assert.deepEqual(result.location?.table,{id:'table-current',row:1,column:1});
 });
+
+
+test('whole paragraph action reports its full character range rather than the cursor',()=>{
+ const doc=schema.nodes.doc.create(null,[schema.nodes.paragraph.create({id:'whole-paragraph'},schema.text('完整段落'))]);
+ const editor={state:EditorState.create({schema,doc,selection:TextSelection.create(doc,3)}),isActive:()=>false} as unknown as Editor;
+ const selected=readDocumentSelection(editor,'block');
+ assert.equal(selected.text,'完整段落');assert.deepEqual(selected.location?.blocks,[{id:'whole-paragraph',from:0,to:4}]);
+});
