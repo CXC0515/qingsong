@@ -1,6 +1,9 @@
+import {registerPreparationReferences,sessionPreparationReferences} from "./preparationReferences";
+import {preparationRepository} from "../../repositories/preparationRepository";
+import type { PreparationTask } from '../../../src/domain/preparation';
 import {PreparationContractError} from '../../../src/domain/preparationToolContract.mjs';
-import {resolveSelectedPreparationSession,assertPreparationSessionReady,resolvePreparationTarget,preparationRuntimeContext,preparationAssistantTool,stopSessionTasks,preparationSavedOutcome} from './preparationAssistant';
-import {getNativeWorkspace,setNativeWorkspace,getSessionBinding,PreparationError,updateTask,getTask} from '../preparation/preparationService';
+import {resolvePreparationTarget,preparationRuntimeContext,preparationAssistantTool,stopSessionTasks,preparationSavedOutcome} from './preparationAssistant';
+import {getNativeWorkspace,setNativeWorkspace,PreparationError,updateTask,getTask} from '../preparation/preparationService';
 import {ZodError} from 'zod';
 import {semanticPersonalContext,queueConversationMemory,drainMemoryWorkers} from './memoryService';
 import {teachingBusinessContext} from './capabilities/teaching';
@@ -106,7 +109,8 @@ async function closeInstance(key: string, instance: Instance) {
 /** Cancel only an already-running native session; never starts an assistant instance. */
 export async function cancelPreparationSession(sessionId: string) {
   const context = getWorkspaceContext();
-  if (!getSessionBinding(sessionId)) throw new PreparationError('SESSION_NOT_FOUND', '找不到当前账号的备课会话，教案保留。', 404);
+  if (!preparationRepository.list<PreparationTask>('preparation_tasks').some(task => task.sessionId === sessionId))
+    throw new PreparationError('SESSION_NOT_FOUND', '找不到当前账号的备课会话，教案保留。', 404);
   const instance = instances.get(scope(context));
   if (instance && !instance.closing && instance.runtime.isAlive()) {
     await authorizeInstance(instance);
@@ -166,7 +170,7 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
           if (typeof body.lease !== 'string' || body.lease.length > 160 || leases.has(lease)) throw Error('INVALID_LEASE');
           const controller = new AbortController(); leases.set(lease, controller);
           if (materialSessionId(body.sessionId)) instance.leaseSessions.set(lease, body.sessionId);
-          const preparation = typeof body.sessionId==='string' ? runWithWorkspace(context,()=>getSessionBinding(body.sessionId)) : undefined;
+          const preparation = typeof body.sessionId==='string' ? runWithWorkspace(context,()=>sessionPreparationReferences(body.sessionId).length>0) : undefined;
           const budget=preparation?{steps:24,queries:48,timeoutMs:480000}:{steps:8,queries:12,timeoutMs:180000};
           const deadline = setTimeout(() => { if (instance) void closeInstance(key, instance).catch(() => {}); }, budget.timeoutMs+10000); deadline.unref(); instance.leaseTimers.set(lease, deadline);
           const cancel = () => controller.abort();
@@ -196,6 +200,7 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
         }
         else if (body.kind === 'preparation-context') {
           if(!materialSessionId(body.sessionId))throw Error('INVALID_SESSION');
+          runWithWorkspace(context,()=>registerPreparationReferences(body.sessionId,body.referenceIds??[],body.currentIds??[]));
           res.end(JSON.stringify(runWithWorkspace(context,()=>preparationRuntimeContext(body.sessionId))));
         }
         else if (body.kind === 'preparation-tool') {
@@ -366,15 +371,6 @@ export async function officialAssistantProxy(req: Request, res: Response) {
     } catch {res.status(400).json({message:'保存状态暂时无法核对，请查看教案和修改建议后再继续。'});}
     return;
   }
-  if (target.pathname === '/api/qingsong/preparation-selection' && req.method === 'POST') {
-    try {
-      const context=getWorkspaceContext();
-      const instance=await ensureInstance(context,()=>checkIdentity(req.headers,context),createHash('sha256').update(req.headers.cookie??'').digest('hex'));
-      const target=await runWithWorkspace(context,()=>resolveSelectedPreparationSession(req.body,(method,request)=>nativeWorkspaceCall(instance.runtime,instance.cookie,method,request)));
-      res.json({target});
-    } catch(error) {res.status(error instanceof PreparationError?error.status:400).json({message:'教案关联未能核对，原教案和会话保留，请重试。'});}
-    return;
-  }
   if (target.pathname === '/api/qingsong/preparation-target' && req.method === 'POST') {
     try {
       const context=getWorkspaceContext();
@@ -430,17 +426,8 @@ export async function officialAssistantProxy(req: Request, res: Response) {
     const instance = await ensureInstance(context, () => checkIdentity(req.headers, context), createHash('sha256').update(req.headers.cookie ?? '').digest('hex'));
     if(res.destroyed){releaseImages();return;}
     const instanceMs = performance.now() - requestStarted;
-    if (target.pathname === '/api/session/create') {
+    if (target.pathname === "/api/session/prompt") {
       const request=req.body?.payload?.args?.request;
-      if (request?.sessionId && getSessionBinding(request.sessionId)) request.sessionId=randomUUID();
-    }
-    if (target.pathname === '/api/session/prompt') {
-      const request = req.body?.payload?.args?.request;
-      if (typeof request?.sessionId === 'string') {
-        try {await assertPreparationSessionReady(request.sessionId,(method,args)=>nativeWorkspaceCall(instance.runtime,instance.cookie,method,args));}
-        catch(error) {res.status(error instanceof PreparationError?error.status:503).json({message:error instanceof PreparationError?error.message:'教案关联暂时无法核对，本条消息尚未提交，请稍后重试。'});return;}
-      }
-
       if (request?.mode !== 'steer' && instance.fingerprint !== await fingerprint()) {
         res.status(409).json({message:'管理员已更新生成配置，请等待当前一轮结束后重新发送。本条消息尚未提交。'}); return;
       }

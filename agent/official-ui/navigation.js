@@ -137,15 +137,10 @@
         }
       }
       changeStage("workspace-navigation");
-      await abortable(
-        ctx.uiWorkspace.openWorkspace(target.workspaceId, undefined, {
-          agentPreset: "qingsong",
-        }),
-        signal,
-      );
-      signal.throwIfAborted();
-      measure();
-      return { workspaceId: target.workspaceId, timings, totalMs: Math.round(now() - started) };
+      const workspace=ctx.workspaces.list.getSnapshot().items.find(item=>item.workspaceId===target.workspaceId);
+      const selected=Object.values(ctx.sessions.list.getSnapshot().byId??{}).find(row=>(row.retainedBy?.mainView??0)>0&&workspace.sessionIds?.includes(row.id));
+      const sessionId=selected?.id??await abortable(ctx.uiWorkspace.connectWorkspace(target.workspaceId,{agentPreset:"qingsong"}),signal);
+      return await openContext(ctx,{...target,sessionId},{signal,timeoutMs,onStage,onTiming});
     } catch (error) {
       if (callerSignal?.aborted) throw callerSignal.reason;
       throw error instanceof NavigationError

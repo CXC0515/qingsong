@@ -119,56 +119,13 @@ export default function App() {
   }, []);
   const assistantPinned = activePage === 'workbench' && wideWorkbench;
   const assistantVisible = assistantPinned || assistantOpen;
-  const preparationAssistantContext=useRef<PreparationAssistantContext>({});
-  const currentPage=useRef(activePage);currentPage.current=activePage;
-  const nativePreparationNavigation=useRef<(PreparationAssistantContext & {complete:(error?:string)=>void})|null>(null);
-  const [assistantEntry,setAssistantEntry]=useState<AssistantEntry>({mode:'default',requestKey:0});
+  const [assistantEntry,setAssistantEntry]=useState<AssistantEntry>({mode: "default",requestKey:0});
   useEffect(()=>{
-    const update=(event:Event)=>{
-      const context=(event as CustomEvent<PreparationAssistantContext>).detail??{};
-      const previous=preparationAssistantContext.current;
-      const pending=nativePreparationNavigation.current;
-      if(pending) {
-        if(context.preparationId===pending.preparationId&&context.documentId===pending.documentId) {
-          preparationAssistantContext.current={...context,sessionId:pending.sessionId};
-          setAssistantEntry(current=>({...context,sessionId:pending.sessionId,mode:'preparation',requestKey:current.requestKey}));
-          nativePreparationNavigation.current=null;pending.complete();
-          window.dispatchEvent(new CustomEvent('qingsong:preparation-session-opened',{detail:{...context,sessionId:pending.sessionId}}));
-        }
-        return;
-      }
-      preparationAssistantContext.current={...context,...(previous.preparationId===context.preparationId&&previous.documentId===context.documentId?{sessionId:previous.sessionId}:{})};
-      setAssistantEntry(current => current.mode==='preparation' && (current.preparationId!==context.preparationId || current.documentId!==context.documentId)
-        ? {...context,mode:'preparation',requestKey:Date.now()} : current);
-    };
-    const open=(event:Event)=>{const context=(event as CustomEvent<PreparationAssistantContext>).detail??{};preparationAssistantContext.current=context;setAssistantEntry({...context,mode:'preparation',requestKey:Date.now()});setWorkbenchVisited(true);setAssistantOpen(true);};
-    const selected=(event:Event)=>{
-      const target=(event as CustomEvent).detail;
-      if(!target?.bound){target?.complete?.();return;}
-      const previous=preparationAssistantContext.current;
-      if(previous.preparationId===target.preparationId&&previous.documentId===target.documentId&&currentPage.current==='lesson-plan') {
-        preparationAssistantContext.current={...previous,sessionId:target.sessionId};
-        setAssistantEntry(current=>({...previous,sessionId:target.sessionId,mode:'preparation',requestKey:current.requestKey}));target.complete();
-        window.dispatchEvent(new CustomEvent('qingsong:preparation-session-opened',{detail:target}));return;
-      }
-      const leave=currentPage.current==='lesson-plan'?'qingsong:preparation-before-leave':currentPage.current==='classroom-tasks'?'classroom-task-before-leave':null;
-      if(leave&&!window.dispatchEvent(new Event(leave,{cancelable:true}))) {target.complete('当前内容仍在保存，尚未切换教案。请保存完成后重新选择，或返回原会话。');return;}
-      nativePreparationNavigation.current?.complete('已选择另一条会话。');
-      nativePreparationNavigation.current=target;
-      const url=new URL(location.href);url.searchParams.set('page','lesson-plan');url.searchParams.set('preparationId',target.preparationId);url.searchParams.set('documentId',target.documentId);history.replaceState(null,'',url);
-      if(currentPage.current==='lesson-plan')window.dispatchEvent(new CustomEvent('qingsong:open-preparation',{detail:target}));
-      else setActivePageState('lesson-plan');
-      setAssistantOpen(true);
-    };
-    const failed=(event:Event)=>{const pending=nativePreparationNavigation.current;if(pending){nativePreparationNavigation.current=null;pending.complete((event as CustomEvent).detail?.message||'教案未能读取，原内容保留，请重试。');}};
-    const opened=(event:Event)=>{const target=(event as CustomEvent<PreparationAssistantContext & {error?:string}>).detail;const current=preparationAssistantContext.current;if(!target.error&&target.sessionId&&current.preparationId===target.preparationId&&current.documentId===target.documentId)preparationAssistantContext.current={...current,sessionId:target.sessionId,newSessionId:undefined,instruction:undefined};};
-    window.addEventListener('qingsong:native-preparation-selection',selected);
-    window.addEventListener('qingsong:preparation-navigation-failed',failed);
-    window.addEventListener('qingsong:preparation-session-opened',opened);
-    window.addEventListener('qingsong:preparation-context',update);window.addEventListener('qingsong:preparation-assistant',open);
-    return()=>{window.removeEventListener('qingsong:native-preparation-selection',selected);window.removeEventListener('qingsong:preparation-navigation-failed',failed);window.removeEventListener('qingsong:preparation-session-opened',opened);window.removeEventListener('qingsong:preparation-context',update);window.removeEventListener('qingsong:preparation-assistant',open);};
+    const open=(event:Event)=>{const context=(event as CustomEvent<PreparationAssistantContext>).detail??{};setAssistantEntry({...context,mode: "preparation",requestKey:Date.now()});setWorkbenchVisited(true);setAssistantOpen(true);};
+    window.addEventListener("qingsong:preparation-assistant",open);
+    return()=>{window.removeEventListener("qingsong:preparation-assistant",open);};
   },[]);
-  useEffect(()=>{if(nativePreparationNavigation.current)return;setAssistantEntry(activePage==='lesson-plan'?{...preparationAssistantContext.current,mode:'preparation',requestKey:Date.now()}:{mode:'default',requestKey:Date.now()});},[activePage]);
+  useEffect(()=>{setAssistantEntry({mode:activePage==="lesson-plan"?"preparation":"default",requestKey:Date.now()});},[activePage]);
   const [workbenchVisited, setWorkbenchVisited] = useState(() => assistantSourceRoute(window.location.href).page==='workbench');
   useEffect(() => { if (activePage === 'workbench') setWorkbenchVisited(true); }, [activePage]);
   const [lessonRoute,setLessonRoute]=useState<LessonRoute|null>(()=>readLessonRoute(authState.user.id));
@@ -800,7 +757,7 @@ export default function App() {
       headerContextRef={setClassroomHeaderTarget}
       activePage={activePage}
       assistantOpen={assistantVisible}
-      assistant={workbenchVisited || assistantVisible || activePage==='lesson-plan' ? <AssistantDock surface={activePage==='workbench'?'workbench':'task'} identityKey={authState.user.id} open={assistantVisible} pinned={assistantPinned} entry={activePage==='lesson-plan'?{...preparationAssistantContext.current,mode:'preparation',requestKey:assistantEntry.requestKey}:{mode:'default',requestKey:assistantEntry.requestKey}} onClose={() => setAssistantOpen(false)}/> : null}
+      assistant={workbenchVisited || assistantVisible || activePage==='lesson-plan' ? <AssistantDock surface={activePage==='workbench'?'workbench':'task'} identityKey={authState.user.id} open={assistantVisible} pinned={assistantPinned} entry={assistantEntry} onClose={() => setAssistantOpen(false)}/> : null}
       classes={classes}
       expandedGroups={expandedGroups}
       navGroups={navGroups}

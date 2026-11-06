@@ -11,13 +11,12 @@ import DemoAssistant from '../../demo/DemoAssistant';
 interface MaterialPickRequest { requestId: string; sessionId: string; connectionId: string; attempts: Map<string, string> }
 
 export interface AssistantEntry extends PreparationAssistantContext {mode:'default'|'preparation'; requestKey?:number}
-export interface SessionAssociation { sessionId: string; preparationId: string; documentId: string; title: string }
-interface Props {entry?:AssistantEntry; onAssociationChange?:(association:SessionAssociation|null)=>void}
-export default function AssistantPanel({entry,onAssociationChange}:Props) {
-  return isDemoRoute() ? <DemoAssistant /> : <OfficialAssistantPanel entry={entry} onAssociationChange={onAssociationChange} />;
+interface Props {entry?:AssistantEntry}
+export default function AssistantPanel({entry}:Props) {
+  return isDemoRoute() ? <DemoAssistant /> : <OfficialAssistantPanel entry={entry} />;
 }
 
-function OfficialAssistantPanel({entry,onAssociationChange}:Props) {
+function OfficialAssistantPanel({entry}:Props) {
   const [settings,setSettings]=useState(false),[dirty,setDirty]=useState(false),[busy,setBusy]=useState(false);
   const closeSettings=useRef<()=>void>(null);
   const frame = useRef<HTMLIFrameElement>(null);
@@ -28,7 +27,6 @@ function OfficialAssistantPanel({entry,onAssociationChange}:Props) {
   const [slow,setSlow]=useState(false);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
-  const [associationWarning,setAssociationWarning]=useState('');
   const [materialPick, setMaterialPick] = useState<MaterialPickRequest | null>(null);
   const activePick = useRef<MaterialPickRequest | null>(null);
   const pickAbort = useRef<AbortController | null>(null);
@@ -133,54 +131,11 @@ function OfficialAssistantPanel({entry,onAssociationChange}:Props) {
     window.addEventListener('message',receive);startTimer();
     return()=>{window.removeEventListener('message',receive);stopTimer();};
   },[connectionId]);
-  useEffect(() => {
-    onAssociationChange?.(null);
-    const receive=(event:MessageEvent)=>{
-      const data=event.data;
-      if(event.origin!==location.origin||event.source!==frame.current?.contentWindow||data?.connectionId!==connectionId)return;
-      if(data?.type==='qingsong:association-warning'){setAssociationWarning(typeof data.message==='string'?data.message:'会话关联暂时无法确认。');return;}
-      if(data?.type!=='qingsong:session-association')return;
-      setAssociationWarning('');
-      if(!data.bound){onAssociationChange?.(null);return;}
-      if(typeof data.sessionId!=='string'||typeof data.preparationId!=='string'||typeof data.documentId!=='string'||typeof data.title!=='string'||data.title.length>1000)return;
-      onAssociationChange?.({sessionId:data.sessionId,preparationId:data.preparationId,documentId:data.documentId,title:data.title});
-    };
-    window.addEventListener('message',receive);
-    return()=>window.removeEventListener('message',receive);
-  },[connectionId,onAssociationChange]);
-  useEffect(() => {
-    const receive=(event:MessageEvent)=>{
-      const data=event.data;
-      if(event.origin!==location.origin||event.source!==frame.current?.contentWindow||data?.connectionId!==connectionId||data?.type!=='qingsong:native-selection')return;
-      const target=data.target;
-      if(typeof data.requestId!=='string'||typeof target?.sessionId!=='string')return;
-      window.dispatchEvent(new CustomEvent('qingsong:native-preparation-selection',{detail:{...target,complete:(error?:string)=>frame.current?.contentWindow?.postMessage({type:'qingsong:selection-opened',connectionId,requestId:data.requestId,error},location.origin)}}));
-    };
-    window.addEventListener('message',receive);
-    return()=>window.removeEventListener('message',receive);
-  },[connectionId]);
-  useEffect(()=>{
-    const pending=new Set<()=>void>();
-    const receive=(event:MessageEvent)=>{
-      const data=event.data;
-      if(event.origin!==location.origin||event.source!==frame.current?.contentWindow||data?.connectionId!==connectionId||data?.type!=='qingsong:preparation-recovery')return;
-      const target=data.target;
-      if(typeof target?.preparationId!=='string'||typeof target?.documentId!=='string'||typeof data.requestId!=='string')return;
-      const newSessionId=crypto.randomUUID();
-      const dispose=()=>{clearTimeout(timer);window.removeEventListener('qingsong:preparation-session-opened',opened);pending.delete(dispose);};
-      const finish=(error?:string)=>{dispose();frame.current?.contentWindow?.postMessage({type:'qingsong:recovery-result',connectionId,requestId:data.requestId,error},location.origin);};
-      const opened=(event:Event)=>{const result=(event as CustomEvent).detail;if(result?.newSessionId===newSessionId)finish(result.error);};
-      const timer=setTimeout(()=>finish('会话打开尚未确认。'),62000);
-      window.addEventListener('qingsong:preparation-session-opened',opened);pending.add(dispose);
-      window.dispatchEvent(new CustomEvent('qingsong:preparation-assistant',{detail:{...target,newSessionId}}));
-    };
-    window.addEventListener('message',receive);return()=>{window.removeEventListener('message',receive);pending.forEach(dispose=>dispose());};
-  },[connectionId]);
   const [targetError, setTargetError] = useState('');
   const [targetStage, setTargetStage] = useState('');
   const [targetAttempt, setTargetAttempt] = useState(0);
   useEffect(() => {
-    if (!ready || !entry || (entry.mode==='preparation'&&!entry.preparationId)) return;
+    if (!ready || !entry) return;
     const controller = new AbortController(), requestId = crypto.randomUUID();
     const started = performance.now();
     const timings: Record<string, number> = {};
@@ -230,7 +185,7 @@ function OfficialAssistantPanel({entry,onAssociationChange}:Props) {
       setTargetError(cause?.name === 'TimeoutError' ? '工作空间连接超时，教案和原会话保留，请重试。' : cause instanceof Error ? cause.message : '工作空间未能打开，已有内容保留，请重试。');
     });
     return () => {controller.abort(); clearTimeout(acknowledgementTimer); send('qingsong:cancel-context'); window.removeEventListener('message',acknowledge);};
-  }, [ready,entry?.mode,entry?.preparationId,entry?.documentId,entry?.sessionId,entry?.newSessionId,entry?.instruction,entry?.requestKey,connectionId,targetAttempt]);
+  }, [ready,entry?.mode,entry?.preparationId,entry?.documentId,entry?.sessionId,entry?.instruction,entry?.requestKey,connectionId,targetAttempt]);
   const retry=()=>{closeMaterialPick();setConnectionId(crypto.randomUUID());};
   return <GlassSurface className="qs-assistant-panel qs-official-assistant flex h-full min-h-0 flex-col overflow-hidden">
     <style>{".qs-official-assistant>.lg-content{display:flex;flex-direction:column;min-height:0;flex:1;padding:0;gap:0;overflow:hidden}.qs-official-frame{display:flex;flex:1;min-height:0;margin:12px;border-radius:18px;overflow:hidden;background:#fff}"}</style>
@@ -243,7 +198,6 @@ function OfficialAssistantPanel({entry,onAssociationChange}:Props) {
     </p>}
     {targetStage && <p role="status" className="px-4 py-2 text-sm text-gray-500">{targetStage}</p>}
     {targetError && <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-sm text-red-700"><p role="alert">{targetError}</p><GlassButton onClick={() => setTargetAttempt(value => value + 1)}>重试打开</GlassButton></div>}
-    {associationWarning && <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-sm text-amber-800" role="status"><p>{associationWarning}</p><button type="button" className="min-h-11 px-3" onClick={()=>setAssociationWarning('')}>知道了</button></div>}
     <div className="qs-official-frame"><iframe ref={frame} title="青松教学助手" name={"qingsong-assistant:"+connectionId} src={"/api/assistant/official/?connection="+connectionId} onLoad={()=>frame.current?.contentWindow?.postMessage({type:'qingsong:probe',connectionId},location.origin)} className="min-h-0 w-full flex-1 border-0" sandbox="allow-scripts allow-same-origin allow-downloads allow-popups" onError={() => setError('助手未能打开，已有对话保留，请刷新重试。')}/></div>
     {settings&&<ResponsiveDialog title="会话设置" header={null} wide compactFull busy={busy} confirmDiscard={dirty} closeRef={closeSettings} onClose={()=>setSettings(false)}><PersonalContextPanel active onClose={()=>closeSettings.current?.()} onDirtyChange={setDirty} onBusyChange={setBusy}/></ResponsiveDialog>}
     {materialPick&&<MaterialPoolPicker key={materialPick.requestId} onConfirm={confirmMaterialPick} onClose={closeMaterialPick} />}
