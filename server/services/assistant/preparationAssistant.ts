@@ -300,7 +300,7 @@ export async function preparationAssistantTool(
 ) {
   signal?.throwIfAborted();
   const args: any = parsePreparationInput(input);
-  const tasks=preparationRepository.list<import("../../../src/domain/preparation").PreparationTask>("preparation_tasks").filter(task=>task.sessionId===sessionId);
+  const tasks=preparationRepository.list<import("../../../src/domain/preparation").PreparationTask>("preparation_tasks").filter(task=>task.sessionId===sessionId).sort((a,b)=>a.updatedAt.localeCompare(b.updatedAt));
   const target=args.taskId?tasks.find(task=>task.id===args.taskId):tasks.filter(task=>!executionLease||(task.result as TaskSnapshot|undefined)?.executionLease===executionLease).at(-1);
   const reference=args.action==="begin"||args.action==="render"?resolveTaskReference(sessionId,args.referenceId):undefined;
   const prepId=reference?.preparationId??target?.preparationId;

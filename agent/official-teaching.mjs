@@ -35,7 +35,7 @@ export function apply(ctx) {
       .flatMap(part => [...part.text.matchAll(/\[\[青松教案:([0-9a-f-]{36})\]\]/gi)].map(match => match[1].toLowerCase()));
     return bridge({
       kind: 'preparation-context', sessionId,
-      referenceIds: [...new Set(messages.filter(message => message.source?.kind === 'user').flatMap(ids))],
+      referenceIds: [...new Set(messages.filter(message => message.source?.kind === 'user').flatMap(ids))].slice(-100),
       currentIds: ids(human),
     }, signal);
   };
