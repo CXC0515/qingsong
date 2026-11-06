@@ -287,6 +287,9 @@ def main():
         parser_input_path = output_dir / "source.docx"
         shutil.copyfile(input_path, parser_input_path)
     markdown_path = output_dir / "document.md"
+    if not shutil.which(args.paddleocr_command):
+        print("DOCX_CONVERTER_NOT_INSTALLED", file=sys.stderr)
+        return 2
     process = subprocess.run(
         [args.paddleocr_command, "doc2md", "-i", str(parser_input_path), "-o", str(markdown_path), "-q"],
         cwd=output_dir,

@@ -296,3 +296,8 @@ test("retention notifications during a selection change cannot restart an old ob
 
 test("workspace entry reuses DSH current member and adds no ownership check",async()=>{const f=fixture();f.workspaces.set({items:[{workspaceId:"w1",sessionIds:["s1"]}],state:"idle"});f.sessions.set({byId:{s1:{id:"s1",retainedBy:{mainView:1}}},phase:"ready"});const result=await openContext(f.ctx,{workspaceId:"w1"});assert.equal(result.sessionId,"s1");assert.ok(!f.calls.includes("connect:w1"));});
 test("empty workspace entry uses native connect and preserves draft",async()=>{const f=fixture();f.workspaces.set({items:[{workspaceId:"w1",sessionIds:[]}],state:"idle"});const result=await openContext(f.ctx,{workspaceId:"w1",instruction:"修改建议如下："});assert.equal(result.sessionId,"s1");assert.ok(f.calls.includes("connect:w1"));assert.ok(f.calls.includes("draft:修改建议如下："));});
+
+test('returning to preparation reopens the existing native conversation without creating a blank',async()=>{
+ const f=fixture();f.workspaces.set({items:[{workspaceId:'w1',sessionIds:['s1']}],state:'idle'});f.sessions.set({byId:{s1:{id:'s1',retainedBy:{mainView:0}}},phase:'ready'});
+ const result=await openContext(f.ctx,{workspaceId:'w1'});assert.equal(result.sessionId,'s1');assert.ok(!f.calls.includes('connect:w1'));assert.ok(f.calls.includes('open:s1'));
+});

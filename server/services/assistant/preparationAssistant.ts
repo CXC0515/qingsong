@@ -139,6 +139,7 @@ export function preparationRuntimeContext(sessionId: string) {
       ...reference,
       stale: latest.revision !== reference.revision,
       latestRevision: latest.revision,
+      sourceUrl: '/?page=lesson-plan&preparationId='+reference.preparationId+'&documentId='+reference.documentId,
       document: {id: reference.documentId, title: reference.title, revision: reference.revision, ref: {type: "lessonPlan", id: reference.documentId, parentId: reference.preparationId}, readFilters: {revision: reference.revision}},
       preparation: detail.preparation,
       sources: detail.sources.map(source => ({...source, ref: {type: "preparationSource", id: source.id, parentId: reference.preparationId}})),

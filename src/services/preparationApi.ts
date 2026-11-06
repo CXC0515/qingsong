@@ -80,6 +80,7 @@ export const savePreparationDocument = async (
     operationId: string;
     content: RichDocument;
     title?: string;
+    autosave?: boolean;
   },
 ) =>
   (
@@ -88,6 +89,7 @@ export const savePreparationDocument = async (
       json("PUT", input),
     )
   ).document;
+export const checkpointPreparationDocument=async(id:string,documentId:string,expectedRevision:number)=>(await request<{document:DocumentRecord}>(`${docPath(id,documentId)}/checkpoint`,json('POST',{expectedRevision,operationId:crypto.randomUUID()}))).document;
 export const listDocumentRevisions = async (id: string, documentId: string) =>
   (
     await request<{ revisions: DocumentRevision[] }>(

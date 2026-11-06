@@ -139,7 +139,11 @@
       changeStage("workspace-navigation");
       const workspace=ctx.workspaces.list.getSnapshot().items.find(item=>item.workspaceId===target.workspaceId);
       const selected=Object.values(ctx.sessions.list.getSnapshot().byId??{}).find(row=>(row.retainedBy?.mainView??0)>0&&workspace.sessionIds?.includes(row.id));
-      const sessionId=selected?.id??await abortable(ctx.uiWorkspace.connectWorkspace(target.workspaceId,{agentPreset:"qingsong"}),signal);
+      const listed=ctx.sessions.list.getSnapshot().byId??{};
+      let remembered;try{remembered=JSON.parse(global.sessionStorage?.getItem('qingsong:last-workspace-session')??'{}')[target.workspaceId];}catch{}
+      const members=(workspace.sessionIds??[]).filter(id=>!workspace.archivedSessionIds?.includes(id));
+      const previous=members.includes(remembered)&&listed[remembered]?remembered:members.filter(id=>listed[id]).sort((a,b)=>(listed[b].updatedAt??0)-(listed[a].updatedAt??0))[0];
+      const sessionId=selected?.id??previous??await abortable(ctx.uiWorkspace.connectWorkspace(target.workspaceId,{agentPreset:"qingsong"}),signal);
       return await openContext(ctx,{...target,sessionId},{signal,timeoutMs,onStage,onTiming});
     } catch (error) {
       if (callerSignal?.aborted) throw callerSignal.reason;
@@ -189,6 +193,8 @@
         onState({ phase: 'empty', durationMs: 0 });
         return;
       }
+      const workspace=ctx.workspaces?.list.getSnapshot().items.find(item=>item.sessionIds?.includes(sessionId));
+      if(workspace)try{const saved=JSON.parse(global.sessionStorage?.getItem('qingsong:last-workspace-session')??'{}');saved[workspace.workspaceId]=sessionId;global.sessionStorage?.setItem('qingsong:last-workspace-session',JSON.stringify(saved));}catch{}
 
       const record = { sessionId, controller: new AbortController(), started: now(), reference: undefined, timer: undefined, settled: false };
       current = record;

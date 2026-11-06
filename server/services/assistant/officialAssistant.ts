@@ -1,4 +1,4 @@
-import {registerPreparationReferences,sessionPreparationReferences,listPreparationReferenceCandidates,createPreparationReference,preparationReferenceStatus,updatePreparationReference} from "./preparationReferences";
+import {registerPreparationReferences,sessionPreparationReferences,listPreparationReferenceCandidates,createPreparationReference,preparationReferenceStatus,updatePreparationReference,previewPreparationReference} from "./preparationReferences";
 import {preparationRepository} from "../../repositories/preparationRepository";
 import type { PreparationTask } from '../../../src/domain/preparation';
 import {PreparationContractError} from '../../../src/domain/preparationToolContract.mjs';
@@ -166,7 +166,11 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
           res.end('{}'); return;
         }
         await authorizeInstance(instance); if (instance.closing) throw Error('CLOSING'); instance.touched = Date.now();
-        if (body.kind === 'acquire') {
+        if (body.kind === 'reference-titles') {
+          const ids=z.array(z.uuid()).max(20).parse(body.referenceIds);
+          const titles=runWithWorkspace(context,()=>ids.flatMap(id=>{try{return [preparationReferenceStatus(id).title];}catch{return [];}}));
+          res.end(JSON.stringify({titles}));
+        } else if (body.kind === 'acquire') {
           if (typeof body.lease !== 'string' || body.lease.length > 160 || leases.has(lease)) throw Error('INVALID_LEASE');
           const controller = new AbortController(); leases.set(lease, controller);
           if (materialSessionId(body.sessionId)) instance.leaseSessions.set(lease, body.sessionId);
@@ -366,6 +370,8 @@ export async function officialAssistantProxy(req: Request, res: Response) {
     res.setHeader('Cache-Control', 'no-store');
     try {
       if (req.method === 'GET') {
+        const preview = target.searchParams.get('preview');
+        if (preview) {res.json(previewPreparationReference(preview)); return;}
         const ids = target.searchParams.getAll('id');
         if (ids.length > 100) throw Error('引用数量过多');
         res.json(ids.length ? {references: ids.map(preparationReferenceStatus)} : {items: listPreparationReferenceCandidates((target.searchParams.get('q') ?? '').slice(0, 160))});

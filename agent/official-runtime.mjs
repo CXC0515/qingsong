@@ -90,6 +90,7 @@ export async function prepareOfficialRuntime({home, configHome}) {
       {id:'qingsong-skill-tool',name:'@deepseek-ai/dsh-tool-skill'},
       {id:'qingsong-business-skills', name:path.join(agentDirectory,'official-skills.mjs')},
       {id: 'qingsong-teaching', name: path.join(agentDirectory, 'official-teaching.mjs')},
+      {id:'qingsong-session-title',name:path.join(agentDirectory,'official-session-title.mjs')},
       {id: 'qingsong-ui', name: path.join(agentDirectory, 'official-ui/index.mjs')},
     ]},
   ];

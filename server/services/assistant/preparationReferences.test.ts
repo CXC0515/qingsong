@@ -7,7 +7,7 @@ import {randomUUID} from 'node:crypto';
 import {runWithWorkspace,type WorkspaceContext} from '../../context/workspaceContext';
 import {closePreparationDatabase} from '../../database/preparationDatabase';
 import * as prep from '../preparation/preparationService';
-import {createPreparationReference,registerPreparationReferences,resolveTaskReference,sessionPreparationReferences,listPreparationReferenceCandidates,preparationReferenceStatus,updatePreparationReference} from './preparationReferences';
+import {previewPreparationReference,createPreparationReference,registerPreparationReferences,resolveTaskReference,sessionPreparationReferences,listPreparationReferenceCandidates,preparationReferenceStatus,updatePreparationReference} from './preparationReferences';
 import {resolvePreparationTarget,preparationAssistantTool,stopSessionTasks} from './preparationAssistant';
 const root=await mkdtemp(path.join(tmpdir(),'qs-lesson-references-'));
 const context:WorkspaceContext={userId:'reference-teacher',workspaceId:'reference-workspace',role:'teacher',root,dataDirectory:path.join(root,'data'),uploadDirectory:path.join(root,'uploads')};
@@ -71,4 +71,12 @@ test('references require actual send, retain version, and never grant another ac
  assert.equal(resolveTaskReference('sent-chat',reference.id).revision,1);
  await assert.rejects(preparationAssistantTool('sent-chat',{action:'begin',referenceId:reference.id},'修改旧版'),/正文已变化/);
  runWithWorkspace({...context,userId:'other-teacher'},()=>{assert.deepEqual(sessionPreparationReferences('sent-chat'),[]);assert.throws(()=>registerPreparationReferences('sent-chat',[reference.id],[reference.id]));});
+}));
+
+test('reference preview reads the original immutable version and checks workspace ownership',()=>runWithWorkspace(context,()=>{
+ const a=make(),reference=createPreparationReference({preparationId:a.preparation.id});
+ const before=previewPreparationReference(reference.id);
+ prep.saveDocument(a.preparation.id,a.documents[0].id,{expectedRevision:1,operationId:randomUUID(),content:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'修改后正文'}]}]}});
+ const preview=previewPreparationReference(reference.id);assert.deepEqual(preview.content,before.content);assert.equal(preview.reference.stale,true);assert.match(preview.url,/documentId=/);
+ assert.throws(()=>runWithWorkspace({...context,userId:'other-teacher'},()=>previewPreparationReference(reference.id)));
 }));

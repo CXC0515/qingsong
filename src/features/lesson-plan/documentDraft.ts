@@ -1,6 +1,7 @@
 import type { DocumentRecord, RichDocument } from "../../domain/document";
 
 export interface DocumentSaveOperation {
+  autosave?: boolean;
   expectedRevision: number;
   operationId: string;
   content: RichDocument;
@@ -99,6 +100,7 @@ export class DocumentDraft {
     ) {
       if (this.snapshot.saveState === "conflict") return false;
       this.pending ??= {
+        autosave: true,
         expectedRevision: this.snapshot.revision,
         operationId: crypto.randomUUID(),
         content: this.snapshot.content,
