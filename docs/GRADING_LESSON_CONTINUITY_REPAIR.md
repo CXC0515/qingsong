@@ -23,3 +23,7 @@
 
 ## 验收边界
 真实模型生成质量与实体手机触控由教师复测；不把fixture和健康检查写成这些已经完成。既有坏标题不批量覆盖，教师手动命名保持不变；新增引用会话使用修正后的原生自动标题。
+
+## v1.2 发布完成
+PR #144 → a275a1945381d484ab91737113b5c7de6b7bbb7c；母文件夹main打包，581源文件核验，包SHA256 40a14c41fc7b8c77fdb25f63278db698dfa73c35e15b982f6f322c620ee089b4。服务器独立构建与专项检查通过；685文件/12 SQLite恢复点验证，183表计数和完整性一致，76公网资源哈希一致。2026-11-07 02:42完成上线，服务active且重启次数0，docxConverterReady=true，备份timer恢复。
+两份原失败材料由相同解析服务重跑并保存ready；46/138块，无警告，原件哈希和其他材料不变，未触发评分。恢复点/var/lib/teacher-dashboard/backups/product-2026-11-07-pre-repair-a275a19保留；操作与检查证据/var/log/teacher-dashboard-grading-lesson-repair-2026-11-07及/var/lib/teacher-dashboard/qa-doc2md/reparse-result.json。

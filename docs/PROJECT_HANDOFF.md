@@ -578,5 +578,5 @@ flowchart LR
 
 官方助手本地UI修正（2026-10-27）：用户批准后修复共享弹窗白边、助手容器/输入留白和历史栏双状态；本地检查见 docs/qa/2026-10-27-assistant-official/README.md 的1.1。未部署。
 
-## 2026-11-07 批改解析与教案连续性修复（待发布）
-用户授权本批修复、Git/PR合并和部署。专项方案与验证见docs/GRADING_LESSON_CONTINUITY_REPAIR.md。Word失败根因是服务器缺少paddleocr doc2md命令，现已在隔离环境恢复并用两份失败原件验证，不改云OCR和评分算法。教案引用预览/发送展示/站内打开/自动标题、原生会话恢复、图片缩放及保存历史分离已实现，保留不可变修订和并发保护；Skill不改。实际发布提交、服务器验证和恢复点在发布后补记。
+## 2026-11-07 批改解析与教案连续性修复（已发布）
+用户授权本批修复、Git/PR合并和部署。专项方案与验证见docs/GRADING_LESSON_CONTINUITY_REPAIR.md。Word失败根因是服务器缺少paddleocr doc2md命令，现已在隔离环境恢复并用两份失败原件验证，不改云OCR和评分算法。教案引用预览/发送展示/站内打开/自动标题、原生会话恢复、图片缩放及保存历史分离已实现，保留不可变修订和并发保护；Skill不改。PR #144合并并部署为a275a1945381d484ab91737113b5c7de6b7bbb7c，2026-11-07 02:42 Asia/Shanghai切换完成；恢复点backups/product-2026-11-07-pre-repair-a275a19已校验，685文件/12 SQLite，切换前后183表计数一致、外键错误0、76公网资源哈希一致。服务active/running，NRestarts=0，备份timer active，公网docxConverterReady=true。两份原失败材料经同服务用户重新解析为ready（46/138块，无警告），未触发评分。生产日志在/var/log/teacher-dashboard-grading-lesson-repair-2026-11-07，原件不变，Skill未改；实体手机与真实模型生成质量仍待教师验收。
