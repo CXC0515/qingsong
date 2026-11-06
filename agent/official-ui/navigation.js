@@ -156,8 +156,82 @@
       controller.abort();
     }
   }
+  function observeSelectedSession(ctx, onState, options = {}) {
+    const now = options.now ?? (() => global.performance?.now() ?? Date.now());
+    const schedule = options.setInterval ?? global.setInterval;
+    const cancel = options.clearInterval ?? global.clearInterval;
+    const intervalMs = options.intervalMs ?? 1000;
+    const slowAfterMs = options.slowAfterMs ?? 15000;
+    const stalledAfterMs = options.stalledAfterMs ?? 45000;
+    let current;
+    let disposed = false;
+    let inspecting = false;
+
+    const release = record => {
+      if (record.settled) return;
+      record.settled = true;
+      cancel(record.timer);
+      record.controller.abort();
+      record.reference?.release();
+      record.reference = undefined;
+    };
+    const finish = (record, phase) => {
+      if (disposed || current !== record || record.settled) return;
+      const durationMs = Math.max(0, Math.round(now() - record.started));
+      release(record);
+      onState({ phase, durationMs });
+    };
+    const inspect = () => {
+      if (disposed || inspecting) return;
+      inspecting = true;
+      try {
+      const sessionId = Object.values(ctx.sessions.list.getSnapshot().byId ?? {})
+        .find(row => (row.retainedBy?.mainView ?? 0) > 0)?.id;
+      if (sessionId === current?.sessionId) return;
+      if (current) release(current);
+      current = undefined;
+      if (!sessionId) {
+        onState({ phase: 'empty', durationMs: 0 });
+        return;
+      }
+
+      const record = { sessionId, controller: new AbortController(), started: now(), reference: undefined, timer: undefined, settled: false };
+      current = record;
+      const elapsed = () => Math.max(0, Math.round(now() - record.started));
+      onState({ phase: 'loading', durationMs: 0 });
+      record.timer = schedule(() => {
+        if (current !== record || record.settled) return;
+        const durationMs = elapsed();
+        onState({ phase: durationMs >= stalledAfterMs ? 'stalled' : durationMs >= slowAfterMs ? 'slow' : 'loading', durationMs });
+        if (durationMs >= stalledAfterMs) cancel(record.timer);
+      }, intervalMs);
+      try {
+        record.reference = ctx.sessions.retain(sessionId, {
+          source: 'qingsong-session-observer',
+          signal: record.controller.signal,
+        });
+        Promise.resolve(record.reference.ready).then(
+          () => finish(record, 'ready'),
+          () => finish(record, 'error'),
+        );
+      } catch {
+        finish(record, 'error');
+      }
+      } finally { inspecting = false; }
+    };
+
+    const unsubscribe = ctx.sessions.list.subscribe(inspect);
+    inspect();
+    return () => {
+      disposed = true;
+      unsubscribe();
+      if (current) release(current);
+      current = undefined;
+    };
+  }
   global.QingsongAssistantNavigation = Object.freeze({
     openContext,
+    observeSelectedSession,
     NavigationError,
   });
 })(globalThis);

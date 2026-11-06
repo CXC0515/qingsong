@@ -158,7 +158,7 @@ test('connection observer reports catalog failures, recovers, answers trusted pr
  const workspace={phase:'pending',state:'loading'},sessions={phase:'pending',state:'loading'};
  const store=snapshot=>{const callbacks=new Set();return{getSnapshot:()=>snapshot,subscribe:callback=>{callbacks.add(callback);return()=>callbacks.delete(callback);},notify:()=>callbacks.forEach(callback=>callback()),callbacks};};
  const workStore=store(workspace),sessionStore=store(sessions);let plugin;
- vm.runInNewContext(source,{window:{name:'qingsong-assistant:attempt-one',__ModuleLoader__:{load:module=>{plugin=module.factory(require);}},addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:(name)=>listeners.delete(name)},parent,location:{origin:'https://fixture.test',search:'?connection=removed-by-router'},URLSearchParams,performance,crypto:globalThis.crypto});
+ vm.runInNewContext(source,{window:{name:'qingsong-assistant:attempt-one',__ModuleLoader__:{load:module=>{plugin=module.factory(require);}},QingsongAssistantNavigation:{observeSelectedSession:()=>()=>{}},addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:(name)=>listeners.delete(name)},parent,location:{origin:'https://fixture.test',search:'?connection=removed-by-router'},URLSearchParams,performance,crypto:globalThis.crypto});
  plugin.apply({slots:{inject:()=>{}},effect:fn=>effects.push(fn),workspaces:{list:workStore},sessions:{list:sessionStore}});
  const dispose=effects.at(-1)();assert.equal(messages.at(-1).data.phase,'catalogs');
  workspace.state='error';workStore.notify();assert.equal(messages.at(-1).data.phase,'error');assert.equal(messages.at(-1).data.pending,'workspace');

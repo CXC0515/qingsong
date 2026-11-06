@@ -20,6 +20,8 @@ export default function PreparationTasks({preparationId,documentId,tasks,onChang
   const failureKey=latestFailure ? latestFailure.id+":"+latestFailure.updatedAt : "";
   const [notice,setNotice]=useState("");
   const [dismissedNeedsInput,setDismissedNeedsInput]=useState<string|null>(null);
+  const showNeedsInput=Boolean(needsInput&&!active&&dismissedNeedsInput!==needsInput.id);
+  const showFailure=Boolean(!active&&notice===failureKey&&latestFailure);
   useEffect(()=>{
     setNotice(failureKey);
     if(!failureKey)return;
@@ -39,14 +41,18 @@ export default function PreparationTasks({preparationId,documentId,tasks,onChang
       <span title={active.message||active.instruction}>{labels[active.status]} · {active.stage||active.instruction}</span>
       {["queued","running"].includes(active.status) && <GlassButton onClick={()=>void stop(active)}><Square size={14}/>停止</GlassButton>}
     </div>}
-    {needsInput && !active && dismissedNeedsInput!==needsInput.id && <div className="qs-prep-current-task qs-prep-needs-input" role="status">
-      <span title={needsInput.message||needsInput.instruction}>需要补充 · {needsInput.message||needsInput.stage||needsInput.instruction}</span>
-      <button type="button" onClick={()=>continueTask(needsInput)}><MessageSquare size={14}/>去助手补充</button>
-      <button type="button" aria-label="收起补充提醒" onClick={()=>setDismissedNeedsInput(needsInput.id)}><X size={16}/></button>
-    </div>}
-    {!active && notice===failureKey && latestFailure && <div className="qs-prep-task-notice" role="status">
-      <span>此前有任务未完成，已有教案保留。详情已收进任务记录。</span>
-      <button type="button" aria-label="收起任务提示" onClick={()=>setNotice("")}>收起</button>
+    {(showNeedsInput||showFailure) && <div className="qs-prep-task-alerts" role="status" aria-live="polite">
+      {showNeedsInput && needsInput && <div className="qs-prep-task-alert qs-prep-needs-input">
+        <span title={needsInput.message||needsInput.instruction}>需要补充 · {needsInput.message||needsInput.stage||needsInput.instruction}</span>
+        <div className="qs-prep-task-alert-actions">
+          <button type="button" onClick={()=>continueTask(needsInput)}><MessageSquare size={14}/>去助手补充</button>
+          <button type="button" aria-label="收起补充提醒" onClick={()=>setDismissedNeedsInput(needsInput.id)}><X size={16}/></button>
+        </div>
+      </div>}
+      {showFailure && <div className="qs-prep-task-alert">
+        <span>此前有任务未完成，已有教案保留。详情已收进任务记录。</span>
+        <button type="button" aria-label="收起任务提示" onClick={()=>setNotice("")}>收起</button>
+      </div>}
     </div>}
     <GlassButton onClick={()=>setOpen(true)} aria-haspopup="dialog"><span>任务记录</span><span className="qs-prep-count"> · {tasks.length}</span></GlassButton>
     {open && <ResponsiveDialog title="任务记录" onClose={()=>setOpen(false)}>
