@@ -143,3 +143,26 @@ test('sidebar selection reconciles once, ignores stale responses and keeps the o
  requests.at(-1).resolve({ok:false});await new Promise(resolve=>setTimeout(resolve,0));
  offMessages();offSelection();
 });
+
+test('shell association follows the actual session, hides ordinary chats and ignores late outcomes',async()=>{
+ const source=await readFile(new URL('./official-ui/client.js',import.meta.url),'utf8');
+ const effects=[],listeners=new Map(),posted=[],pending=[];let plugin,notify,selected='a';
+ const rows={a:{id:'a',retainedBy:{mainView:1}}};
+ const window={name:'qingsong-assistant:association-test',__ModuleLoader__:{load:module=>{plugin=module.factory(()=>({}));}},addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)};
+ vm.runInNewContext(source,{window,parent:{postMessage:data=>posted.push(data)},location:{origin:'https://fixture.test'},AbortController,AbortSignal,fetch:(_url,args)=>new Promise(resolve=>pending.push({resolve,signal:args.signal}))});
+ plugin.apply({slots:{inject:()=>{}},effect:fn=>effects.push(fn),sessions:{list:{getSnapshot:()=>({byId:rows}),subscribe:fn=>{notify=fn;return()=>{};}}}});
+ const dispose=effects[1]();assert.equal(posted.at(-1).bound,false);
+ rows.a.retainedBy={};selected='b';rows.b={id:'b',retainedBy:{mainView:1}};notify();
+ pending[1].resolve({ok:true,json:async()=>({bound:true,title:'陋室铭',preparationId:'prep-b',documentId:'doc-b'})});
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(posted.at(-1).sessionId,'b');assert.equal(posted.at(-1).title,'陋室铭');
+ const count=posted.length;
+ pending[0].resolve({ok:true,json:async()=>({bound:true,title:'过期的A教案'})});
+ await new Promise(resolve=>setTimeout(resolve,0));assert.equal(posted.length,count);
+ rows.b.retainedBy={};selected='chat';rows.chat={id:'chat',retainedBy:{mainView:1}};notify();
+ pending[2].resolve({ok:true,json:async()=>({bound:false})});
+ await new Promise(resolve=>setTimeout(resolve,0));assert.equal(posted.at(-1).bound,false);assert.equal(posted.at(-1).title,undefined);
+ listeners.get('qingsong:association-checked')({detail:{sessionId:'chat'}});assert.equal(pending.length,4);
+ dispose();pending[3].resolve({ok:true,json:async()=>({bound:true,title:'已销毁的回执'})});
+ await new Promise(resolve=>setTimeout(resolve,0));assert.equal(posted.at(-1).title,undefined);
+});

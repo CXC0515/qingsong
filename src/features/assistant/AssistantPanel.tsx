@@ -11,11 +11,13 @@ import DemoAssistant from '../../demo/DemoAssistant';
 interface MaterialPickRequest { requestId: string; sessionId: string; connectionId: string; attempts: Map<string, string> }
 
 export interface AssistantEntry extends PreparationAssistantContext {mode:'default'|'preparation'; requestKey?:number}
-export default function AssistantPanel({entry}:{entry?:AssistantEntry}) {
-  return isDemoRoute() ? <DemoAssistant /> : <OfficialAssistantPanel entry={entry} />;
+export interface SessionAssociation { sessionId: string; preparationId: string; documentId: string; title: string }
+interface Props {entry?:AssistantEntry; onAssociationChange?:(association:SessionAssociation|null)=>void}
+export default function AssistantPanel({entry,onAssociationChange}:Props) {
+  return isDemoRoute() ? <DemoAssistant /> : <OfficialAssistantPanel entry={entry} onAssociationChange={onAssociationChange} />;
 }
 
-function OfficialAssistantPanel({entry}:{entry?:AssistantEntry}) {
+function OfficialAssistantPanel({entry,onAssociationChange}:Props) {
   const [settings,setSettings]=useState(false),[dirty,setDirty]=useState(false),[busy,setBusy]=useState(false);
   const closeSettings=useRef<()=>void>(null);
   const frame = useRef<HTMLIFrameElement>(null);
@@ -123,6 +125,18 @@ function OfficialAssistantPanel({entry}:{entry?:AssistantEntry}) {
     window.addEventListener('message',receive);startTimer();
     return()=>{window.removeEventListener('message',receive);stopTimer();};
   },[connectionId]);
+  useEffect(() => {
+    onAssociationChange?.(null);
+    const receive=(event:MessageEvent)=>{
+      const data=event.data;
+      if(event.origin!==location.origin||event.source!==frame.current?.contentWindow||data?.connectionId!==connectionId||data?.type!=='qingsong:session-association')return;
+      if(!data.bound){onAssociationChange?.(null);return;}
+      if(typeof data.sessionId!=='string'||typeof data.preparationId!=='string'||typeof data.documentId!=='string'||typeof data.title!=='string'||data.title.length>1000)return;
+      onAssociationChange?.({sessionId:data.sessionId,preparationId:data.preparationId,documentId:data.documentId,title:data.title});
+    };
+    window.addEventListener('message',receive);
+    return()=>window.removeEventListener('message',receive);
+  },[connectionId,onAssociationChange]);
   useEffect(() => {
     const receive=(event:MessageEvent)=>{
       const data=event.data;

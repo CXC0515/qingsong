@@ -128,7 +128,10 @@ export async function readPreparation(a: ReadArgs, signal?: AbortSignal) {
       true,
     );
   return envelope(
-    result,
+    {...result,
+      paging:{requestedOffset:a.offset,requestedLimit:a.limit,effectiveLimit:Math.min(a.limit,10)},
+      nextRead:result.coverage?.nextStart ? {ref:a.ref,section:"original",offset:result.coverage.nextStart-1,limit:Math.min(a.limit,10)} : null,
+    },
     sourceUrl(parentId),
     undefined,
     !result.coverage?.complete,

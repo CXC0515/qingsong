@@ -16,9 +16,8 @@ import {
   Save,
   Settings2,
   X,
-  Square,
 } from "lucide-react";
-import { GlassButton, GlassSegments } from "../../components/glass/Glass";
+import { GlassButton } from "../../components/glass/Glass";
 import ResponsiveDialog from "../../components/ResponsiveDialog";
 import { WorkspaceToolbar } from "../../components/WorkspaceUI";
 import type { DocumentRecord } from "../../domain/document";
@@ -28,7 +27,6 @@ import type {
 } from "../../domain/preparation";
 import type { DocumentSelection } from "../../components/document/DocumentEditor";
 import {
-  cancelPreparationTask,
   forkPreparationDocument,
   getPreparation,
   importPreparationSource,
@@ -46,12 +44,12 @@ import { PreparationSettings, ForkDialog } from "./PreparationDialogs";
 import { getKnowledgeGraph } from "../../services/resourceApi";
 import type { KnowledgeEntity } from "../../domain/types";
 import PreparationConversations from "./PreparationConversations";
+import PreparationTasks from "./PreparationTasks";
 
 const DocumentEditor = lazy(
   () => import("../../components/document/DocumentEditor"),
 );
 const PdfPageViewer = lazy(() => import("../../components/PdfPageViewer"));
-type Panel = "document" | "sources";
 export default function PreparationDetail({
   initial,
   initialDocumentId,
@@ -67,11 +65,25 @@ export default function PreparationDetail({
     [documentId, setDocumentId] = useState(
       initialDocumentId || initial.documents[0]?.id,
     );
-  const [panel, setPanel] = useState<Panel>("document"),
-    [history, setHistory] = useState(false),
+  const [history, setHistory] = useState(false),
     [settings, setSettings] = useState(false),
     [forking, setForking] = useState(false);
   const [knowledge, setKnowledge] = useState<KnowledgeEntity[]>([]);
+  const surface=useRef<HTMLDivElement>(null), materials=useRef<HTMLDialogElement>(null);
+  const [compact,setCompact]=useState(true), [materialsOpen,setMaterialsOpen]=useState(false), [materialsCollapsed,setMaterialsCollapsed]=useState(false);
+  useEffect(()=>{
+    const node=surface.current!;
+    const update=()=>setCompact(node.getBoundingClientRect().width<1120);
+    const observer=new ResizeObserver(update);observer.observe(node);update();
+    return()=>observer.disconnect();
+  },[]);
+  useEffect(()=>{
+    const dialog=materials.current!;
+    // The same subtree survives drawer/column changes, including a pending source selection.
+    if(dialog.open)dialog.close();
+    if(compact){if(materialsOpen)dialog.showModal();}
+    else if(!materialsCollapsed)dialog.show();
+  },[compact,materialsOpen,materialsCollapsed]);
   const [reader, setReader] = useState<PreparationSource | null>(null),
     [readerPage, setReaderPage] = useState(1),
     [busy, setBusy] = useState(""),
@@ -193,7 +205,7 @@ export default function PreparationDetail({
         operationId: crypto.randomUUID(),
       });
       acceptDocument(result.document);
-      setPanel("document");
+      setMaterialsOpen(false);
       if (result.warnings.length) setError(result.warnings.join("；"));
       onShowToast("底稿已导入，原件和旧版本保留。");
     } catch (cause) {
@@ -237,7 +249,7 @@ export default function PreparationDetail({
     ? `/api/preparations/${preparationId}/sources/${reader.id}/preview`
     : "";
   return (
-    <div className="qs-prep-detail">
+    <div className="qs-prep-detail" ref={surface}>
       <WorkspaceToolbar label="备课操作">
         <div className="qs-prep-title-group">
           <GlassButton
@@ -374,63 +386,25 @@ export default function PreparationDetail({
             : "正在生成文件，教案已经保存…"}
         </p>
       )}
-      {detail.tasks
-        .filter((task) =>
-          [
-            "queued",
-            "running",
-            "needs-input",
-            "failed",
-            "interrupted",
-          ].includes(task.status),
-        )
-        .map((task) => (
-          <div className="qs-prep-task" key={task.id}>
-            <span>
-              {task.status === "queued"
-                ? "排队中"
-                : task.status === "running"
-                  ? "正在处理"
-                  : task.status === "needs-input"
-                    ? "需要补充"
-                    : "上次任务未完成"}{" "}
-              · {task.stage || task.instruction}
-              <small>{task.message}</small>
-            </span>
-            {["queued", "running"].includes(task.status) && (
-              <GlassButton
-                onClick={async () => {
-                  try {
-                    const result = await cancelPreparationTask(
-                      preparationId,
-                      task.id,
-                    );
-                    await refresh();
-                    if (result.warning) report(result.warning);
-                  } catch (cause) {
-                    report((cause as Error).message);
-                  }
-                }}
-              >
-                <Square size={14} />
-                停止
-              </GlassButton>
-            )}
-          </div>
-        ))}
-      <div className="qs-prep-mobile-tabs">
-        <GlassSegments
-          label="备课工作面"
-          value={panel}
-          onChange={setPanel}
-          options={[
-            { value: "document", label: "教案正文" },
-            { value: "sources", label: `资料 · ${detail.sources.length}` },
-          ]}
-        />
+      <div className="qs-prep-context-tools">
+        <GlassButton
+          aria-expanded={compact?materialsOpen:!materialsCollapsed}
+          aria-controls="qs-preparation-materials"
+          onClick={()=>compact?setMaterialsOpen(true):setMaterialsCollapsed(value=>!value)}
+        >
+          <BookOpen size={16}/>{!compact&&!materialsCollapsed?"收起资料":"本次资料"} · {detail.sources.length}
+        </GlassButton>
+        <PreparationTasks preparationId={preparationId} tasks={detail.tasks} onChanged={refresh} onError={report}/>
       </div>
-      <div className="qs-prep-workspace" data-panel={panel}>
-        <aside className="qs-prep-materials">
+      <div className="qs-prep-workspace" data-materials-collapsed={compact||materialsCollapsed}>
+        <dialog ref={materials} id="qs-preparation-materials" className="qs-prep-materials" aria-label="本次备课资料"
+          onCancel={event=>{event.preventDefault();setMaterialsOpen(false);}}
+          onClick={event=>{
+            if(!compact||event.target!==event.currentTarget)return;
+            const bounds=event.currentTarget.getBoundingClientRect();
+            if(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom)setMaterialsOpen(false);
+          }}>
+          {compact && <header className="qs-prep-materials-header"><strong>本次备课资料</strong><button type="button" aria-label="收起本次资料" onClick={()=>setMaterialsOpen(false)}><X size={18}/></button></header>}
           <PreparationSources
             preparationId={preparationId}
             sources={detail.sources}
@@ -458,7 +432,7 @@ export default function PreparationDetail({
               </button>
             </section>
           )}
-        </aside>
+        </dialog>
         <main className="qs-prep-writing">
           <PreparationProposals
             preparationId={preparationId}

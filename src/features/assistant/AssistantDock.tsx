@@ -7,7 +7,7 @@ import {
   type PointerEvent,
 } from "react";
 import { ArrowLeft, GripVertical, PanelRightClose } from "lucide-react";
-import AssistantPanel, { type AssistantEntry } from "./AssistantPanel";
+import AssistantPanel, { type AssistantEntry, type SessionAssociation } from "./AssistantPanel";
 
 const MIN_WIDTH = 320;
 const DEFAULT_WIDTH = 400;
@@ -37,6 +37,7 @@ export default function AssistantDock({
   onClose: () => void;
 }) {
   const dock = useRef<HTMLElement>(null);
+  const [association,setAssociation]=useState<SessionAssociation|null>(null);
   const storageKey = `qingsong:assistant-width:${identityKey}:${surface}`;
   const [preference, setPreference] = useState(() => ({
     key: storageKey,
@@ -143,7 +144,7 @@ export default function AssistantDock({
       <header className="qs-assistant-dock-header">
         <span>
           <strong>AI 助手</strong>
-          {entry.mode === "preparation" && <small>当前备课</small>}
+          {association && <small title={association.title}>当前备课 · {association.title}</small>}
         </span>
         {!pinned && <button
           ref={closeButton}
@@ -156,7 +157,7 @@ export default function AssistantDock({
           <span>{entry.mode === "preparation" ? "返回教案" : "返回页面"}</span>
         </button>}
       </header>
-      <AssistantPanel entry={entry} />
+      <AssistantPanel entry={entry} onAssociationChange={setAssociation} />
     </aside>
   );
 }

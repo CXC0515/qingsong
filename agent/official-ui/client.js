@@ -54,21 +54,27 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         if(!hostOpening)void reconcileSelection(sessionId);
       });
     });
-    function SessionAssociation({sessionId}) {
-      const [label,setLabel] = React.useState('正在核对教案关联…');
-      const [check,setCheck]=React.useState(0);
-      React.useEffect(()=>{const checked=event=>{if(event.detail?.sessionId===sessionId)setCheck(value=>value+1);};window.addEventListener('qingsong:association-checked',checked);return()=>window.removeEventListener('qingsong:association-checked',checked);},[sessionId]);
-      React.useEffect(() => {
-        const controller = new AbortController();
-        setLabel('正在核对教案关联…');
-        fetch('./api/qingsong/preparation-outcome?sessionId='+encodeURIComponent(sessionId),{signal:AbortSignal.any([controller.signal,AbortSignal.timeout(10000)]),cache:'no-store'})
-          .then(async response => {if(!response.ok) throw Error(); return response.json();})
-          .then(value => {if(!controller.signal.aborted) setLabel(value.bound ? '关联教案：'+value.title : '未关联教案：请从具体教案打开助手后修改正文。');})
-          .catch(() => {if(!controller.signal.aborted) setLabel('教案关联尚未核对，请从具体教案打开助手。');});
-        return () => controller.abort();
-      },[sessionId,check]);
-      return React.createElement('span',{className:'qs-session-association',title:label},label);
-    }
+    // Association is shell context, never part of the shared attachment/composer toolbar.
+    ctx.effect(() => {
+      let previous, controller, version=0;
+      const publish=association=>parent.postMessage({type:'qingsong:session-association',connectionId,...association},location.origin);
+      const refresh=force=>{
+        const sessionId=selectedSession();
+        if(!force&&sessionId===previous)return;
+        previous=sessionId;const current=++version;controller?.abort();
+        publish({sessionId,bound:false});
+        if(!sessionId)return;
+        controller=new AbortController();const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(10000)]);
+        fetch('./api/qingsong/preparation-outcome?sessionId='+encodeURIComponent(sessionId),{signal,cache:'no-store'})
+          .then(async response=>{if(!response.ok)throw Error();return response.json();})
+          .then(value=>{if(current===version&&selectedSession()===sessionId&&!signal.aborted)publish({sessionId,bound:value.bound===true,...(value.bound?{title:value.title,preparationId:value.preparationId,documentId:value.documentId}:{})});})
+          .catch(()=>{});
+      };
+      const checked=event=>{if(event.detail?.sessionId===selectedSession())refresh(true);};
+      const dispose=ctx.sessions.list.subscribe(()=>refresh(false));
+      window.addEventListener('qingsong:association-checked',checked);refresh(false);
+      return()=>{version++;controller?.abort();dispose();window.removeEventListener('qingsong:association-checked',checked);};
+    });
     function FailureNotice({node, sessionId, retry}) {
       const failure = retry ? node.data.current.failure : node.data;
       const [outcome, setOutcome] = React.useState('正在核对教案保存状态…');
@@ -150,7 +156,6 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         open&&React.createElement('div',{className:'qs-materials-options',role:'menu'},
           React.createElement('button',{type:'button',role:'menuitem',onClick:()=>{setOpen(false);fileInput.current.click();}},icon('M21 11.5 12 20.5a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8L15 6.5'),'上传文件'),
           React.createElement('button',{type:'button',role:'menuitem',onClick:pickPool},icon('M3 7h7l2-3h9v16H3Z'),'从材料池选择')),
-        React.createElement(SessionAssociation,{sessionId}),
         error&&React.createElement('span',{className:'qs-materials-error',role:'alert'},React.createElement('span',null,error),React.createElement('button',{type:'button','aria-label':'关闭材料提示',onClick:()=>setError('')},icon('M6 6l12 12M18 6 6 18'))));
     }
     ctx.slots.inject('conversation.input.left',()=>ctx.slots.register({
@@ -237,7 +242,10 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
             onStage:stage => parent.postMessage({type:'qingsong:context-progress',connectionId,requestId:data.requestId,stage},location.origin),
             onTiming:timing => parent.postMessage({type:'qingsong:context-timing',connectionId,requestId:data.requestId,...timing},location.origin),
           });
-          if (current === navigation) {hostTarget={...data.target,...target};showGuard(null);}
+          if (current === navigation) {
+            hostTarget={...data.target,...target};showGuard(null);
+            window.dispatchEvent(new CustomEvent('qingsong:association-checked',{detail:{sessionId:selectedSession()}}));
+          }
           if (current === navigation) parent.postMessage({type:'qingsong:context-opened',connectionId,requestId:data.requestId,target},location.origin);
         } catch (error) {
           if (current !== navigation || navigation.controller.signal.aborted) return;

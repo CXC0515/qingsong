@@ -1,9 +1,11 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, realpath } from 'node:fs/promises';
+import { mkdtemp, rm, realpath, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
+import { closeResourceDatabase } from '../../database/resourceDatabase';
+import { materialPoolRepository } from '../../repositories/materialPoolRepository';
 import { runWithWorkspace, type WorkspaceContext } from '../../context/workspaceContext';
 import { closePreparationDatabase } from '../../database/preparationDatabase';
 import {preparationRepository} from '../../repositories/preparationRepository';
@@ -14,7 +16,7 @@ import type { RichDocument } from '../../../src/domain/document';
 
 const root = await mkdtemp(path.join(tmpdir(), 'qs-preparation-assistant-'));
 const context: WorkspaceContext = { userId: 'teacher-helper', workspaceId: 'workspace-helper', role: 'teacher', root, dataDirectory: path.join(root, 'data'), uploadDirectory: path.join(root, 'uploads') };
-after(async () => { closePreparationDatabase(); await rm(root, {recursive:true,force:true}); });
+after(async () => { closePreparationDatabase(); closeResourceDatabase(); await rm(root, {recursive:true,force:true}); });
 const op = () => randomUUID();
 const paragraph = (id: string, text: string) => ({type:'paragraph',attrs:{id},content:[{type:'text',text}]});
 const document = (first = '原文第一段', second = '原文第二段'): RichDocument => ({type:'doc',content:[paragraph('paragraph-first',first),paragraph('paragraph-second',second)]});
@@ -216,4 +218,40 @@ test('native selection binds only a same-workspace empty session, preserves exis
     assert.equal((await resolveSelectedPreparationSession({sessionId:'native-empty'},call)).bound,false);
     await assert.rejects(resolveSelectedPreparationSession({sessionId:'native-empty',preparationId:a.id,documentId:a.doc.id},call));
   });
+}));
+
+test('candidate delivery blocks generated disclaimers, permits teaching presets and leaves teacher paragraphs intact',async()=>runWithWorkspace(context,async()=>{
+ const {id,doc}=fixture();
+ const target=await resolvePreparationTarget({mode:'preparation',preparationId:id,documentId:doc.id,revision:doc.revision},nativeFixture().call);
+ const task:any=await preparationAssistantTool(target.sessionId!,{action:'begin',stage:'编写教案'},'生成陋室铭教案');
+ const proposed={action:'propose',taskId:task.taskId,baseRevision:doc.revision,operationId:op(),summary:'生成教案'};
+ await assert.rejects(preparationAssistantTool(target.sessionId!,{...proposed,content:JSON.stringify(document('本班具体学习情况尚未提供，以下作为一般教学预设：学生可借助注释阅读。'))},'生成教案'),(error:any)=>error.code==='GENERATION_NOTE_IN_DOCUMENT'&&/尚未保存/.test(error.message));
+ assert.equal(prep.listProposals(id).length,0);
+ assert.equal(prep.getDocument(id,doc.id).revision,doc.revision);
+ assert.equal(prep.getTask(id,task.taskId).status,'running');
+ const result:any=await preparationAssistantTool(target.sessionId!,{...proposed,content:JSON.stringify(document('课前用朗读与释义任务诊断文言基础，观察能否用原句说明“德馨”。','预设回答：环境清幽。教师追问：这些景物怎样说明陋室不陋？'))},'生成教案');
+ assert.equal(result.verification.verified,true);
+ assert.equal(result.verification.proposal.status,'pending');
+ const {assertCandidateDelivery}=await import('../preparation/candidateDelivery');
+ const old=document('本班具体学习情况尚未提供，以下作为一般教学预设。','教师已经写下的段落');
+ assert.doesNotThrow(()=>assertCandidateDelivery(old,document('本班具体学习情况尚未提供，以下作为一般教学预设。','仅修改这一段的课堂活动')));
+ assert.throws(()=>assertCandidateDelivery(old,{type:'doc',content:[paragraph('new-note','由于教师未提供学情，暂按通用情况生成。')]}),/生成说明/);
+}));
+
+test('selected source pagination returns an executable continuation with no overlap or gaps',async()=>runWithWorkspace(context,async()=>{
+ const {id}=fixture();await mkdir(context.uploadDirectory,{recursive:true});
+ const bytes=Buffer.from(Array.from({length:23},(_,i)=>`第${i+1}页合成材料`).join('\n'));
+ const filePath=path.join(context.uploadDirectory,'continuation.txt');await writeFile(filePath,bytes);
+ const item=materialPoolRepository.createItem({id:op(),originalName:'连续材料.txt',detectedMime:'text/plain',sizeBytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),diskPath:filePath,source:'test'});
+ const source=await prep.addSource(id,{kind:'pool',id:item.id,role:'reference',operationId:op()});
+ const args={ref:{type:'preparationSource' as const,id:source.id,parentId:id},section:'original',filters:{},offset:0,limit:50,textOffset:0};
+ const first:any=await readPreparation(args);
+ assert.equal(first.data.paging.effectiveLimit,10);
+ assert.equal(first.data.coverage.to,10);assert.equal(first.data.nextRead.offset,10);assert.equal(first.data.nextRead.limit,10);
+ const second:any=await readPreparation({...args,...first.data.nextRead});
+ const third:any=await readPreparation({...args,...second.data.nextRead});
+ assert.equal(third.data.nextRead,null);assert.equal(third.data.coverage.to,23);
+ assert.deepEqual([first,second,third].flatMap(r=>r.data.items.map((p:any)=>p.index)),Array.from({length:23},(_,i)=>i+1));
+ const other={...context,userId:'other-teacher'};
+ await runWithWorkspace(other,async()=>assert.rejects(readPreparation({...args,...first.data.nextRead}),/当前账号可访问/));
 }));
