@@ -245,6 +245,7 @@ export function normalizeRichDocument(
   }
   const document = node(input, 0);
   const blockTypes = new Set([
+    "columns",
     "paragraph",
     "heading",
     "bulletList",
@@ -286,10 +287,13 @@ export function normalizeRichDocument(
       if (column !== width) invalid();
     });
   }
-  function checkChildren(parent: DocumentNode) {
+  function checkChildren(parent: DocumentNode, inColumns = false) {
+    if (parent.type === 'columns' && inColumns)
+      fail("INVALID_DOCUMENT", "分栏不能嵌套，尚未保存。");
     const allowed = [
       "doc",
       "blockquote",
+      "column",
       "tableCell",
       "tableHeader",
       "listItem",
@@ -299,6 +303,8 @@ export function normalizeRichDocument(
         ? inlineTypes
         : ["bulletList", "orderedList"].includes(parent.type)
           ? new Set(["listItem"])
+          : parent.type === "columns"
+            ? new Set(["column"])
           : parent.type === "table"
             ? new Set(["tableRow"])
             : parent.type === "tableRow"
@@ -327,6 +333,10 @@ export function normalizeRichDocument(
       );
     // A row can be empty only when earlier cells cover every column via rowspan.
     if (parent.type === "table") checkTable(parent);
+    if (parent.type === "columns" && (![2,3].includes(parent.content?.length ?? 0) || parent.content?.some(column => column.content?.some(child => child.type === 'columns'))))
+      fail("INVALID_DOCUMENT", "分栏须包含二至三栏，且不能嵌套分栏，尚未保存。");
+    if (parent.type === "column" && !parent.content?.length)
+      fail("INVALID_DOCUMENT", "分栏缺少正文段落，尚未保存。");
     if (parent.type === "listItem" && parent.content?.[0]?.type !== "paragraph")
       fail("INVALID_DOCUMENT", "列表项目须以正文段落开始，尚未保存。");
     if (
@@ -334,7 +344,7 @@ export function normalizeRichDocument(
       (typeof parent.text !== "string" || !parent.text)
     )
       fail("INVALID_DOCUMENT", "文档文字缺少内容，尚未保存。");
-    for (const child of parent.content ?? []) checkChildren(child);
+    for (const child of parent.content ?? []) checkChildren(child, inColumns || parent.type === 'columns');
   }
   checkChildren(document);
   if (
@@ -496,18 +506,32 @@ export interface SaveDocumentInput {
   content: RichDocument;
   title?: string;
 }
+interface DocumentCheckpoint { revision: number; versionNumber: number; savedAt: string }
+function documentCheckpoints(documentId: string): DocumentCheckpoint[] {
+  const stored = repo.setting<DocumentCheckpoint[]>('document-versions:' + documentId);
+  if (stored) return stored;
+  return repo.revisions<DocumentRevision>(documentId).reverse()
+    .filter(item => repo.setting('document-checkpoint:' + documentId + ':' + item.revision))
+    .map((item, index) => ({revision: item.revision, versionNumber: index + 1, savedAt: item.updatedAt}));
+}
 export function checkpointDocument(preparationId: string, documentId: string, input: unknown) {
   const parsed=z.object({expectedRevision:z.number().int().positive(),operationId}).strict().parse(input);
   return once(parsed.operationId,['checkpoint',preparationId,documentId,parsed],()=>{
     editable(preparationId);const document=getDocument(preparationId,documentId);
     if(document.revision!==parsed.expectedRevision)fail('VERSION_CONFLICT','教案已有新修改，本次未记录版本。请核对当前稿后重试。',409);
-    repo.setSetting('document-checkpoint:'+documentId+':'+document.revision,true);
+    const checkpoints = documentCheckpoints(documentId);
+    if (checkpoints.at(-1)?.revision === document.revision) return document;
+    const checkpoint = {revision:document.revision, versionNumber:checkpoints.length + 1, savedAt:now()};
+    repo.setSetting('document-versions:' + documentId, [...checkpoints, checkpoint]);
     return document;
   });
 }
-export function visibleDocumentRevisions(preparationId:string,documentId:string) {
-  const revisions=listRevisions(preparationId,documentId);
-  return revisions.filter((item,index)=>index===0||item.reason!=='自动保存'||repo.setting('document-checkpoint:'+documentId+':'+item.revision)).map(item=>repo.setting('document-checkpoint:'+documentId+':'+item.revision)?{...item,reason:'手动保存版本'}:item);
+export function visibleDocumentRevisions(preparationId:string,documentId:string): DocumentRevision[] {
+  getDocument(preparationId,documentId);
+  return documentCheckpoints(documentId).slice().reverse().map(checkpoint => ({
+    ...getDocument(preparationId,documentId,checkpoint.revision), actor:'teacher',
+    reason:'手动保存版本', versionNumber:checkpoint.versionNumber, updatedAt:checkpoint.savedAt,
+  }));
 }
 export function saveDocument(
   preparationId: string,

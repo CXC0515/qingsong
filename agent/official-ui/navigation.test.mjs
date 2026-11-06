@@ -96,7 +96,7 @@ test("failed native refresh cannot masquerade as a loaded target and never opens
   f.workspaces.set({ items: [{ workspaceId: "w1" }], state: "idle" });
   f.ctx.sessions.refresh = async () => {};
   await assert.rejects(
-    openContext(f.ctx, { workspaceId: "w1", sessionId: "missing" }),
+    openContext(f.ctx, { workspaceId: "w1", sessionId: "missing" }, {timeoutMs:30}),
     (error) => error.stage === "session-directory",
   );
   assert.ok(
@@ -300,4 +300,28 @@ test("empty workspace entry uses native connect and preserves draft",async()=>{c
 test('returning to preparation reopens the existing native conversation without creating a blank',async()=>{
  const f=fixture();f.workspaces.set({items:[{workspaceId:'w1',sessionIds:['s1']}],state:'idle'});f.sessions.set({byId:{s1:{id:'s1',retainedBy:{mainView:0}}},phase:'ready'});
  const result=await openContext(f.ctx,{workspaceId:'w1'});assert.equal(result.sessionId,'s1');assert.ok(!f.calls.includes('connect:w1'));assert.ok(f.calls.includes('open:s1'));
+});
+
+test('ready catalog without a target row waits for the asynchronously projected creation',async()=>{
+ const f=fixture();f.workspaces.set({items:[{workspaceId:'w1',sessionIds:[]}],state:'idle',phase:'ready'});
+ f.ctx.sessions.refresh=async()=>{};
+ f.ctx.uiWorkspace.connectWorkspace=async()=>{setTimeout(()=>f.sessions.set({phase:'ready',byId:{s1:{id:'s1'}}}),15);return 's1';};
+ const result=await openContext(f.ctx,{workspaceId:'w1'},{timeoutMs:500});
+ assert.equal(result.sessionId,'s1');assert.ok(f.calls.includes('open:s1'));
+});
+test('archived selected sessions are not restored as the preparation current conversation',async()=>{
+ const f=fixture();f.workspaces.set({items:[{workspaceId:'w1',sessionIds:['s1','old']}],archivedSessionIds:['old'],phase:'ready'});
+ f.sessions.set({phase:'ready',byId:{old:{id:'old',retainedBy:{mainView:1},updatedAt:99},s1:{id:'s1',updatedAt:1}}});
+ assert.equal((await openContext(f.ctx,{workspaceId:'w1'})).sessionId,'s1');
+});
+
+test('known workspace membership waits for its row instead of creating a new conversation', async () => {
+ const f=fixture();
+ f.workspaces.set({items:[{workspaceId:'w1',sessionIds:['s1']}],phase:'ready'});
+ f.ctx.sessions.refresh=async()=>{};
+ const pending=openContext(f.ctx,{workspaceId:'w1'},{timeoutMs:500});
+ setTimeout(()=>f.sessions.set({phase:'ready',byId:{s1:{id:'s1'}}}),15);
+ assert.equal((await pending).sessionId,'s1');
+ assert.ok(!f.calls.includes('connect:w1'));
+ assert.ok(f.calls.includes('open:s1'));
 });

@@ -1,3 +1,4 @@
+import { DocumentColumns, DocumentColumn } from "./documentColumns";
 import { Extension, type Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { TableKit } from "@tiptap/extension-table";
@@ -103,7 +104,7 @@ export function createDocumentExtensions(
       placeholder:
         "开始编写教案，输入 / 插入内容；选中文字或表格可请 AI 协助。",
     }),
-    OwnedImage.configure({resize:{enabled:true,directions:['bottom-left','bottom-right'],minWidth:48,minHeight:32,alwaysPreserveAspectRatio:true}}),
+    OwnedImage.configure({resize:{enabled:true,directions:['top-left','top-right','bottom-left','bottom-right'],minWidth:48,minHeight:32,alwaysPreserveAspectRatio:true}}),
     Mathematics.configure({
       inlineOptions: {
         onClick: (node, position) => onEquation?.(node.attrs.latex, position),
@@ -112,6 +113,8 @@ export function createDocumentExtensions(
         onClick: (node, position) => onEquation?.(node.attrs.latex, position),
       },
     }),
+    DocumentColumns,
+    DocumentColumn,
     StableIdentity,
     EquationSource,
   ];

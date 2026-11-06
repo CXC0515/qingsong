@@ -16,7 +16,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     function SentLessonReference({node}) {
       const [reference,setReference]=React.useState(null);
       React.useEffect(()=>{const controller=new AbortController();void requestJSON('./api/qingsong/lesson-references?id='+encodeURIComponent(node.data.referenceId),{signal:controller.signal}).then(value=>setReference(value.references[0])).catch(()=>{});return()=>controller.abort();},[node.data.referenceId]);
-      return React.createElement('button',{type:'button',className:'qs-sent-lesson-reference',onClick:()=>openLessonPreview(node.data.referenceId)},reference?reference.title+' · 修订 '+reference.revision:'查看教案引用');
+      return React.createElement('button',{type:'button',className:'qs-sent-lesson-reference',onClick:()=>openLessonPreview(node.data.referenceId)},reference?reference.title+' · 教案引用':'查看教案引用');
     }
     ctx.slots.inject('conversation.user.text.node',()=>ctx.slots.register({name:'conversation.user.text.node',key:lessonSource,priority:-100},props=>React.createElement(SentLessonReference,props)));
     const handleLessonLink=event=>{
@@ -35,7 +35,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       if (!response.ok) throw Error(value.message || '引用未能读取，原输入保留，请重试。');
       return value;
     };
-    const lessonInsert = reference => ({source:lessonSource,ref:reference.id,label:reference.title+' · 第'+reference.revision+'版',appearance:'file',clipboardText:lessonToken(reference.id)});
+    const lessonInsert = reference => ({source:lessonSource,ref:reference.id,label:reference.title+' · 教案引用',appearance:'file',clipboardText:lessonToken(reference.id)});
     const createLesson = value => requestJSON('./api/qingsong/lesson-references',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(value)});
     const lessonCandidates = async (query, signal) => (await requestJSON('./api/qingsong/lesson-references?q='+encodeURIComponent(query),{signal})).items;
     const chooseLesson = async (sessionId, candidate, span, persist) => {
@@ -49,7 +49,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     ctx.effect(()=>ctx.inputTriggers.registerSource({
       name:lessonSource,trigger:'@',
       openReference:(_session,value)=>openLessonPreview(value.ref),
-      candidates:async (_session,req)=>(await lessonCandidates(req.query,req.signal)).map(item=>({name:item.title+' '+item.documentId,label:item.title,description:'教案 · 第'+item.revision+'版',icon:'file',value:JSON.stringify(item)})),
+      candidates:async (_session,req)=>(await lessonCandidates(req.query,req.signal)).map(item=>({name:item.title+' '+item.documentId,label:item.title,description:'教案 · 当前稿',icon:'file',value:JSON.stringify(item)})),
       onPick:pick=>{void chooseLesson(pick.session.sessionId,JSON.parse(pick.candidate.value),pick.span);return 'handled';},
       codec:{clipboardText:lessonToken,serialize:async id=>{if(!materialUuid.test(id))throw Error('教案引用无效，请重新添加。');return lessonToken(id);}},
     }));
@@ -78,10 +78,10 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         } catch(cause){setError(cause.message);}
       };
       React.useEffect(()=>{
-        const insert=()=>{const reference=pendingReferences.get(sessionId);if(!reference)return;const scope=ctx.sessions.scope(sessionId);const input=scope&&ctx.conversation.input.for(scope);if(input?.insertReference({source:lessonSource,ref:reference.id,label:reference.title+" · 第"+reference.revision+"版",appearance:"file",clipboardText:lessonToken(reference.id)},inputActions.captureInsertion())){inputActions.persistDraft();pendingReferences.delete(sessionId);}else input?.notify("error","教案引用未能加入，原输入保留，请重新从教案添加。");};
+        const insert=()=>{const reference=pendingReferences.get(sessionId);if(!reference)return;const scope=ctx.sessions.scope(sessionId);const input=scope&&ctx.conversation.input.for(scope);if(input?.insertReference({source:lessonSource,ref:reference.id,label:reference.title+" · 教案引用",appearance:"file",clipboardText:lessonToken(reference.id)},inputActions.captureInsertion())){inputActions.persistDraft();pendingReferences.delete(sessionId);}else input?.notify("error","教案引用未能加入，原输入保留，请重新从教案添加。");};
         window.addEventListener("qingsong:add-lesson-reference",insert);insert();return()=>window.removeEventListener("qingsong:add-lesson-reference",insert);
       },[sessionId,inputActions]);
-      return React.createElement('div',{className:'qs-lesson-updates'},stale.map(reference=>React.createElement('button',{key:reference.id,type:'button',disabled:phase!=='plain',onClick:()=>void update(reference)},reference.title+'：更新至第'+reference.latestRevision+'版')),error&&React.createElement('span',{role:'alert'},error));
+      return React.createElement('div',{className:'qs-lesson-updates'},stale.map(reference=>React.createElement('button',{key:reference.id,type:'button',disabled:phase!=='plain',onClick:()=>void update(reference)},reference.title+'：更新引用')),error&&React.createElement('span',{role:'alert'},error));
     }
     ctx.slots.inject('conversation.input.dock',()=>ctx.slots.register({name:'conversation.input.dock',id:'qingsong-lesson-reference',priority:-101},props=>React.createElement(LessonReference,props)));
     function FailureNotice({node, sessionId, retry}) {
@@ -192,7 +192,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         lessons!==null&&React.createElement('div',{className:'qs-lesson-picker',role:'dialog','aria-label':'引用教案'},
           React.createElement('div',null,React.createElement('strong',null,'引用教案'),React.createElement('button',{type:'button','aria-label':'关闭教案选择',onClick:()=>setLessons(null)},'关闭')),
           React.createElement('input',{autoFocus:true,'aria-label':'搜索教案',placeholder:'搜索教案名称',value:lessonQuery,onChange:event=>setLessonQuery(event.target.value)}),
-          lessonLoading?React.createElement('p',{role:'status'},'正在读取教案…'):lessons.length?lessons.map(item=>React.createElement('button',{type:'button',key:item.documentId,onClick:()=>{const span=inputActions.captureInsertion();setLessons(null);void chooseLesson(sessionId,item,span,()=>inputActions.persistDraft());}},item.title+' · 第'+item.revision+'版')):React.createElement('p',null,'没有找到教案，可修改关键词。')),
+          lessonLoading?React.createElement('p',{role:'status'},'正在读取教案…'):lessons.length?lessons.map(item=>React.createElement('button',{type:'button',key:item.documentId,onClick:()=>{const span=inputActions.captureInsertion();setLessons(null);void chooseLesson(sessionId,item,span,()=>inputActions.persistDraft());}},item.title+' · 当前稿')):React.createElement('p',null,'没有找到教案，可修改关键词。')),
         error&&React.createElement('span',{className:'qs-materials-error',role:'alert'},React.createElement('span',null,error),React.createElement('button',{type:'button','aria-label':'关闭材料提示',onClick:()=>setError('')},icon('M6 6l12 12M18 6 6 18'))));
     }
     ctx.slots.inject('conversation.input.left',()=>ctx.slots.register({

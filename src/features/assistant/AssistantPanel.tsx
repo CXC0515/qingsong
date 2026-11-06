@@ -45,7 +45,7 @@ function OfficialAssistantPanel({entry}:Props) {
       if(data.type==='qingsong:open-lesson'&&uuid.test(data.preparationId)&&(!data.documentId||uuid.test(data.documentId))){navigate(data.preparationId,data.documentId);return;}
       if(data.type!=='qingsong:preview-lesson'||!uuid.test(data.referenceId))return;
       const id=data.referenceId;setLessonPreview({id,title:'正在读取教案引用…'});
-      void apiFetch('/api/assistant/official/api/qingsong/lesson-references?preview='+encodeURIComponent(id),{signal:controller.signal}).then(async response=>{const value=await response.json();if(!response.ok)throw Error(value.message);return value;}).then(value=>setLessonPreview(current=>current?.id===id?{id,title:value.reference.title+' · 修订 '+value.reference.revision,content:value.content,url:value.url,selection:value.reference.selection?.text}:current)).catch(cause=>{if(!controller.signal.aborted)setLessonPreview(current=>current?.id===id?{...current,error:cause.message||'引用暂时无法读取，原会话和教案保留，请重试。'}:current);});
+      void apiFetch('/api/assistant/official/api/qingsong/lesson-references?preview='+encodeURIComponent(id),{signal:controller.signal}).then(async response=>{const value=await response.json();if(!response.ok)throw Error(value.message);return value;}).then(value=>setLessonPreview(current=>current?.id===id?{id,title:value.reference.title+' · 教案引用',content:value.content,url:value.url,selection:value.reference.selection?.text}:current)).catch(cause=>{if(!controller.signal.aborted)setLessonPreview(current=>current?.id===id?{...current,error:cause.message||'引用暂时无法读取，原会话和教案保留，请重试。'}:current);});
     };
     window.addEventListener('message',receive);return()=>{controller.abort();window.removeEventListener('message',receive);};
   },[connectionId]);

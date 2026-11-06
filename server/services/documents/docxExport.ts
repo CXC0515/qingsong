@@ -19,6 +19,7 @@ import {
   LevelFormat,
   TableLayoutType,
   ShadingType,
+  BorderStyle,
   type ILevelsOptions,
   type ParagraphChild,
 } from "docx";
@@ -36,7 +37,7 @@ import { resolveDocumentAsset } from "./documentAssets";
 import { latexToOmml, ommlToLatex, validateOmml } from "./officeMath";
 import { PreparationDocumentError } from "./errors";
 
-export const DOCUMENT_CONVERTER_VERSION = "preparation-documents-v2";
+export const DOCUMENT_CONVERTER_VERSION = "preparation-documents-v3";
 const paragraphAlignment = (value: unknown) =>
   ({
     left: AlignmentType.LEFT,
@@ -207,6 +208,25 @@ export async function exportPreparationDocx(
         result.push(...(await blocks(content, list)));
         continue;
       }
+      if (node.type === "columns") {
+        const none = {style:BorderStyle.NONE, size:0, color:'FFFFFF'};
+        const cells: TableCell[] = [];
+        for (const column of node.content ?? []) {
+          const children = await blocks(column.content ?? []);
+          cells.push(new TableCell({children:children.length ? children : [new Paragraph('')],
+            width:{size:100/(node.content?.length || 2),type:WidthType.PERCENTAGE},
+            borders:{top:none,bottom:none,left:none,right:none}, margins:{left:120,right:120},
+          }));
+        }
+        result.push(new Table({rows:[new TableRow({children:cells})],
+          width:{size:100,type:WidthType.PERCENTAGE}, layout:TableLayoutType.FIXED,
+          columnWidths:cells.map(()=>Math.floor(9638/cells.length)),
+          borders:{top:none,bottom:none,left:none,right:none,insideHorizontal:none,insideVertical:none},
+          // A named borderless table style preserves column boundaries on Word round trips.
+          style:'QingsongColumns',
+        }));
+        continue;
+      }
       if (node.type === "table") {
         const columnWidths: number[] = [];
         const occupiedUntil: number[] = [];
@@ -350,7 +370,7 @@ export async function exportPreparationDocx(
     numbering: { config: numbering },
     title: record.title,
     creator: "青松教师",
-    description: `教案版本 ${record.revision}`,
+    description: "青松教案",
     styles: {
       default: {
         document: {

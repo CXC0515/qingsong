@@ -231,7 +231,7 @@ export async function createDocumentExport(
         documentId,
         revision,
         format,
-        fileName: `${safeFileName(record.title)}_v${revision}.${format}`,
+        fileName: `${safeFileName(record.title)}.${format}`,
         sha256: hash(bytes),
         sizeBytes: bytes.length,
         warnings,

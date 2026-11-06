@@ -147,7 +147,7 @@
   min-width: 0;
   border: 1px solid #7188792a;
   border-radius: 18px;
-  overflow: hidden;
+  overflow: visible;
   background: #fdfefb;
 }
 .dark .qs-prep-writing {
@@ -1258,4 +1258,18 @@
 /* The editor scrolls inside the page; reserve launcher space on that surface. */
 @container (max-width:819px) {
   .qs-prep-writing-foot {padding-bottom:calc(88px + env(safe-area-inset-bottom));}
+}
+
+/* The application scroll surface owns scrolling; writing must not trap sticky controls. */
+.qs-document-editor { position:relative; }
+.qs-editor-line-insert { position:absolute;left:2px;z-index:10;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:#617267;background:#f4f7f2;border:1px solid #71887933; }
+.qs-editor-line-insert:hover {color:#23382e;background:#e8efe6;}
+.qs-document-content [data-document-columns] {display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:24px;margin:16px 0;}
+.qs-document-content [data-document-column] {min-width:0;padding:8px;border:1px dashed #71887940;border-radius:6px;}
+.qs-document-content [data-document-column]>:first-child {margin-top:0;}
+.is-readonly [data-document-column] {border-color:transparent;}
+@container (max-width:600px) {
+ .qs-document-content [data-document-columns] {grid-auto-flow:row;gap:12px;}
+ .qs-document-content {padding-left:38px;}
+ .qs-editor-line-insert {width:34px;height:44px;left:1px;transform:translateY(-7px);}
 }

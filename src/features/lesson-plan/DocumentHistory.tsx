@@ -27,7 +27,7 @@ export function ExportResult({ file }: { file: DocumentExport }) {
         下载 {file.fileName}
       </a>
       <span>
-        版本 {file.revision} · {file.format.toUpperCase()}
+        {file.format.toUpperCase()} 导出文件
       </span>
       {file.format === "docx" && <p>可将此 Word 导入飞书继续编辑。飞书可能调整字体、字号、颜色和编号样式，导入后请核对排版。</p>}
       {file.warnings?.map((warning, index) => (
@@ -78,7 +78,7 @@ export default function DocumentHistory({
     if (
       !selected ||
       !window.confirm(
-        `把版本 ${selected.revision} 恢复为当前稿？现有稿件仍保留在历史中。`,
+        `把第 ${selected.versionNumber} 版恢复为当前稿？继续后将替换当前稿，已手动保存的版本均保留。`,
       )
     )
       return;
@@ -124,7 +124,7 @@ export default function DocumentHistory({
   return (
     <ResponsiveDialog
       title="历史版本"
-      subtitle="自动保存持续保护当前稿；手动保存版本、应用建议和导入记录保留在这里。导出不会改变当前稿。"
+      subtitle="平常编辑自动保存当前稿；只有点击“保存版本”才新增编号。恢复版本不会删除其他版本。"
       wide
       compactFull
       busy={busy}
@@ -135,17 +135,17 @@ export default function DocumentHistory({
           {loading ? (
             <p role="status">正在读取版本…</p>
           ) : (
-            revisions.map((item) => (
+            revisions.length === 0 ? <p role="status">还没有手动保存的版本。当前稿会自动保存；点击“保存版本”可记录第 1 版。</p> : revisions.map((item) => (
               <button
                 type="button"
-                key={item.revision}
-                aria-pressed={selected?.revision === item.revision}
+                key={item.versionNumber}
+                aria-pressed={selected?.versionNumber === item.versionNumber}
                 onClick={() => {
                   setSelected(item);
                   setFile(null);
                 }}
               >
-                <strong>{item.reason==='自动保存'?'当前自动保存稿':'保存记录'} · 修订 {item.revision}</strong>
+                <strong>第 {item.versionNumber} 版</strong>
                 <span>{new Date(item.updatedAt).toLocaleString("zh-CN")}</span>
                 <small>
                   {item.reason} ·{" "}

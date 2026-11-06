@@ -103,7 +103,7 @@
           (snapshot) => {
             const session = snapshot.byId[target.sessionId];
             if (session) return session;
-            if (snapshot.state === "error" || snapshot.phase === "ready")
+            if (snapshot.state === "error")
               throw new NavigationError(stage);
           },
           signal,
@@ -137,13 +137,24 @@
         }
       }
       changeStage("workspace-navigation");
-      const workspace=ctx.workspaces.list.getSnapshot().items.find(item=>item.workspaceId===target.workspaceId);
-      const selected=Object.values(ctx.sessions.list.getSnapshot().byId??{}).find(row=>(row.retainedBy?.mainView??0)>0&&workspace.sessionIds?.includes(row.id));
-      const listed=ctx.sessions.list.getSnapshot().byId??{};
-      let remembered;try{remembered=JSON.parse(global.sessionStorage?.getItem('qingsong:last-workspace-session')??'{}')[target.workspaceId];}catch{}
-      const members=(workspace.sessionIds??[]).filter(id=>!workspace.archivedSessionIds?.includes(id));
-      const previous=members.includes(remembered)&&listed[remembered]?remembered:members.filter(id=>listed[id]).sort((a,b)=>(listed[b].updatedAt??0)-(listed[a].updatedAt??0))[0];
-      const sessionId=selected?.id??previous??await abortable(ctx.uiWorkspace.connectWorkspace(target.workspaceId,{agentPreset:"qingsong"}),signal);
+      // Workspace membership and the Session projection arrive on separate streams.
+      // A ready catalog is not proof that a particular membership row has arrived.
+      await waitFor(ctx.sessions.list, snapshot => snapshot.phase === 'ready' ? true : undefined, signal);
+      let workspace = ctx.workspaces.list.getSnapshot().items.find(item => item.workspaceId === target.workspaceId);
+      let listed = ctx.sessions.list.getSnapshot().byId ?? {};
+      if ((workspace.sessionIds ?? []).some(id => !listed[id])) {
+        await abortable(ctx.sessions.refresh(), signal);
+        workspace = ctx.workspaces.list.getSnapshot().items.find(item => item.workspaceId === target.workspaceId);
+        listed = ctx.sessions.list.getSnapshot().byId ?? {};
+      }
+      const archived = ctx.workspaces.list.getSnapshot().archivedSessionIds ?? [];
+      const members = (workspace.sessionIds ?? []).filter(id => !archived.includes(id));
+      const selected = Object.values(listed).find(row => (row.retainedBy?.mainView ?? 0) > 0 && members.includes(row.id));
+      let remembered;
+      try { remembered = JSON.parse(global.sessionStorage?.getItem('qingsong:last-workspace-session') ?? '{}')[target.workspaceId]; } catch {}
+      const previous = members.includes(remembered) ? remembered :
+        members.slice().sort((a,b) => (listed[b]?.updatedAt ?? 0) - (listed[a]?.updatedAt ?? 0))[0];
+      const sessionId = selected?.id ?? previous ?? await abortable(ctx.uiWorkspace.connectWorkspace(target.workspaceId,{agentPreset:"qingsong"}),signal);
       return await openContext(ctx,{...target,sessionId},{signal,timeoutMs,onStage,onTiming});
     } catch (error) {
       if (callerSignal?.aborted) throw callerSignal.reason;
