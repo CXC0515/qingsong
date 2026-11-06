@@ -35,7 +35,12 @@ export default function PreparationTasks({preparationId,documentId,tasks,onChang
       if(result.warning)onError(result.warning);
     }catch(cause){onError(cause instanceof Error?cause.message:"停止结果未确认，已有教案保留，请核对任务记录。");}
   };
-  const continueTask=(task:PreparationTask)=>window.dispatchEvent(new CustomEvent("qingsong:preparation-assistant",{detail:{preparationId,documentId:task.documentId??documentId,...(task.sessionId?{sessionId:task.sessionId}:{})}}));
+  const continueTask=(task:PreparationTask)=>{
+    setOpen(false);
+    setDismissedNeedsInput(task.id);
+    setNotice("");
+    window.dispatchEvent(new CustomEvent("qingsong:preparation-assistant",{detail:{preparationId,documentId:task.documentId??documentId,...(task.sessionId?{sessionId:task.sessionId}:{})}}));
+  };
   return <div className="qs-prep-tasks">
     {active && <div className="qs-prep-current-task" role="status">
       <span title={active.message||active.instruction}>{labels[active.status]} · {active.stage||active.instruction}</span>
@@ -45,7 +50,7 @@ export default function PreparationTasks({preparationId,documentId,tasks,onChang
       {showNeedsInput && needsInput && <div className="qs-prep-task-alert qs-prep-needs-input">
         <span title={needsInput.message||needsInput.instruction}>需要补充 · {needsInput.message||needsInput.stage||needsInput.instruction}</span>
         <div className="qs-prep-task-alert-actions">
-          <button type="button" onClick={()=>continueTask(needsInput)}><MessageSquare size={14}/>去助手补充</button>
+          <GlassButton onClick={()=>continueTask(needsInput)}><MessageSquare size={14}/>去助手补充</GlassButton>
           <button type="button" aria-label="收起补充提醒" onClick={()=>setDismissedNeedsInput(needsInput.id)}><X size={16}/></button>
         </div>
       </div>}

@@ -29,6 +29,16 @@ export function apply(ctx) {
     if(!response.ok){const body=await response.json();if(body&&typeof body==='object')throw new ReadToolFailure(httpReadFailure(body,response.status));throw Error('READ_SERVICE_UNAVAILABLE');}
     return response.json();
   };
+  const registerLessonReferences = (sessionId, messages, human, signal) => {
+    const ids = message => (message?.content ?? [])
+      .filter(part => part.type === 'text')
+      .flatMap(part => [...part.text.matchAll(/\[\[青松教案:([0-9a-f-]{36})\]\]/gi)].map(match => match[1].toLowerCase()));
+    return bridge({
+      kind: 'preparation-context', sessionId,
+      referenceIds: [...new Set(messages.filter(message => message.source?.kind === 'user').flatMap(ids))].slice(-100),
+      currentIds: ids(human),
+    }, signal);
+  };
   const finish = (sessionId) => {
     const state = turns.get(sessionId);
     if (!state) return;
@@ -44,13 +54,25 @@ export function apply(ctx) {
       state = {turn, lease, steps: 0, queries: 0, timer: undefined}; turns.set(agent.id, state);
       state.timer = setTimeout(() => agent.cancel({kind: 'user'}), 180000);
       state.timer.unref();
-      try { const acquired=await bridge({kind: 'acquire', lease,sessionId:agent.id}, signal);state.budget=acquired.budget??{steps:8,queries:12,timeoutMs:180000};clearTimeout(state.timer);state.timer=setTimeout(()=>agent.cancel({kind:'user'}),state.budget.timeoutMs);state.timer.unref(); } catch (error) { finish(agent.id); throw error; }
+      const human=messages.filter(message=>message.source?.kind==="user").at(-1);
+      try {
+        state.preparationContext = await registerLessonReferences(agent.id, messages, human, signal);
+        state.referenceMessageId = human?.id;
+        const acquired = await bridge({kind: 'acquire', lease, sessionId: agent.id}, signal);
+        state.budget = acquired.budget ?? {steps: 8, queries: 12, timeoutMs: 180000};
+        clearTimeout(state.timer);
+        state.timer = setTimeout(() => agent.cancel({kind: 'user'}), state.budget.timeoutMs);
+        state.timer.unref();
+      } catch (error) { finish(agent.id); throw error; }
     }
     if (++state.steps > (state.budget?.steps??8)) throw Error('本轮已达到执行上限，已有内容保留，请缩小范围或继续未完成的备课。');
     await bridge({kind: 'authorize'}, signal);
-    if(state.steps===1)state.preparationContext=await bridge({kind:'preparation-context',sessionId:agent.id},signal);
     if(!state.businessContext)state.businessContext=await bridge({kind:'business-context'},signal);
     const human = messages.filter(message => message.source?.kind === 'user').at(-1);
+    if (human && state.referenceMessageId !== human.id) {
+      state.preparationContext = await registerLessonReferences(agent.id, messages, human, signal);
+      state.referenceMessageId = human.id;
+    }
     if(human && (state.lastHumanMessageId!==human.id || state.steps===1)){
       if(human.content.some(part=>part.type==='image')) await requireImageModel(ctx,{agent,signal});
       state.lastHumanMessageId=human.id;

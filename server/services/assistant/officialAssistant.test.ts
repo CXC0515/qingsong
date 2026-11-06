@@ -679,31 +679,15 @@ test('preparation: native workspace binding, candidate creation and explicit tea
  const prep=detail.preparation.id,doc=detail.documents[0].id;
  const body={mode:'preparation',preparationId:prep,documentId:doc,revision:1};
  const {target}=await call('/api/assistant/official/api/qingsong/preparation-target',body);
- assert.ok(target.workspaceId&&target.sessionId);
- assert.equal((await call('/api/assistant/official/api/qingsong/preparation-target',body)).target.sessionId,target.sessionId);
- const secondId=crypto.randomUUID();
- const second=await call('/api/assistant/official/api/qingsong/preparation-target',{...body,newSessionId:secondId});
- assert.equal(second.target.sessionId,secondId);
- assert.equal((await call('/api/assistant/official/api/qingsong/preparation-target',{...body,newSessionId:secondId})).target.sessionId,secondId);
- assert.equal((await call('/api/preparations/'+prep+'/sessions')).sessions.length,2);
- await call('/api/assistant/official/api/qingsong/preparation-target',{...body,sessionId:target.sessionId});
- assert.equal((await call('/api/assistant/official/api/qingsong/preparation-target',body)).target.sessionId,target.sessionId);
- const empty=(await rpc(cookie,'session/create',{request:{workspaceId:target.workspaceId}})).value.sessionId;
- const blocked=await fetch(apiRoot+'/api/assistant/official/api/session/prompt',{method:'POST',headers:{Origin:origin,Cookie:cookie,'content-type':'application/json','x-demo-csrf':'1'},body:JSON.stringify({type:'client-request',rpcId:crypto.randomUUID(),method:'session/prompt',payload:{args:{request:{sessionId:empty,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:'尚未绑定不可提交'}]}}}})});
- assert.equal(blocked.status,409,await blocked.text());
- const selected=await call('/api/assistant/official/api/qingsong/preparation-selection',{sessionId:empty,preparationId:prep,documentId:doc});
- assert.equal(selected.target.bound,true);assert.equal(selected.target.preparationId,prep);
- const {preparation:other}=await call('/api/preparations',{title:'另一个教案',subject:'数学',operationId:crypto.randomUUID()});
- const retained=await call('/api/assistant/official/api/qingsong/preparation-selection',{sessionId:empty,preparationId:other.preparation.id,documentId:other.documents[0].id});
- assert.equal(retained.target.preparationId,prep,'native navigation must preserve original lesson');
- const fresh=(await rpc(cookie,'session/create',{request:{workspaceId:target.workspaceId,sessionId:empty}})).value.sessionId;
- assert.notEqual(fresh,empty,'new-session must never reuse a bound empty session');
- assert.equal((await call('/api/preparations/'+prep+'/sessions')).sessions.length,3);
- const initialOutcome=await call('/api/assistant/official/api/qingsong/preparation-outcome?sessionId='+target.sessionId);
- assert.equal(initialOutcome.bound,true); assert.equal(initialOutcome.pending,0);
+ assert.ok(target.workspaceId&&target.reference.id);
+ assert.equal(target.sessionId,undefined);
+ target.sessionId=(await rpc(cookie,"session/create",{request:{workspaceId:target.workspaceId}})).value.sessionId;
+ assert.equal((await call("/api/preparations/"+prep+"/sessions")).sessions.length,0);
+ const initialOutcome=await call("/api/assistant/official/api/qingsong/preparation-outcome?sessionId="+target.sessionId);
+ assert.equal(initialOutcome.bound,false);
  queryScenario='preparation';
  try {
-  assert.ok((await rpc(cookie,'session/prompt',{request:{sessionId:target.sessionId,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:'请为这份合成教案提供修改建议'}]}})).ok);
+  assert.ok((await rpc(cookie,'session/prompt',{request:{sessionId:target.sessionId,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:"请为这份合成教案提供修改建议[[青松教案:"+target.reference.id+"]]"}]}})).ok);
   let latest:any;
   for(let i=0;i<160;i++) {latest=(await call('/api/preparations/'+prep)).preparation;if(latest.proposals.length)break;await new Promise(resolve=>setTimeout(resolve,100));}
   assert.equal(latest.proposals.length,1,JSON.stringify(latest.tasks));

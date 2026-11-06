@@ -161,7 +161,7 @@ export default function PreparationDetail({
     setError(message);
     onShowToast(message);
   };
-  const openAssistant = async (instruction?: string, conversation?: {sessionId?: string; newSessionId?: string}) => {
+  const openAssistant = async (instruction?: string, conversation?: {sessionId?: string}) => {
     if (!(await draft.flush())) return false;
     window.dispatchEvent(
       new CustomEvent("qingsong:preparation-assistant", {

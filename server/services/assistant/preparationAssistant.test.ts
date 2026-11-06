@@ -10,10 +10,12 @@ import { runWithWorkspace, type WorkspaceContext } from '../../context/workspace
 import { closePreparationDatabase } from '../../database/preparationDatabase';
 import {preparationRepository} from '../../repositories/preparationRepository';
 import * as prep from '../preparation/preparationService';
-import { resolveSelectedPreparationSession, assertPreparationSessionReady, preparationAssistantTool, resolvePreparationTarget, stopSessionTasks, preparationSavedOutcome } from './preparationAssistant';
+import { preparationAssistantTool, resolvePreparationTarget as resolveNativeTarget, stopSessionTasks, preparationSavedOutcome } from './preparationAssistant';
 import { readPreparation } from './capabilities/preparation';
 import type { RichDocument } from '../../../src/domain/document';
 
+import {registerPreparationReferences} from "./preparationReferences";
+async function resolvePreparationTarget(input:any,native:any){const target=await resolveNativeTarget(input,native);const sessionId=input.sessionId??"test-session-"+input.preparationId;await native("session/create",{sessionId});if(target.reference)registerPreparationReferences(sessionId,[target.reference.id],[target.reference.id]);return {...target,sessionId};}
 const root = await mkdtemp(path.join(tmpdir(), 'qs-preparation-assistant-'));
 const context: WorkspaceContext = { userId: 'teacher-helper', workspaceId: 'workspace-helper', role: 'teacher', root, dataDirectory: path.join(root, 'data'), uploadDirectory: path.join(root, 'uploads') };
 after(async () => { closePreparationDatabase(); closeResourceDatabase(); await rm(root, {recursive:true,force:true}); });
@@ -35,46 +37,6 @@ function nativeFixture() {
     return {};
   }};
 }
-
-test('concurrent opens reuse a workspace/session, null projections recreate a deleted session, other owners cannot open it', async () => runWithWorkspace(context,async () => {
-  const {id,doc} = fixture(), native = nativeFixture();
-  const request = {mode:'preparation',preparationId:id,documentId:doc.id};
-  const targets = await Promise.all([resolvePreparationTarget(request,native.call),resolvePreparationTarget(request,native.call)]);
-  assert.equal(targets[0].sessionId,targets[1].sessionId);
-  assert.equal(native.calls.filter(call => call === 'session/create').length,1);
-  native.sessions.clear();
-  const recreated = await resolvePreparationTarget(request,native.call);
-  assert.notEqual(recreated.sessionId,targets[0].sessionId);
-  await runWithWorkspace({...context,userId:'another-teacher'},async () => {
-    const before = native.calls.length;
-    await assert.rejects(resolvePreparationTarget(request,native.call),/当前账号可访问/);
-    assert.equal(native.calls.length,before);
-  });
-}));
-
-test('multiple conversations stay unique to a document, select most recent, and create idempotently', async () => runWithWorkspace(context, async () => {
-  const {id,doc} = fixture(), other = fixture(), native = nativeFixture();
-  const request = {mode:'preparation',preparationId:id,documentId:doc.id};
-  const first = await resolvePreparationTarget(request,native.call);
-  const newSessionId = op();
-  const [second, duplicate] = await Promise.all([resolvePreparationTarget({...request,newSessionId},native.call),resolvePreparationTarget({...request,newSessionId},native.call)]);
-  assert.equal(second.sessionId,newSessionId); assert.equal(duplicate.sessionId,newSessionId);
-  assert.equal(prep.listPreparationSessions(id).length,2);
-  await new Promise(resolve => setTimeout(resolve,5));
-  await resolvePreparationTarget({...request,sessionId:first.sessionId},native.call);
-  assert.equal((await resolvePreparationTarget(request,native.call)).sessionId,first.sessionId);
-  const creates = native.calls.filter(c => c === 'session/create').length;
-  await assert.rejects(resolvePreparationTarget({...request,preparationId:other.id,documentId:other.doc.id,sessionId:first.sessionId},native.call),(e:any) => e.status === 409);
-  native.sessions.delete(second.sessionId!);
-  await assert.rejects(resolvePreparationTarget({...request,sessionId:second.sessionId},native.call),(e:any) => e.status === 404);
-  await assert.rejects(resolvePreparationTarget({...request,sessionId:first.sessionId},async (method,input) => {if(method === 'session/projections') throw Error('temporary lookup failure'); return native.call(method,input);}),/temporary lookup failure/);
-  assert.equal(native.calls.filter(c => c === 'session/create').length,creates);
-  assert.equal(prep.getSessionBinding(first.sessionId!)!.documentId,doc.id);
-  const legacyId = 'session-' + op(); native.sessions.add(legacyId);
-  prep.bindSession(id,doc.id,legacyId,first.workspaceId);
-  assert.equal((await resolvePreparationTarget({...request,sessionId:legacyId},native.call)).sessionId,legacyId);
-  await assert.rejects(preparationAssistantTool(op(),{action:'begin'},'修改教案'),/具体教案打开/);
-}));
 
 test('readback reports persisted revision, session-owned candidates and tasks without writing', async () => runWithWorkspace(context,async () => {
   const {id,doc} = fixture(), native = nativeFixture();
@@ -194,31 +156,6 @@ test('verify mismatch rolls back candidate and completion together',async()=>run
  assert.equal(prep.getDocument(id,doc.id).revision,doc.revision);
 }));
 
-
-test('native selection binds only a same-workspace empty session, preserves existing ownership and rejects unbound preparation turns', async () => runWithWorkspace(context,async () => {
-  const a=fixture(),b=fixture(),native=nativeFixture();
-  const target=await resolvePreparationTarget({mode:'preparation',preparationId:a.id,documentId:a.doc.id},native.call);
-  const {officialMaterialHome}=await import('./officialAttachments');
-  const directory=await realpath(path.join(officialMaterialHome(context),'preparation-workspace'));
-  const rows=[{sessionId:'native-empty',cwd:directory,blank:true,running:false},{sessionId:'native-used',cwd:directory,blank:false,running:false},{sessionId:'foreign-space',cwd:'/unrelated',blank:true,running:false}];
-  const call=async(method:string,args:any)=>method==='session/list'?{items:rows}:native.call(method,args);
-  await assert.rejects(assertPreparationSessionReady('native-empty',call),/未关联教案/);
-  assert.equal((await resolveSelectedPreparationSession({sessionId:'native-used',preparationId:a.id,documentId:a.doc.id},call)).bound,false);
-  assert.equal((await resolveSelectedPreparationSession({sessionId:'foreign-space',preparationId:a.id,documentId:a.doc.id},call)).bound,false);
-  assert.equal((await resolveSelectedPreparationSession({sessionId:'unknown',preparationId:a.id,documentId:a.doc.id},call)).bound,false);
-  const selected=await resolveSelectedPreparationSession({sessionId:'native-empty',preparationId:a.id,documentId:a.doc.id},call);
-  assert.equal(selected.bound,true);
-  await assertPreparationSessionReady('native-empty',call);
-  const revisit=await resolveSelectedPreparationSession({sessionId:'native-empty',preparationId:b.id,documentId:b.doc.id},call);
-  assert.equal(revisit.bound&&revisit.preparationId,a.id);
-  assert.equal(prep.getSessionBinding('native-empty')?.preparationId,a.id);
-  assert.equal(prep.listPreparationSessions(a.id).length,2);
-  assert.equal((await resolveSelectedPreparationSession({sessionId:target.sessionId!},call)).bound,true);
-  await runWithWorkspace({...context,userId:'isolation-owner'},async()=>{
-    assert.equal((await resolveSelectedPreparationSession({sessionId:'native-empty'},call)).bound,false);
-    await assert.rejects(resolveSelectedPreparationSession({sessionId:'native-empty',preparationId:a.id,documentId:a.doc.id},call));
-  });
-}));
 
 test('candidate delivery blocks generated disclaimers, permits teaching presets and leaves teacher paragraphs intact',async()=>runWithWorkspace(context,async()=>{
  const {id,doc}=fixture();

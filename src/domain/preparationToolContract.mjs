@@ -12,7 +12,7 @@ const integer = (min, max) => ({
   maximum: max,
 });
 export const preparationActions = {
-  begin: { stage: { ...text(80), default: "准备资料" } },
+  begin: { referenceId: {...uuid, optional:true}, stage: { ...text(80), default: "准备资料" } },
   progress: {
     taskId: uuid,
     stage: text(80),
@@ -31,6 +31,7 @@ export const preparationActions = {
     message: text(2000),
   },
   render: {
+    referenceId: {...uuid, optional:true},
     sourceId: uuid,
     start: { ...integer(1, Number.MAX_SAFE_INTEGER), default: 1 },
     limit: { ...integer(1, 3), default: 1 },
