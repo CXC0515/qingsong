@@ -126,7 +126,9 @@
   min-width: 150px;
 }
 .qs-prep-export-actions {
-  margin-left: auto;
+  margin-left: 0;
+  flex-wrap: nowrap;
+  flex: 0 0 auto;
 }
 .qs-prep-detail {
   container: preparation / inline-size;
@@ -1216,6 +1218,9 @@
 .qs-prep-materials-header button {display:grid;place-items:center;width:44px;min-height:44px;border:0;background:transparent;color:inherit;border-radius:12px}
 .qs-prep-current-task,.qs-prep-task-notice {display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px}
 .qs-prep-current-task>span {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qs-prep-needs-input {flex-wrap:wrap;white-space:normal}
+.qs-prep-needs-input>span {flex-basis:100%;white-space:normal;overflow-wrap:anywhere}
+.qs-prep-needs-input>button {display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 8px}
 .qs-prep-task-notice>span {flex:1;min-width:0}
 .qs-prep-task-notice button {flex:none;min-height:44px;padding:0 10px}
 @media(prefers-reduced-motion:no-preference){.qs-prep-materials:modal {animation:qs-prep-materials-in .18s ease-out}@keyframes qs-prep-materials-in {from{transform:translateX(-100%)}to{transform:translateX(0)}}}
