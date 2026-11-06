@@ -12,6 +12,7 @@ import { officialMaterialHome } from "./officialAttachments";
 import { readAssistantMaterial } from "./materialReader";
 import type { PreparationAssistantTarget } from "../../../src/domain/preparationAssistant";
 import type { DocumentNode, RichDocument } from "../../../src/domain/document";
+import { assertCandidateDelivery } from "../preparation/candidateDelivery";
 
 export const preparationTargetSchema = z
   .object({
@@ -217,7 +218,8 @@ export function preparationSavedOutcome(sessionId: string) {
   const tasks = preparations.listTasks(binding.preparationId).filter(task => task.sessionId === sessionId && task.documentId === document.id);
   const proposalIds = new Set(tasks.map(task => (task.result as TaskSnapshot | undefined)?.proposalId).filter(Boolean));
   const proposals = preparations.listProposals(binding.preparationId).filter(proposal => proposalIds.has(proposal.id));
-  return {bound:true as const, preparationId:binding.preparationId, documentId:document.id, title:preparations.getPreparation(binding.preparationId).preparation.title + ' · ' + document.title, revision:document.revision, pending:proposals.filter(p => p.status === 'pending').length, applied:proposals.filter(p => p.status === 'applied').length, tasks:tasks.map(task => ({status:task.status,updatedAt:task.updatedAt})).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))};
+  const title=preparations.getPreparation(binding.preparationId).preparation.title;
+  return {bound:true as const, preparationId:binding.preparationId, documentId:document.id, title:title===document.title?title:title+' · '+document.title, revision:document.revision, pending:proposals.filter(p => p.status === 'pending').length, applied:proposals.filter(p => p.status === 'applied').length, tasks:tasks.map(task => ({status:task.status,updatedAt:task.updatedAt})).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))};
 }
 export function preparationRuntimeContext(sessionId: string) {
   const binding = preparations.getSessionBinding(sessionId);
@@ -594,6 +596,7 @@ export async function preparationAssistantTool(
     candidate,
     snapshot.selection,
   );
+  assertCandidateDelivery(preparations.getDocument(prepId,document.id,args.baseRevision).content,candidate);
   signal?.throwIfAborted();
   return preparationRepository.transaction(() => {
     // Candidate, operation identity, task completion and verification commit atomically.

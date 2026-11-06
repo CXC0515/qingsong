@@ -40,8 +40,8 @@ const filters = {
 };
 const type = {type:'string',enum:Object.keys(assistantObjects),description:objectTypeDescription};
 const paging = {
- offset:{type:'integer',minimum:0,maximum:100000,default:0,description:'从0开始的分页偏移；original中0表示第1页'},
- limit:{type:'integer',minimum:1,maximum:50,default:20,description:'每页最多50项；original每次最多10页、默认3页'},
+ offset:{type:'integer',minimum:0,maximum:100000,default:0,description:'从0开始的分页偏移；original中0表示第1页。备课资料按返回data.nextRead原样续读，coverage.nextStart为从1开始的页码，不可直接当offset'},
+ limit:{type:'integer',minimum:1,maximum:50,default:20,description:'普通列表最多50项；preparationSource/original每次最多10页，超过时按10页返回。以实际coverage及nextRead续读，不按请求limit猜下一页'},
 };
 export const capabilityArgumentDefinitions = {
  discover:{type},
