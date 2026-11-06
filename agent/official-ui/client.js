@@ -15,16 +15,18 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       const value=React.useSyncExternalStore(fn=>{guardListeners.add(fn);return()=>guardListeners.delete(fn);},()=>guard);
       const dialog=React.useRef(null);
       React.useEffect(()=>{if(value)dialog.current?.showModal();else dialog.current?.close();},[value]);
-      return value && React.createElement('dialog',{ref:dialog,className:'qs-association-guard',onCancel:event=>event.preventDefault(),'aria-label':'核对教案关联'},React.createElement('div',{role:value.error?'alert':'status'},
+      return value && React.createElement('dialog',{ref:dialog,className:'qs-association-guard',onCancel:event=>{event.preventDefault();selectionVersion++;if(hostTarget.sessionId)ctx.uiWorkspace.openSession(hostTarget.sessionId);showGuard(null);},'aria-label':'核对教案关联'},React.createElement('div',{role:value.error?'alert':'status'},
         React.createElement('p',null,value.error||'正在核对会话与教案关联…'),
+        React.createElement('button',{onClick:()=>{selectionVersion++;if(hostTarget.sessionId)ctx.uiWorkspace.openSession(hostTarget.sessionId);showGuard(null);}},'返回当前会话'),
         value.error&&React.createElement('button',{onClick:()=>void reconcileSelection(value.sessionId)},'重新核对'),
-        value.error&&hostTarget.sessionId&&React.createElement('button',{onClick:()=>{selectionVersion++;ctx.uiWorkspace.openSession(hostTarget.sessionId);showGuard(null);}},'返回原会话')));
+        null));
     }
     ctx.slots.inject('shell.overlay',()=>ctx.slots.register({name:'shell.overlay',id:'qingsong-association-guard',priority:-110},()=>React.createElement(AssociationGuard)));
     async function reconcileSelection(sessionId) {
       const version=++selectionVersion, context=hostTarget;
       if(hostOpening||!sessionId||sessionId===context.sessionId) {showGuard(null);return;}
-      showGuard({sessionId});
+      const requireGuard=Boolean(context.preparationId);
+      if(requireGuard)showGuard({sessionId});
       try {
         const response=await fetch('./api/qingsong/preparation-selection',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sessionId,...(context.preparationId?{preparationId:context.preparationId,documentId:context.documentId}:{})}),signal:AbortSignal.timeout(15000)});
         if(!response.ok)throw Error('教案关联未能核对，原内容保留，请重试。');
@@ -43,7 +45,14 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         hostTarget=target.bound?target:{workspaceId:context.workspaceId,sessionId};
         window.dispatchEvent(new CustomEvent('qingsong:association-checked',{detail:{sessionId}}));
         showGuard(null);
-      } catch(error) {if(version===selectionVersion&&!hostOpening)showGuard({sessionId,error:error.message});}
+      } catch(error) {
+        if(version!==selectionVersion||hostOpening)return;
+        if(requireGuard)showGuard({sessionId,error:error.message});
+        else {
+          showGuard(null);
+          parent.postMessage({type:'qingsong:association-warning',connectionId,message:'暂时无法确认此会话是否关联教案，当前仍留在工作台；教案和会话未修改。请稍后重新选择。'},location.origin);
+        }
+      }
     }
     ctx.effect(()=>{
       let previous;
@@ -275,10 +284,10 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         const data = event.data;
         if (event.origin !== location.origin || event.source !== parent || data?.connectionId !== connectionId) return;
         if (data.type === 'qingsong:cancel-context') {if (current?.requestId === data.requestId) cancel(); return;}
-        if(data.type==='qingsong:prepare-context'){cancel();hostOpening=true;current={requestId:data.requestId,controller:new AbortController()};selectionVersion++;showGuard({});return;}
+        if(data.type==='qingsong:prepare-context'){cancel();hostOpening=true;current={requestId:data.requestId,controller:new AbortController()};selectionVersion++;return;}
         if (data.type !== 'qingsong:open-context') return;
         cancel();
-        hostOpening=true;selectionVersion++;showGuard({});
+        hostOpening=true;selectionVersion++;
         // Invalidates a previous SDK workspace open; a specific session never falls back to a blank one.
         ctx.layout.beginNavigation();
         const navigation = {requestId:data.requestId,controller:new AbortController()}; current = navigation;
@@ -289,7 +298,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
             onTiming:timing => parent.postMessage({type:'qingsong:context-timing',connectionId,requestId:data.requestId,...timing},location.origin),
           });
           if (current === navigation) {
-            hostTarget={...data.target,...target};showGuard(null);
+            hostTarget={...data.target,...target};
             window.dispatchEvent(new CustomEvent('qingsong:association-checked',{detail:{sessionId:selectedSession()}}));
           }
           if (current === navigation) parent.postMessage({type:'qingsong:context-opened',connectionId,requestId:data.requestId,target},location.origin);
@@ -302,7 +311,6 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
             'session-content':'教案会话未能读取，', 'session-navigation':'教案会话未能打开，',
             'workspace-navigation':'工作区未能打开，', 'draft':'备课要求未能放入输入框，',
           };
-          showGuard(null);
           parent.postMessage({type:'qingsong:context-opened',connectionId,requestId:data.requestId,stage,error:(messages[stage]??'助手未能打开，')+'教案和原会话保留，请重试。'},location.origin);
         } finally {if (current === navigation) {current = undefined;hostOpening=false;}}
       };

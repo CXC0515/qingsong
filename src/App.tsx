@@ -800,7 +800,7 @@ export default function App() {
       headerContextRef={setClassroomHeaderTarget}
       activePage={activePage}
       assistantOpen={assistantVisible}
-      assistant={workbenchVisited || assistantVisible ? <AssistantDock surface={activePage==='workbench'?'workbench':'task'} identityKey={authState.user.id} open={assistantVisible} pinned={assistantPinned} entry={assistantEntry} onClose={() => setAssistantOpen(false)}/> : null}
+      assistant={workbenchVisited || assistantVisible || activePage==='lesson-plan' ? <AssistantDock surface={activePage==='workbench'?'workbench':'task'} identityKey={authState.user.id} open={assistantVisible} pinned={assistantPinned} entry={activePage==='lesson-plan'?{...preparationAssistantContext.current,mode:'preparation',requestKey:assistantEntry.requestKey}:{mode:'default',requestKey:assistantEntry.requestKey}} onClose={() => setAssistantOpen(false)}/> : null}
       classes={classes}
       expandedGroups={expandedGroups}
       navGroups={navGroups}
@@ -815,7 +815,7 @@ export default function App() {
       isOwner={authState.role === 'owner'}
       onEnterAdmin={enterAdmin}
       onSignOut={signOut}
-      onOpenAssistant={() => {setAssistantEntry(activePage==='lesson-plan'?{...preparationAssistantContext.current,mode:'preparation',requestKey:Date.now()}:{mode:'default',requestKey:Date.now()});setWorkbenchVisited(true);setAssistantOpen(true);}}
+      onOpenAssistant={() => {setWorkbenchVisited(true);setAssistantOpen(true);}}
       onSelectClass={selectRecordingClass}
       onSelectPage={setActivePage}
       onSelectScheduleSection={setScheduleSection}

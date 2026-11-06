@@ -194,6 +194,30 @@ test('sidebar selection reconciles once, ignores stale responses and keeps the o
  offMessages();offSelection();
 });
 
+test('workbench session selection resolves bound lessons without a blocking association guard',async()=>{
+ const source=await readFile(new URL('./official-ui/client.js',import.meta.url),'utf8');
+ const require=createRequire(new URL('../package.json',import.meta.url));
+ const listeners=new Set(),effects=[],slots=[],posted=[],requests=[];let plugin,observer,selected='chat',shown=0;
+ const React={createElement:(type,props,...children)=>({type,props:{...props,children}}),useSyncExternalStore:(_subscribe,get)=>get(),useRef:()=>({current:{showModal:()=>shown++,close:()=>{}}}),useEffect:fn=>fn()};
+ const rows={chat:{id:'chat',retainedBy:{mainView:1}}};
+ const parent={postMessage:data=>posted.push(data)};
+ const window={name:'qingsong-assistant:workbench-selection',__ModuleLoader__:{load:module=>{plugin=module.factory(()=>React);}},addEventListener:(name,fn)=>{if(name==='message')listeners.add(fn);},removeEventListener:(_name,fn)=>{},dispatchEvent:()=>{}};
+ vm.runInNewContext(source,{window,parent,location:{origin:'https://fixture.test'},AbortController,AbortSignal,setTimeout,clearTimeout,crypto:globalThis.crypto,CustomEvent:class{constructor(type,init){this.type=type;this.detail=init.detail;}},fetch:(_url,options)=>new Promise(resolve=>requests.push({body:JSON.parse(options.body),resolve})),globalThis:{QingsongAssistantNavigation:{openContext:async(_ctx,target)=>target}}});
+ plugin.apply({slots:{inject:(_name,register)=>register(),register:(options,render)=>slots.push({options,render})},effect:fn=>effects.push(fn),sessions:{list:{getSnapshot:()=>({byId:rows}),subscribe:fn=>{observer=fn;return()=>{};}}},layout:{beginNavigation:()=>{}},uiWorkspace:{openSession:()=>{}}});
+ const dispose=effects[0](),disposeContext=effects.at(-2)(),guard=slots.find(slot=>slot.options.id==='qingsong-association-guard').render();
+ for(const listener of listeners)await listener({origin:'https://fixture.test',source:parent,data:{type:'qingsong:open-context',connectionId:'workbench-selection',requestId:'open-workbench',target:{workspaceId:'w'}}});
+ await new Promise(resolve=>setTimeout(resolve,0));guard.type(guard.props);assert.equal(shown,0);
+ const select=id=>{rows[selected].retainedBy={};selected=id;rows[id]={id,retainedBy:{mainView:1}};observer();};
+ select('lesson-session');assert.equal(requests.length,1);guard.type(guard.props);assert.equal(shown,0);
+ requests[0].resolve({ok:true,json:async()=>({target:{bound:true,sessionId:'lesson-session',workspaceId:'w',preparationId:'prep-a',documentId:'doc-a'}})});
+ await new Promise(resolve=>setTimeout(resolve,0));
+ const selection=posted.find(message=>message.type==='qingsong:native-selection');assert.equal(selection.target.preparationId,'prep-a');
+ guard.type(guard.props);assert.equal(shown,0);
+ for(const listener of listeners)await listener({origin:'https://fixture.test',source:parent,data:{type:'qingsong:selection-opened',connectionId:'workbench-selection',requestId:selection.requestId}});
+ await new Promise(resolve=>setTimeout(resolve,0));guard.type(guard.props);assert.equal(shown,0);
+ disposeContext();dispose();
+});
+
 test('shell association follows the actual session, hides ordinary chats and ignores late outcomes',async()=>{
  const source=await readFile(new URL('./official-ui/client.js',import.meta.url),'utf8');
  const effects=[],listeners=new Map(),posted=[],pending=[];let plugin,notify,selected='a';

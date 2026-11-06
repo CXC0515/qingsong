@@ -349,7 +349,7 @@ export default function PreparationDetail({
         >
           <BookOpen size={16}/><span>{!compact&&!materialsCollapsed?"收起资料":"本次资料"}</span><span className="qs-prep-count"> · {detail.sources.length}</span>
         </GlassButton>
-        <PreparationTasks preparationId={preparationId} tasks={detail.tasks} onChanged={refresh} onError={report}/>
+        <PreparationTasks preparationId={preparationId} documentId={document.id} tasks={detail.tasks} onChanged={refresh} onError={report}/>
         {toolsCompact && <GlassButton aria-expanded={more} onClick={()=>setMore(true)}>更多</GlassButton>}
         {!toolsCompact && <div className="qs-prep-secondary-actions">{secondaryActions()}</div>}
       </div>
