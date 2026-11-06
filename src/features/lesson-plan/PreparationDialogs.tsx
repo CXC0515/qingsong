@@ -93,7 +93,7 @@ export function PreparationSettings({
   };
   return (
     <ResponsiveDialog
-      title="本课信息与要求"
+      title="备课信息"
       wide
       busy={busy}
       onClose={onClose}
@@ -102,7 +102,7 @@ export function PreparationSettings({
           disabled={busy || !input.title.trim()}
           onClick={() => void save()}
         >
-          {busy ? "正在保存…" : "保存要求"}
+          {busy ? "正在保存…" : "保存备课信息"}
         </GlassButton>
       }
     >
@@ -124,7 +124,7 @@ export function PreparationSettings({
           </label>
         ))}
         <label className="qs-prep-field qs-prep-span-all">
-          本课要求
+          备课要求
           <textarea
             rows={5}
             value={input.requirements}

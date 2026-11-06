@@ -77,7 +77,16 @@ export async function prepareOfficialRuntime({home, configHome}) {
     {insert: [
       {id: 'llm-pi-ai', name: '@deepseek-ai/dsh-llm-pi-ai', config: {providers}},
       ...(first ? [{id: 'agent-default-model', name: '@deepseek-ai/dsh-agent-default-model', config: {provider: first[0], model: first[1].models[0].id}}] : []),
-      {id: 'qingsong-preset', name: '@deepseek-ai/dsh-agent-preset', config: {id: 'qingsong', name: '教学助手', order: -1, plugins: []}},
+      {id: 'qingsong-preset', name: '@deepseek-ai/dsh-agent-preset', config: {id: 'qingsong', name: '教学助手', order: -1, plugins: [
+        // Web profiles disable host-plane compaction. Like the native standard
+        // preset, mount the durable history backend in each Agent's own scope.
+        {id:'compaction',name:'cordis:group',group:true,isolate:{compaction:true,toolResultPruner:true},config:[
+          // DSH's 65,536-token default headroom cannot fit our 32k routes.
+          {id:'compaction-basic',name:'@deepseek-ai/dsh-compaction-basic',config:{auto:true,thresholdRatio:0.7,headroomTokens:4096,maxTokens:2048,retainRatio:0.16,compactionRetries:1,maxOverflowRetries:1}},
+          {id:'command-compact',name:'@deepseek-ai/dsh-command-compact'},
+          {id:'tool-result-pruner',name:'@deepseek-ai/dsh-compaction-tool-result-pruner',config:{thresholdChars:8192,headChars:4096,tailChars:1024}},
+        ]},
+      ]}},
       {id:'qingsong-skill-tool',name:'@deepseek-ai/dsh-tool-skill'},
       {id:'qingsong-business-skills', name:path.join(agentDirectory,'official-skills.mjs')},
       {id: 'qingsong-teaching', name: path.join(agentDirectory, 'official-teaching.mjs')},

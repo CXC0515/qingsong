@@ -26,6 +26,7 @@ export const preparationTargetSchema = z
       .object({
         blockIds: z.array(z.string().min(1).max(160)).max(100),
         text: z.string().max(12000),
+        location: z.object({from:z.number().int().nonnegative(),to:z.number().int().nonnegative(),blocks:z.array(z.object({id:z.string().max(160),from:z.number().int().nonnegative(),to:z.number().int().nonnegative()}).strict()).max(100),table:z.object({id:z.string().max(160),row:z.number().int().positive(),column:z.number().int().positive()}).strict().optional()}).strict().optional(),
       })
       .strict()
       .optional(),
@@ -219,7 +220,8 @@ export function preparationSavedOutcome(sessionId: string) {
   const proposalIds = new Set(tasks.map(task => (task.result as TaskSnapshot | undefined)?.proposalId).filter(Boolean));
   const proposals = preparations.listProposals(binding.preparationId).filter(proposal => proposalIds.has(proposal.id));
   const title=preparations.getPreparation(binding.preparationId).preparation.title;
-  return {bound:true as const, preparationId:binding.preparationId, documentId:document.id, title:title===document.title?title:title+' · '+document.title, revision:document.revision, pending:proposals.filter(p => p.status === 'pending').length, applied:proposals.filter(p => p.status === 'applied').length, tasks:tasks.map(task => ({status:task.status,updatedAt:task.updatedAt})).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))};
+  const selected=contexts.get(key(sessionId));
+  return {lastInstruction:[...tasks].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))[0]?.instruction,selection:selected?.selection?{...selected.selection,revision:selected.revision,stale:selected.revision!==document.revision}:undefined,bound:true as const, preparationId:binding.preparationId, documentId:document.id, title:title===document.title?title:title+' · '+document.title, revision:document.revision, pending:proposals.filter(p => p.status === 'pending').length, applied:proposals.filter(p => p.status === 'applied').length, tasks:tasks.map(task => ({status:task.status,updatedAt:task.updatedAt})).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))};
 }
 export function preparationRuntimeContext(sessionId: string) {
   const binding = preparations.getSessionBinding(sessionId);

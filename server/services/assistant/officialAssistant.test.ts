@@ -22,6 +22,7 @@ const model = createServer(async (req, res) => {
   let text = ''; for await (const chunk of req) text += chunk;
   const input = JSON.parse(text);
   capturedRequests.push(input);
+  if (process.env.QS_NATIVE_PREVIEW && JSON.stringify(input.messages).includes('本机上下文失败验收')) {res.writeHead(400,{'content-type':'application/json'});res.end(JSON.stringify({error:{code:'context_length_exceeded',message:'maximum context length exceeded',type:'invalid_request_error'}}));return;}
   if (process.env.QS_NATIVE_PREVIEW && JSON.stringify(input.messages).includes('本机503失败验收')) {res.writeHead(503,{'content-type':'application/json'});res.end(JSON.stringify({message:'Service temporarily unavailable',type:'api_error'}));return;}
   if (delayNext) { delayNext = false; await new Promise(resolve => setTimeout(resolve, 1500)); if (res.destroyed) return; }
   res.writeHead(200, {'content-type': 'text/event-stream'});

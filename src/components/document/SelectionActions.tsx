@@ -73,7 +73,7 @@ export default function SelectionActions({
   const ask = () =>
     onAssistant?.({
       instruction:
-        "请改写选中内容，使表达更清楚，并与整篇教案的目标、课堂过程和作业保持一致。先给出修改建议。",
+        "请修改引用内容。\n修改建议如下：\n",
       selection: readDocumentSelection(editor),
     });
   return (

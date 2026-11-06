@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => ({
-  inject: ['slots', 'locale', 'layout', 'uiWorkspace', 'workspaces', 'sessions', 'conversation', 'inputTriggers'],
+  inject: ['slots', 'locale', 'layout', 'uiWorkspace', 'workspaces', 'sessions', 'conversation', 'inputTriggers', 'remote.commands'],
   apply(ctx) {
     const React = require('react');
     const materialSource = 'qingsong-pool';
@@ -75,17 +75,52 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       window.addEventListener('qingsong:association-checked',checked);refresh(false);
       return()=>{version++;controller?.abort();dispose();window.removeEventListener('qingsong:association-checked',checked);};
     });
+    function SelectionQuote({sessionId}) {
+      const [value,setValue]=React.useState(null),[error,setError]=React.useState(''),[busy,setBusy]=React.useState(false);
+      React.useEffect(()=>{
+        let alive=true,version=0;const controller=new AbortController();setValue(null);setError('');
+        const refresh=async()=>{
+          const current=++version;
+          try {const r=await fetch('./api/qingsong/preparation-outcome?sessionId='+encodeURIComponent(sessionId),{cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(10000)])});if(!r.ok)throw Error();const data=await r.json();if(alive&&current===version){setValue(data.bound&&data.selection?data:null);setError('');}}catch{if(alive)setError('引用状态未能核对，请稍后重试或重新选择。');}
+        };
+        const checked=event=>{if(event.detail?.sessionId===sessionId)void refresh();};
+        window.addEventListener('qingsong:association-checked',checked);void refresh();
+        const timer=setInterval(()=>{if(!document.hidden)void refresh();},5000);
+        return()=>{alive=false;controller.abort();clearInterval(timer);window.removeEventListener('qingsong:association-checked',checked);};
+      },[sessionId]);
+      if(!value)return error?React.createElement('span',{className:'qs-selection-quote-error',role:'status'},error):null;
+      const selection=value.selection,location=selection.location;
+      const remove=async()=>{
+        setBusy(true);setError('');
+        try {const r=await fetch('./api/qingsong/preparation-target',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mode:'preparation',sessionId,preparationId:value.preparationId,documentId:value.documentId,revision:value.revision})});if(!r.ok)throw Error();if(hostTarget.sessionId===sessionId)hostTarget={...hostTarget,selection:undefined};setValue(null);}catch{setError('引用尚未移除，原输入保留，请重试。');}finally{setBusy(false);}
+      };
+      const position=location?.table?'表格第'+location.table.row+'行、第'+location.table.column+'列':location?.blocks?.length?location.blocks.map((block,index)=>'选区'+(index+1)+' · 段落内字符'+(block.from+1)+'–'+block.to).join('；'):'已选 '+selection.blockIds.length+' 个内容块';
+      return React.createElement('div',{className:'qs-selection-quote',role:'group','aria-label':'引用的教案内容'},
+        React.createElement('details',null,React.createElement('summary',null,'已引用：'+value.title+' · 第'+selection.revision+'版'),
+          React.createElement('small',null,position),React.createElement('blockquote',null,selection.text)),
+        selection.stale&&React.createElement('p',{role:'status'},'正文版本已变化，此引用已失效，请重新选择。'),
+        error&&React.createElement('p',{role:'alert'},error),
+        React.createElement('button',{type:'button',disabled:busy,onClick:()=>void remove(),'aria-label':'移除教案引用'},busy?'移除中…':'移除'));
+    }
+    ctx.slots.inject('conversation.input.dock',()=>ctx.slots.register({name:'conversation.input.dock',id:'qingsong-selection-quote',priority:-100},props=>React.createElement(SelectionQuote,props)));
     function FailureNotice({node, sessionId, retry}) {
       const failure = retry ? node.data.current.failure : node.data;
       const [outcome, setOutcome] = React.useState('正在核对教案保存状态…');
       const [attempt, setAttempt] = React.useState(0);
+      const [savedValue,setSavedValue]=React.useState(null),[recovery,setRecovery]=React.useState(''),[recovering,setRecovering]=React.useState(false),[compactFailed,setCompactFailed]=React.useState(false);
+      const overflow=globalThis.QingsongAssistantFailure.isOverflow(failure);
+      const compact=async()=>{
+        setRecovering(true);setRecovery('正在整理历史，原会话和教案保留…');
+        try {const result=await ctx.remote.commands.execute(sessionId,'/compact',[]);if(!result?.ok||result.value?.result?.kind!=='success')throw Error('历史整理未能完成。');setRecovery('历史已整理。请核对教案和修改建议，再发送你的修改要求；本次没有自动重跑。');setCompactFailed(false);}catch{setRecovery('历史整理未完成。原会话和教案保留，可新建关联会话继续。');setCompactFailed(true);}finally{setRecovering(false);}
+      };
+      const newSession=()=>{const scope=ctx.sessions.scope(sessionId);const draft=scope?ctx.conversation.input.for(scope).snapshot.draft:'';setRecovering(true);parent.postMessage({type:'qingsong:preparation-recovery',connectionId,target:{preparationId:savedValue.preparationId,documentId:savedValue.documentId,revision:savedValue.revision,...(savedValue.selection&&!savedValue.selection.stale?{selection:{blockIds:savedValue.selection.blockIds,text:savedValue.selection.text,...(savedValue.selection.location?{location:savedValue.selection.location}:{})}}:{}),instruction:draft||savedValue.lastInstruction||'请继续修改当前教案。\n修改建议如下：\n'}},location.origin);};
       React.useEffect(() => {
         if (retry) return;
         const controller = new AbortController();
         setOutcome('正在核对教案保存状态…');
         fetch('./api/qingsong/preparation-outcome?sessionId=' + encodeURIComponent(sessionId), {signal:AbortSignal.any([controller.signal,AbortSignal.timeout(10000)]), cache:'no-store'})
           .then(async response => {if (!response.ok) throw Error(); return response.json();})
-          .then(value => {if (!controller.signal.aborted) setOutcome(globalThis.QingsongAssistantFailure.saved(value));})
+          .then(value => {if (!controller.signal.aborted) {setSavedValue(value);setOutcome(globalThis.QingsongAssistantFailure.saved(value,failure));}})
           .catch(() => {if (!controller.signal.aborted) setOutcome('保存状态尚未核对成功。请检查教案和修改建议，避免重复提交。');});
         return () => controller.abort();
       }, [sessionId, node.key, attempt, retry]);
@@ -93,6 +128,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       return React.createElement('div', {className:'qs-failure-notice',role:'status'},
         React.createElement('p',null,globalThis.QingsongAssistantFailure.reason(failure)),
         retry ? React.createElement('p',null,current.retryState === 'scheduled' ? '系统正在按既定次数重试当前模型请求，请稍候；不会重发整轮操作。' : current.retryState === 'cancelled' ? '本次模型重试已取消。' : '已尝试重新连接模型服务。') : React.createElement('p',null,outcome),
+        overflow&&!retry&&React.createElement('div',{className:'qs-failure-recovery'},React.createElement('button',{type:'button',disabled:recovering,onClick:()=>void compact()},recovering?'正在整理…':'整理历史后继续'),compactFailed&&savedValue?.bound&&React.createElement('button',{type:'button',disabled:recovering,onClick:newSession},'新建关联会话继续'),recovery&&React.createElement('p',{role:'status'},recovery)),
         !retry && React.createElement('button',{type:'button',onClick:()=>setAttempt(value=>value+1)},'重新核对保存状态'),
         React.createElement('details',null,React.createElement('summary',null,'技术详情'),React.createElement('pre',null,JSON.stringify({code:failure?.code,message:failure?.message,...(retry ? {delayMs:Math.round(current.delayMs),retry:current.retry,maxRetries:current.maxRetries} : {})},null,2))));
     }

@@ -54,3 +54,13 @@ test("empty current cell still yields a table boundary for AI, without inventing
     "table-current",
   ]);
 });
+
+test('partial text selection reports stable paragraph and character offsets with table location',()=>{
+  const editor=tableEditor('课堂活动');
+  const from=editor.state.selection.from;
+  const selected={...editor,state:EditorState.create({schema,doc:editor.state.doc,selection:TextSelection.create(editor.state.doc,from+1,from+3)})} as unknown as Editor;
+  const result=readDocumentSelection(selected);
+  assert.equal(result.text,'堂活');
+  assert.deepEqual(result.location?.blocks,[{id:'paragraph-a',from:1,to:3}]);
+  assert.deepEqual(result.location?.table,{id:'table-current',row:1,column:1});
+});

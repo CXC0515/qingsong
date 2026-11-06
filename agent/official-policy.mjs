@@ -10,6 +10,13 @@ const unary = new Set([
 ]);
 const streams = new Set(['session/control', 'session/follow', 'workspace/follow', 'remoteAccess/follow', 'job/list', '$events']);
 export function allowOfficialCall(endpoint, payload, stream = false) {
+  if (endpoint === 'commands/execute') {
+    const args=payload?.args;
+    return !stream && args && typeof args==='object' && !Array.isArray(args)
+      && Object.keys(args).length===3 && Object.keys(args).every(key=>['agentId','line','submittedAttachments'].includes(key))
+      && typeof args.agentId==='string' && /^[a-zA-Z0-9_-]{1,160}$/.test(args.agentId)
+      && args.line==='/compact' && Array.isArray(args.submittedAttachments) && args.submittedAttachments.length===0;
+  }
   if (!(stream ? streams : unary).has(endpoint)) return false;
   if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !payload.args || typeof payload.args !== 'object') return false;
   const request = payload.args.request;

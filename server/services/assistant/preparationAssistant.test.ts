@@ -255,3 +255,18 @@ test('selected source pagination returns an executable continuation with no over
  const other={...context,userId:'other-teacher'};
  await runWithWorkspace(other,async()=>assert.rejects(readPreparation({...args,...first.data.nextRead}),/当前账号可访问/));
 }));
+
+test('selection reference reports original revision and expires after document changes, then can be removed',async()=>runWithWorkspace(context,async()=>{
+ const {id,doc}=fixture(),native=nativeFixture();
+ const selection={blockIds:['paragraph-first'],text:'原文',location:{from:1,to:3,blocks:[{id:'paragraph-first',from:0,to:2}]}};
+ const target=await resolvePreparationTarget({mode:'preparation',preparationId:id,documentId:doc.id,revision:doc.revision,selection},native.call);
+ let outcome=preparationSavedOutcome(target.sessionId!);
+ assert.ok(outcome.bound&&outcome.selection&&!outcome.selection.stale);
+ if(outcome.bound)assert.deepEqual(outcome.selection?.location,selection.location);
+ prep.saveDocument(id,doc.id,{expectedRevision:doc.revision,operationId:op(),content:document('新版原文')});
+ outcome=preparationSavedOutcome(target.sessionId!);
+ assert.ok(outcome.bound&&outcome.selection?.stale);
+ await resolvePreparationTarget({mode:'preparation',sessionId:target.sessionId,preparationId:id,documentId:doc.id},native.call);
+ outcome=preparationSavedOutcome(target.sessionId!);
+ assert.ok(outcome.bound&&!outcome.selection);
+}));

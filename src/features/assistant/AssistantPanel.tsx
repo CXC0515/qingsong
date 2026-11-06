@@ -148,6 +148,16 @@ function OfficialAssistantPanel({entry,onAssociationChange}:Props) {
     window.addEventListener('message',receive);
     return()=>window.removeEventListener('message',receive);
   },[connectionId]);
+  useEffect(()=>{
+    const receive=(event:MessageEvent)=>{
+      const data=event.data;
+      if(event.origin!==location.origin||event.source!==frame.current?.contentWindow||data?.connectionId!==connectionId||data?.type!=='qingsong:preparation-recovery')return;
+      const target=data.target;
+      if(typeof target?.preparationId!=='string'||typeof target?.documentId!=='string')return;
+      window.dispatchEvent(new CustomEvent('qingsong:preparation-assistant',{detail:{...target,newSessionId:crypto.randomUUID()}}));
+    };
+    window.addEventListener('message',receive);return()=>window.removeEventListener('message',receive);
+  },[connectionId]);
   const [targetError, setTargetError] = useState('');
   const [targetStage, setTargetStage] = useState('');
   const [targetAttempt, setTargetAttempt] = useState(0);
