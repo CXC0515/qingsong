@@ -126,7 +126,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       const inputRef=React.useRef({inputActions,insertReference});inputRef.current={inputActions,insertReference};
       const icon = path => React.createElement('svg',{viewBox:'0 0 24 24',width:18,height:18,fill:'none',stroke:'currentColor',strokeWidth:1.8,'aria-hidden':true},React.createElement('path',{d:path}));
       React.useEffect(() => {
-        const outside = event => {if(!menu.current?.contains(event.target))setOpen(false);};
+        const outside = event => {if(!menu.current?.contains(event.target)){setOpen(false);setLessons(null);}};
         document.addEventListener('pointerdown',outside);
         return () => document.removeEventListener('pointerdown',outside);
       },[]);
@@ -157,7 +157,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         pending.current={id,span,timer};
         parent.postMessage({type:'qingsong:pick-materials',requestId:id,sessionId,connectionId},location.origin);
       };
-      return React.createElement('div',{className:'qs-materials-menu',ref:menu,onKeyDown:event=>{if(event.key==='Escape'){setOpen(false);setError('');}}},
+      return React.createElement('div',{className:'qs-materials-menu',ref:menu,onKeyDown:event=>{if(event.key==='Escape'){setOpen(false);setLessons(null);setError('');}}},
         React.createElement('button',{type:'button',className:'qs-materials-button','aria-label':'添加附件或材料池资料','aria-expanded':open,'aria-haspopup':'menu',disabled:locked||picking,onClick:()=>{setError('');setOpen(value=>!value);}},icon('M12 5v14M5 12h14')),
         React.createElement('input',{type:'file',multiple:true,hidden:true,ref:fileInput,accept:'.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.tsv,.txt,.md,.markdown,.json,.yaml,.yml,.png,.jpg,.jpeg,.webp,.gif',onChange:event=>{
           const files=Array.from(event.target.files??[]);event.target.value='';setError('');
