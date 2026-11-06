@@ -1,6 +1,6 @@
 # 教案引用入口补齐与会话重置
 
-版本：v1.0；日期：2026-11-07；状态：用户批准，实施中。
+版本：v1.0；日期：2026-11-07；状态：已部署，待正式账号验收。
 
 ## 问题与批准方案
 
@@ -23,3 +23,9 @@
 更新引用实际检查：已有材料chip在前、教案chip在后时可正确更新；人为延迟请求并继续打字触发拒绝覆盖，重试只换教案chip，材料与新字均保留。关闭、点击外部与搜索框Escape使用同一收起状态。
 
 会话清理完成：两个原生助手目录共9条持久会话、28份历史/锁/投影/会话资料引用文件已删除；清空两份workspace原生会话列表及归档/置顶状态（含1条已无正文的旧归档ID），保留工作区本身。移除2条废弃教案会话绑定，0条会话引用setting；633份非会话文件哈希不变，12SQLite/183表完整性通过，其他表计数不变。复查0会话，应用、记忆服务、备份timer active，ready成功。恢复点：`/var/lib/teacher-dashboard/backups/manual/product-2026-11-07-pre-session-reset-picker`；证据：`/var/log/teacher-dashboard-picker-session-reset`。
+
+## 发布结果
+
+PR #142 合并并部署 `a716d641b439d639278f6d3438324e5087f85471`，正式包来自母文件夹稳定main。Linux Node24.22.1同服务权限类型/构建、111定向+4完整HTTP全通过，最终面板代码另外类型及22项通过。追加类型检查第一次默认堆内存不足，按原检查已使用的1536MB配额重跑通过，未改变应用内存配置。
+
+576源码hash一致，76公网静态资源hash一致；12SQLite/183表前后schema/完整性/外键/计数相同。应用running/NRestarts0，记忆及备份timer active，公网ready成功。发布前恢复点`product-2026-11-07-pre-picker-a716d64`（670文件/12SQLite）；它位于会话清空之后，恢复会话请使用前述独立清空前副本。旧备份与旧发布未删除。证据：`/var/log/teacher-dashboard-lesson-reference-picker-2026-11-07`。
