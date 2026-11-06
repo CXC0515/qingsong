@@ -103,7 +103,7 @@ export function createDocumentExtensions(
       placeholder:
         "开始编写教案，输入 / 插入内容；选中文字或表格可请 AI 协助。",
     }),
-    OwnedImage,
+    OwnedImage.configure({resize:{enabled:true,directions:['bottom-left','bottom-right'],minWidth:48,minHeight:32,alwaysPreserveAspectRatio:true}}),
     Mathematics.configure({
       inlineOptions: {
         onClick: (node, position) => onEquation?.(node.attrs.latex, position),

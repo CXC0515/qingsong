@@ -28,6 +28,7 @@ import type {
 import type { DocumentSelection } from "../../components/document/DocumentEditor";
 import {
   forkPreparationDocument,
+  checkpointPreparationDocument,
   getPreparation,
   importPreparationSource,
   uploadPreparationImage,
@@ -323,10 +324,10 @@ export default function PreparationDetail({
           </span>
           <GlassButton
             disabled={Boolean(busy)}
-            onClick={() => void draft.flush()}
+            onClick={() => void (async()=>{if(!(await draft.flush()))return;try{await checkpointPreparationDocument(preparationId,document.id,draft.getRevision());setError('');}catch(cause){setError((cause as Error).message);}})()}
           >
             <Save size={16} />
-            保存
+            保存版本
           </GlassButton>
         </div>
       </WorkspaceToolbar>
@@ -447,7 +448,7 @@ export default function PreparationDetail({
           />
           <div className="qs-prep-writing-head">
             <span>
-              {document.title} · 版本 {document.revision}
+              {document.title}
             </span>
             <button
               type="button"

@@ -24,6 +24,11 @@ export function preparationReferenceStatus(id: string) {
   const latest = preparations.getDocument(reference.preparationId, reference.documentId);
   return {...reference, latestRevision: latest.revision, stale: latest.revision !== reference.revision};
 }
+export function previewPreparationReference(id: string) {
+  const reference = preparationReferenceStatus(id);
+  const document = preparations.getDocument(reference.preparationId, reference.documentId, reference.revision);
+  return {reference, content: document.content, url: '/?page=lesson-plan&preparationId='+reference.preparationId+'&documentId='+reference.documentId};
+}
 export function updatePreparationReference(id: string) {
   const reference = preparationReferenceStatus(id);
   if (reference.selection && reference.stale)

@@ -360,3 +360,15 @@ test("document validation bounds layout dimensions and rejects structures the ed
       );
     }
   }));
+
+test('autosaves retain immutable snapshots but checkpoints define visible history',()=>runWithWorkspace(alice,()=>{
+ const detail=prep.createPreparation({title:'自动保存检查',operationId:op()});const id=detail.preparation.id,doc=detail.documents[0];
+ const a=prep.saveDocument(id,doc.id,{expectedRevision:1,operationId:op(),content:content('第一轮输入'),autosave:true});
+ const b=prep.saveDocument(id,doc.id,{expectedRevision:2,operationId:op(),content:content('第二轮输入'),autosave:true});
+ assert.equal(prep.listRevisions(id,doc.id).length,3);assert.equal(prep.visibleDocumentRevisions(id,doc.id).length,2);
+ assert.deepEqual(prep.getDocument(id,doc.id,a.revision).content,a.content);
+ prep.checkpointDocument(id,doc.id,{expectedRevision:b.revision,operationId:op()});
+ prep.saveDocument(id,doc.id,{expectedRevision:3,operationId:op(),content:content('第三轮输入'),autosave:true});
+ assert.deepEqual(prep.visibleDocumentRevisions(id,doc.id).map(x=>x.revision),[4,3,1]);
+ assert.throws(()=>prep.checkpointDocument(id,doc.id,{expectedRevision:3,operationId:op()}),/已有新修改/);
+}));

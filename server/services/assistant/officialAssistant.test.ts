@@ -686,9 +686,13 @@ test('preparation: native workspace binding, candidate creation and explicit tea
  assert.ok(candidates.items.some((item:any)=>item.documentId===doc));
  const picked=(await call(endpoint,{preparationId:prep,documentId:doc})).reference;
  assert.equal(picked.id,target.reference.id);
+ const preview=await call(endpoint+'?preview='+picked.id);assert.equal(preview.reference.id,picked.id);assert.equal(preview.content.type,'doc');assert.match(preview.url,/documentId=/);
+
  const otherCookie=await register('reference-outsider@fixture.test','引用隔离班');
  const denied=await fetch(apiRoot+endpoint+'?id='+picked.id,{headers:{Cookie:otherCookie}});
  assert.equal(denied.status,404);
+ assert.equal((await fetch(apiRoot+endpoint+'?preview='+picked.id,{headers:{Cookie:otherCookie}})).status,404);
+
  const hidden=await fetch(apiRoot+endpoint+'?q='+encodeURIComponent('陋室铭合成验收'),{headers:{Cookie:otherCookie}});
  assert.deepEqual((await hidden.json()).items,[]);
  const invalid=await fetch(apiRoot+endpoint,{method:'POST',headers:{Origin:origin,Cookie:cookie,'content-type':'application/json','x-demo-csrf':'1'},body:JSON.stringify({referenceId:picked.id,preparationId:prep})});

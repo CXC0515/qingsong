@@ -524,6 +524,8 @@ const materialStatusLabel: Record<WorkflowState['assignment']['assets'][number][
 
 const materialParseErrorMessage = (code: string | undefined) => {
   const messages: Record<string, string> = {
+    DOCX_CONVERTER_NOT_INSTALLED: '服务器缺少 Word 转换组件。原文件已保存，请联系管理员恢复解析环境后原地重试。',
+    DOCX_PARSE_FAILED: 'Word 转换未完成。原文件已保存，请联系管理员核对解析日志后重试。',
     DOCX_PARSER_NOT_INSTALLED: 'DOCX 解析环境尚未安装。文件已保存。',
     PADDLEOCR_NOT_CONFIGURED: 'PaddleOCR API 尚未配置。文件已保存。',
     PADDLEOCR_AUTH_FAILED: 'PaddleOCR Token 无效。文件已保存。',

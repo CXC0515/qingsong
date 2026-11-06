@@ -172,3 +172,10 @@ test('connection observer reports catalog failures, recovers, answers trusted pr
 });
 
 test("native selection has no business association guard or redirect bridge",async()=>{const source=await readFile(new URL("./official-ui/client.js",import.meta.url),"utf8");assert.doesNotMatch(source,/preparation-selection|AssociationGuard|native-selection|session-association|preparation-recovery/);assert.match(source,/ctx.uiWorkspace.startSession/);});
+
+test('lesson transcript references register on the native presentation service',async()=>{
+ const require=createRequire(new URL('../package.json',import.meta.url));const source=await readFile(new URL('./official-ui/client.js',import.meta.url),'utf8');let plugin;const effects=[],rules=[];
+ vm.runInNewContext(source,{window:{__ModuleLoader__:{load:module=>{plugin=module.factory(require);}}},location:{origin:'https://fixture.test'}});
+ plugin.apply({slots:{inject:()=>{}},effect:fn=>effects.push(fn),uiConversation:{userText:{register:rule=>rules.push(rule)}}});
+ effects[0]();assert.equal(rules[0].id,'qingsong-lesson');const id='f2dc315d-33a5-54d5-a4b7-80e30b16d909',text='请修改[[青松教案:'+id+']]';const node=rules[0].match(text,0);assert.equal(node.data.referenceId,id);assert.equal(text.slice(node.start,node.end),'[[青松教案:'+id+']]');assert.equal(rules[0].match(text,node.end),undefined);
+});

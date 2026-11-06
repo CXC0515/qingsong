@@ -272,3 +272,8 @@
  .qs-task-columns[data-page="workbench"][data-assistant-open=true]:has(>.qs-assistant-dock[data-resized=true]){grid-template-columns:minmax(260px,1fr) auto}
  .qs-task-columns[data-page="workbench"]>.qs-assistant-dock{width:var(--qs-assistant-width,auto);max-width:100%;min-width:0}
 }
+/* Tiptap owns image resizing and persists width/height through its transaction. */
+.qs-document-editor [data-resize-handle]{width:22px;height:22px;border:2px solid white;border-radius:50%;background:#36738a;box-shadow:0 0 0 1px #36738a;touch-action:none;z-index:2;cursor:nwse-resize}
+.qs-document-editor [data-resize-handle=bottom-left]{cursor:nesw-resize}
+.qs-document-editor.is-readonly [data-resize-handle]{display:none}
+.qs-document-editor img{max-width:100%;height:auto}

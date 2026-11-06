@@ -490,10 +490,24 @@ export function listRevisions(
   return repo.revisions<DocumentRevision>(documentId);
 }
 export interface SaveDocumentInput {
+  autosave?: boolean;
   expectedRevision: number;
   operationId: string;
   content: RichDocument;
   title?: string;
+}
+export function checkpointDocument(preparationId: string, documentId: string, input: unknown) {
+  const parsed=z.object({expectedRevision:z.number().int().positive(),operationId}).strict().parse(input);
+  return once(parsed.operationId,['checkpoint',preparationId,documentId,parsed],()=>{
+    editable(preparationId);const document=getDocument(preparationId,documentId);
+    if(document.revision!==parsed.expectedRevision)fail('VERSION_CONFLICT','教案已有新修改，本次未记录版本。请核对当前稿后重试。',409);
+    repo.setSetting('document-checkpoint:'+documentId+':'+document.revision,true);
+    return document;
+  });
+}
+export function visibleDocumentRevisions(preparationId:string,documentId:string) {
+  const revisions=listRevisions(preparationId,documentId);
+  return revisions.filter((item,index)=>index===0||item.reason!=='自动保存'||repo.setting('document-checkpoint:'+documentId+':'+item.revision)).map(item=>repo.setting('document-checkpoint:'+documentId+':'+item.revision)?{...item,reason:'手动保存版本'}:item);
 }
 export function saveDocument(
   preparationId: string,
@@ -508,6 +522,7 @@ export function saveDocument(
       operationId,
       content: z.unknown(),
       title: title.optional(),
+      autosave: z.boolean().optional(),
     })
     .strict()
     .parse(input);
@@ -532,7 +547,7 @@ export function saveDocument(
         updatedAt: now(),
       };
       repo.put("preparation_documents", document, preparationId);
-      repo.addRevision({ ...document, actor, reason });
+      repo.addRevision({ ...document, actor, reason: parsed.autosave && actor === 'teacher' ? '自动保存' : reason });
       touch(preparation);
       return document;
     },

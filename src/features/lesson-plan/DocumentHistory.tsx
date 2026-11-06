@@ -124,7 +124,7 @@ export default function DocumentHistory({
   return (
     <ResponsiveDialog
       title="历史版本"
-      subtitle="导出历史版本不会改变当前稿。恢复会生成新版本，后续历史仍保留。"
+      subtitle="自动保存持续保护当前稿；手动保存版本、应用建议和导入记录保留在这里。导出不会改变当前稿。"
       wide
       compactFull
       busy={busy}
@@ -145,7 +145,7 @@ export default function DocumentHistory({
                   setFile(null);
                 }}
               >
-                <strong>版本 {item.revision}</strong>
+                <strong>{item.reason==='自动保存'?'当前自动保存稿':'保存记录'} · 修订 {item.revision}</strong>
                 <span>{new Date(item.updatedAt).toLocaleString("zh-CN")}</span>
                 <small>
                   {item.reason} ·{" "}

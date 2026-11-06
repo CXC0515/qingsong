@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => ({
-  inject: ['slots', 'locale', 'layout', 'uiWorkspace', 'workspaces', 'sessions', 'conversation', 'inputTriggers', 'remote.commands'],
+  inject: ['slots', 'locale', 'layout', 'uiWorkspace', 'workspaces', 'sessions', 'conversation', 'uiConversation', 'inputTriggers', 'remote.commands'],
   apply(ctx) {
     const React = require('react');
     const materialSource = 'qingsong-pool';
@@ -7,6 +7,26 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     const materialUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const connectionId = (window.name || '').replace(/^qingsong-assistant:/, '');
     const lessonSource="qingsong-lesson";
+    const openLessonPreview = id => {parent.postMessage({type:'qingsong:preview-lesson',referenceId:id,connectionId},location.origin);return true;};
+    // The native renderer owns message structure; tokens remain intact in the model log.
+    ctx.effect(()=>ctx.uiConversation.userText.register({id:lessonSource,order:5,match(text,from){
+      const pattern=/\[\[青松教案:([0-9a-f-]{36})\]\]/gi;pattern.lastIndex=from;const found=pattern.exec(text);
+      if(found&&materialUuid.test(found[1]))return {id:lessonSource,start:found.index,end:found.index+found[0].length,data:{referenceId:found[1]}};
+    }}));
+    function SentLessonReference({node}) {
+      const [reference,setReference]=React.useState(null);
+      React.useEffect(()=>{const controller=new AbortController();void requestJSON('./api/qingsong/lesson-references?id='+encodeURIComponent(node.data.referenceId),{signal:controller.signal}).then(value=>setReference(value.references[0])).catch(()=>{});return()=>controller.abort();},[node.data.referenceId]);
+      return React.createElement('button',{type:'button',className:'qs-sent-lesson-reference',onClick:()=>openLessonPreview(node.data.referenceId)},reference?reference.title+' · 修订 '+reference.revision:'查看教案引用');
+    }
+    ctx.slots.inject('conversation.user.text.node',()=>ctx.slots.register({name:'conversation.user.text.node',key:lessonSource,priority:-100},props=>React.createElement(SentLessonReference,props)));
+    const handleLessonLink=event=>{
+      const anchor=event.target.closest?.('a[href]');if(!anchor)return;
+      let url;try{url=new URL(anchor.getAttribute('href'),location.origin);}catch{return;}
+      if(url.origin!==location.origin||!['/','/api/assistant/official/'].includes(url.pathname)||url.searchParams.get('page')!=='lesson-plan')return;
+      const preparationId=url.searchParams.get('preparationId'),documentId=url.searchParams.get('documentId');if(!materialUuid.test(preparationId??'')||(documentId&&!materialUuid.test(documentId)))return;
+      event.preventDefault();event.stopPropagation();parent.postMessage({type:'qingsong:open-lesson',preparationId,documentId,connectionId},location.origin);
+    };
+    ctx.effect(()=>{document.addEventListener('click',handleLessonLink,true);return()=>document.removeEventListener('click',handleLessonLink,true);});
     const lessonToken=id=>"[[青松教案:"+id+"]]";
     const pendingReferences=new Map();
     const requestJSON = async (url, options = {}) => {
@@ -28,6 +48,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     };
     ctx.effect(()=>ctx.inputTriggers.registerSource({
       name:lessonSource,trigger:'@',
+      openReference:(_session,value)=>openLessonPreview(value.ref),
       candidates:async (_session,req)=>(await lessonCandidates(req.query,req.signal)).map(item=>({name:item.title+' '+item.documentId,label:item.title,description:'教案 · 第'+item.revision+'版',icon:'file',value:JSON.stringify(item)})),
       onPick:pick=>{void chooseLesson(pick.session.sessionId,JSON.parse(pick.candidate.value),pick.span);return 'handled';},
       codec:{clipboardText:lessonToken,serialize:async id=>{if(!materialUuid.test(id))throw Error('教案引用无效，请重新添加。');return lessonToken(id);}},

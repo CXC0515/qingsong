@@ -65,10 +65,11 @@ router.put(
     ),
   })),
 );
+router.post('/preparations/:id/documents/:documentId/checkpoint',handle(request=>({document:service.checkpointDocument(id(request,'id'),id(request,'documentId'),request.body)})));
 router.get(
   "/preparations/:id/documents/:documentId/revisions",
   handle((request) => ({
-    revisions: service.listRevisions(
+    revisions: service.visibleDocumentRevisions(
       id(request, "id"),
       id(request, "documentId"),
     ),

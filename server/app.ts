@@ -16,7 +16,7 @@ import multer from 'multer';
 import { toNodeHandler } from 'better-auth/node';
 import { auth } from './auth/auth';
 import { getModelConfig, isModelConfigured } from './config/modelConfig';
-import { getDocumentParserConfig, isPaddleCloudConfigured } from './config/documentParserConfig';
+import { getDocumentParserConfig, isPaddleCloudConfigured, isDocxConverterReady } from './config/documentParserConfig';
 import { RuntimeConfig, runtimeConfig } from './config/runtimeConfig';
 import { getAuthDatabase } from './database/authDatabase';
 import { getRosterDatabase } from './database/rosterDatabase';
@@ -58,6 +58,7 @@ const readiness = (config: RuntimeConfig) => {
     storage: 'ready',
     multimodalConfigured: isModelConfigured(getModelConfig()),
     paddleCloudConfigured: isPaddleCloudConfigured(getDocumentParserConfig()),
+    docxConverterReady: isDocxConverterReady(getDocumentParserConfig()),
   };
 };
 

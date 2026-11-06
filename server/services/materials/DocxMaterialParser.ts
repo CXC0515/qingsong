@@ -34,7 +34,7 @@ const runWorker = (command: string, args: string[]) => new Promise<string>((reso
   child.on('error', error => reject(new MaterialParserError(error.message.includes('ENOENT') ? 'DOCX_PARSER_NOT_INSTALLED' : 'DOCX_PARSER_START_FAILED', { cause: error })));
   child.on('close', code => {
     if (code === 0) resolve(stdout);
-    else reject(new MaterialParserError(stderr.includes('Unsupported format') ? 'DOCX_FORMAT_UNSUPPORTED' : 'DOCX_PARSE_FAILED', { cause: new Error(stderr || `Worker exited with ${code}`) }));
+    else reject(new MaterialParserError(stderr.includes('DOCX_CONVERTER_NOT_INSTALLED') ? 'DOCX_CONVERTER_NOT_INSTALLED' : stderr.includes('Unsupported format') ? 'DOCX_FORMAT_UNSUPPORTED' : 'DOCX_PARSE_FAILED', { cause: new Error(stderr || `Worker exited with ${code}`) }));
   });
 });
 

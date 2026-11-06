@@ -1,5 +1,7 @@
 import type {PreparationAssistantContext,PreparationAssistantTarget} from '../../domain/preparationAssistant';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import type { RichDocument } from '../../domain/document';
+const ReferenceDocumentEditor=lazy(()=>import('../../components/document/DocumentEditor'));
 import ResponsiveDialog from '../../components/ResponsiveDialog';
 import PersonalContextPanel from './PersonalContextPanel';
 import MaterialPoolPicker from './MaterialPoolPicker';
@@ -28,6 +30,25 @@ function OfficialAssistantPanel({entry}:Props) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [materialPick, setMaterialPick] = useState<MaterialPickRequest | null>(null);
+  const [lessonPreview,setLessonPreview]=useState<{id:string;title:string;content?:RichDocument;url?:string;error?:string;selection?:string}|null>(null);
+  useEffect(()=>{
+    const controller=new AbortController();
+    const navigate=(preparationId:string,documentId?:string)=>{
+      if(!window.dispatchEvent(new Event('qingsong:preparation-before-leave',{cancelable:true})))return;
+      const url=new URL('/',location.origin);url.searchParams.set('page','lesson-plan');url.searchParams.set('preparationId',preparationId);if(documentId)url.searchParams.set('documentId',documentId);
+      history.pushState(null,'',url);window.dispatchEvent(new PopStateEvent('popstate'));setLessonPreview(null);
+    };
+    const receive=(event:MessageEvent)=>{
+      const data=event.data;
+      if(event.origin!==location.origin||event.source!==frame.current?.contentWindow||data?.connectionId!==connectionId)return;
+      const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if(data.type==='qingsong:open-lesson'&&uuid.test(data.preparationId)&&(!data.documentId||uuid.test(data.documentId))){navigate(data.preparationId,data.documentId);return;}
+      if(data.type!=='qingsong:preview-lesson'||!uuid.test(data.referenceId))return;
+      const id=data.referenceId;setLessonPreview({id,title:'正在读取教案引用…'});
+      void apiFetch('/api/assistant/official/api/qingsong/lesson-references?preview='+encodeURIComponent(id),{signal:controller.signal}).then(async response=>{const value=await response.json();if(!response.ok)throw Error(value.message);return value;}).then(value=>setLessonPreview(current=>current?.id===id?{id,title:value.reference.title+' · 修订 '+value.reference.revision,content:value.content,url:value.url,selection:value.reference.selection?.text}:current)).catch(cause=>{if(!controller.signal.aborted)setLessonPreview(current=>current?.id===id?{...current,error:cause.message||'引用暂时无法读取，原会话和教案保留，请重试。'}:current);});
+    };
+    window.addEventListener('message',receive);return()=>{controller.abort();window.removeEventListener('message',receive);};
+  },[connectionId]);
   const activePick = useRef<MaterialPickRequest | null>(null);
   const pickAbort = useRef<AbortController | null>(null);
   const settingsOpen = useRef(settings);
@@ -193,6 +214,12 @@ function OfficialAssistantPanel({entry}:Props) {
   }, [ready,entry?.mode,entry?.preparationId,entry?.documentId,entry?.sessionId,entry?.instruction,entry?.requestKey,connectionId,targetAttempt]);
   const retry=()=>{closeMaterialPick();setConnectionId(crypto.randomUUID());};
   return <GlassSurface className="qs-assistant-panel qs-official-assistant flex h-full min-h-0 flex-col overflow-hidden">
+    {lessonPreview&&<ResponsiveDialog title={lessonPreview.title} wide compactFull onClose={()=>setLessonPreview(null)}>
+      {lessonPreview.error&&<p role="alert">{lessonPreview.error}</p>}
+      {lessonPreview.selection&&<blockquote>{lessonPreview.selection}</blockquote>}
+      {lessonPreview.content&&<Suspense fallback={<p role="status">正在载入预览…</p>}><ReferenceDocumentEditor documentKey={'reference:'+lessonPreview.id} content={lessonPreview.content} readOnly/></Suspense>}
+      {lessonPreview.url&&<GlassButton onClick={()=>{if(!window.dispatchEvent(new Event('qingsong:preparation-before-leave',{cancelable:true})))return;history.pushState(null,'',lessonPreview.url);window.dispatchEvent(new PopStateEvent('popstate'));setLessonPreview(null);}}>打开当前教案</GlassButton>}
+    </ResponsiveDialog>}
     <style>{".qs-official-assistant>.lg-content{display:flex;flex-direction:column;min-height:0;flex:1;padding:0;gap:0;overflow:hidden}.qs-official-frame{display:flex;flex:1;min-height:0;margin:12px;border-radius:18px;overflow:hidden;background:#fff}"}</style>
     {!ready&&<div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-sm"><p role={error?'alert':'status'} className={error?'text-red-700':'text-gray-500'}>{error||(phase==='page'?'正在载入助手界面…':'正在同步工作区与会话…')}{!error&&elapsed>0?` ${elapsed}秒`:''}{slow&&!error?'，连接较慢，已有会话保留。':''}</p>{(slow||error)&&<GlassButton disabled={busy} onClick={retry}>重新连接</GlassButton>}</div>}
     {ready&&sessionLoad&&<p role={sessionLoad.phase==='error'?'alert':'status'} className={'shrink-0 px-4 py-2 text-sm '+(sessionLoad.phase==='error'?'text-red-700':'text-gray-600')}>
