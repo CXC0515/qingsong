@@ -7,12 +7,28 @@ import {randomUUID} from 'node:crypto';
 import {runWithWorkspace,type WorkspaceContext} from '../../context/workspaceContext';
 import {closePreparationDatabase} from '../../database/preparationDatabase';
 import * as prep from '../preparation/preparationService';
-import {createPreparationReference,registerPreparationReferences,resolveTaskReference,sessionPreparationReferences} from './preparationReferences';
+import {createPreparationReference,registerPreparationReferences,resolveTaskReference,sessionPreparationReferences,listPreparationReferenceCandidates,preparationReferenceStatus,updatePreparationReference} from './preparationReferences';
 import {resolvePreparationTarget,preparationAssistantTool,stopSessionTasks} from './preparationAssistant';
 const root=await mkdtemp(path.join(tmpdir(),'qs-lesson-references-'));
 const context:WorkspaceContext={userId:'reference-teacher',workspaceId:'reference-workspace',role:'teacher',root,dataDirectory:path.join(root,'data'),uploadDirectory:path.join(root,'uploads')};
 after(async()=>{closePreparationDatabase();await rm(root,{recursive:true,force:true});});
 const make=()=>prep.createPreparation({title:'引用教案',operationId:randomUUID()});
+test('picker finds owned versions; updating a source preserves history and refuses stale selections',()=>runWithWorkspace(context,()=>{
+ const lesson=make(),id=lesson.preparation.id,doc=lesson.documents[0];
+ assert.ok(listPreparationReferenceCandidates('引用教案').some(item=>item.preparationId===id));
+ const whole=createPreparationReference({preparationId:id});
+ const selected=createPreparationReference({preparationId:id,selection:{blockIds:['p'],text:'旧文'}});
+ prep.saveDocument(id,doc.id,{expectedRevision:1,operationId:randomUUID(),content:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'新版'}]}]}});
+ assert.equal(preparationReferenceStatus(whole.id).stale,true);
+ const updated=updatePreparationReference(whole.id);
+ assert.equal(updated.revision,2);assert.notEqual(updated.id,whole.id);
+ assert.equal(preparationReferenceStatus(whole.id).revision,1);
+ assert.throws(()=>updatePreparationReference(selected.id),/重新选择/);
+ runWithWorkspace({...context,userId:'another-picker-user'},()=>{
+  assert.equal(listPreparationReferenceCandidates().length,0);
+  assert.throws(()=>updatePreparationReference(whole.id),/引用不可用/);
+ });
+}));
 test('reopening the same source reuses its reference; a selection remains a distinct source',()=>runWithWorkspace(context,()=>{
  const lesson=make(),input={preparationId:lesson.preparation.id};
  const first=createPreparationReference(input),second=createPreparationReference(input);

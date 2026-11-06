@@ -9,15 +9,60 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     const lessonSource="qingsong-lesson";
     const lessonToken=id=>"[[青松教案:"+id+"]]";
     const pendingReferences=new Map();
-    ctx.effect(()=>ctx.inputTriggers.registerSource({name:lessonSource,trigger:"@",candidates:async()=>[],onPick:()=>undefined,codec:{clipboardText:lessonToken,serialize:async id=>{if(!materialUuid.test(id))throw Error("教案引用无效，请重新添加。");return lessonToken(id);}}}));
-    function LessonReference({sessionId,inputActions}) {
+    const requestJSON = async (url, options = {}) => {
+      const response = await fetch(url, {cache:'no-store', ...options});
+      const value = await response.json();
+      if (!response.ok) throw Error(value.message || '引用未能读取，原输入保留，请重试。');
+      return value;
+    };
+    const lessonInsert = reference => ({source:lessonSource,ref:reference.id,label:reference.title+' · 第'+reference.revision+'版',appearance:'file',clipboardText:lessonToken(reference.id)});
+    const createLesson = value => requestJSON('./api/qingsong/lesson-references',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(value)});
+    const lessonCandidates = async (query, signal) => (await requestJSON('./api/qingsong/lesson-references?q='+encodeURIComponent(query),{signal})).items;
+    const chooseLesson = async (sessionId, candidate, span, persist) => {
+      const scope=ctx.sessions.scope(sessionId), input=scope&&ctx.conversation.input.for(scope);
+      try {
+        const {reference}=await createLesson({preparationId:candidate.preparationId,documentId:candidate.documentId});
+        if(!input?.insertReference(lessonInsert(reference),span))throw Error('输入已变化，教案尚未加入，请重新选择。');
+        persist?.();
+      } catch(error) {input?.notify('error',error.message);}
+    };
+    ctx.effect(()=>ctx.inputTriggers.registerSource({
+      name:lessonSource,trigger:'@',
+      candidates:async (_session,req)=>(await lessonCandidates(req.query,req.signal)).map(item=>({name:item.title+' '+item.documentId,label:item.title,description:'教案 · 第'+item.revision+'版',icon:'file',value:JSON.stringify(item)})),
+      onPick:pick=>{void chooseLesson(pick.session.sessionId,JSON.parse(pick.candidate.value),pick.span);return 'handled';},
+      codec:{clipboardText:lessonToken,serialize:async id=>{if(!materialUuid.test(id))throw Error('教案引用无效，请重新添加。');return lessonToken(id);}},
+    }));
+    function LessonReference({sessionId,inputActions,useInput}) {
+      const occurrences=useInput(state=>state.occurrences), phase=useInput(state=>state.phase);
+      const signature=occurrences.filter(item=>item.source===lessonSource).map(item=>item.ref).join(',');
+      const [stale,setStale]=React.useState([]),[error,setError]=React.useState('');
+      React.useEffect(()=>{
+        if(!signature){setStale([]);return;}
+        const controller=new AbortController();
+        const check=()=>requestJSON('./api/qingsong/lesson-references?'+signature.split(',').map(id=>'id='+encodeURIComponent(id)).join('&'),{signal:controller.signal}).then(value=>setStale(value.references.filter(item=>item.stale))).catch(cause=>{if(!controller.signal.aborted)setError(cause.message);});
+        void check();window.addEventListener('focus',check);window.addEventListener('qingsong:lesson-changed',check);
+        return()=>{controller.abort();window.removeEventListener('focus',check);window.removeEventListener('qingsong:lesson-changed',check);};
+      },[sessionId,signature]);
+      const update=async reference=>{
+        const old=occurrences.find(item=>item.source===lessonSource&&item.ref===reference.id);
+        if(!old)return;
+        // Occurrences use clipboard offsets; native insertion counts every reference chip as one character.
+        const start=old.offset-occurrences.filter(item=>item.offset<old.offset).reduce((total,item)=>total+item.length-1,0);
+        const span={start,end:start+1,draftRev:inputActions.captureInsertion().draftRev};
+        try {
+          const value=await createLesson({referenceId:reference.id});
+          const scope=ctx.sessions.scope(sessionId);
+          if(!scope||!ctx.conversation.input.for(scope).insertReference(lessonInsert(value.reference),span))throw Error('输入已变化，旧引用保留，请重新点击更新。');
+          inputActions.persistDraft();setError('');
+        } catch(cause){setError(cause.message);}
+      };
       React.useEffect(()=>{
         const insert=()=>{const reference=pendingReferences.get(sessionId);if(!reference)return;const scope=ctx.sessions.scope(sessionId);const input=scope&&ctx.conversation.input.for(scope);if(input?.insertReference({source:lessonSource,ref:reference.id,label:reference.title+" · 第"+reference.revision+"版",appearance:"file",clipboardText:lessonToken(reference.id)},inputActions.captureInsertion())){inputActions.persistDraft();pendingReferences.delete(sessionId);}else input?.notify("error","教案引用未能加入，原输入保留，请重新从教案添加。");};
         window.addEventListener("qingsong:add-lesson-reference",insert);insert();return()=>window.removeEventListener("qingsong:add-lesson-reference",insert);
       },[sessionId,inputActions]);
-      return null;
+      return React.createElement('div',{className:'qs-lesson-updates'},stale.map(reference=>React.createElement('button',{key:reference.id,type:'button',disabled:phase!=='plain',onClick:()=>void update(reference)},reference.title+'：更新至第'+reference.latestRevision+'版')),error&&React.createElement('span',{role:'alert'},error));
     }
-    ctx.slots.inject("conversation.input.left",()=>ctx.slots.register({name:"conversation.input.left",id:"qingsong-lesson-reference",priority:-101},props=>React.createElement(LessonReference,props)));
+    ctx.slots.inject('conversation.input.dock',()=>ctx.slots.register({name:'conversation.input.dock',id:'qingsong-lesson-reference',priority:-101},props=>React.createElement(LessonReference,props)));
     function FailureNotice({node, sessionId, retry}) {
       const failure = retry ? node.data.current.failure : node.data;
       const [outcome, setOutcome] = React.useState('正在核对教案保存状态…');
@@ -51,7 +96,15 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       ctx.slots.inject('conversation.chat.node',()=>ctx.slots.register({name:'conversation.chat.node',key,priority:-100},props=>React.createElement(FailureNotice,{...props,retry})));
     }
     ctx.effect(() => ctx.inputTriggers.registerSource({
-      name: materialSource, trigger: '@', candidates: async () => [], onPick: () => undefined,
+      name: materialSource, trigger: '@',
+      candidates:async (_session,req)=>{const value=await requestJSON('/api/material-pool/items?limit=50&q='+encodeURIComponent(req.query),{signal:req.signal});return value.items.map(item=>({name:item.originalName+' '+item.id,label:item.originalName,description:'材料池',icon:'file',value:item.id}));},
+      onPick:pick=>{
+        const scope=ctx.sessions.scope(pick.session.sessionId),input=scope&&ctx.conversation.input.for(scope);
+        void requestJSON('./api/qingsong/materials/references',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sessionId:pick.session.sessionId,requestId:crypto.randomUUID(),itemIds:[pick.candidate.value]})})
+          .then(value=>{const ref=value.references[0];if(!input?.insertReference({source:materialSource,ref:ref.id,label:'材料池 · '+ref.name,appearance:'file',clipboardText:materialToken(ref.id)},pick.span))throw Error('输入已变化，材料尚未加入，请重新选择。');})
+          .catch(error=>input?.notify('error',error.message));
+        return 'handled';
+      },
       codec: {clipboardText: materialToken, serialize: async id => {
         if (!materialUuid.test(id)) throw Error('资料引用无效，请从材料池重新选择。');
         return materialToken(id);
@@ -62,11 +115,18 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       const locked = phase !== 'plain';
       const [open,setOpen] = React.useState(false), [error,setError] = React.useState('');
       const [picking,setPicking] = React.useState(false);
+      const [lessons,setLessons]=React.useState(null),[lessonQuery,setLessonQuery]=React.useState(''),[lessonLoading,setLessonLoading]=React.useState(false);
+      React.useEffect(()=>{
+        if(lessons===null)return;
+        const controller=new AbortController();setLessonLoading(true);
+        const timer=setTimeout(()=>void lessonCandidates(lessonQuery,controller.signal).then(setLessons).catch(cause=>{if(!controller.signal.aborted)setError(cause.message);}).finally(()=>{if(!controller.signal.aborted)setLessonLoading(false);}),150);
+        return()=>{clearTimeout(timer);controller.abort();};
+      },[lessons===null,lessonQuery]);
       const pending = React.useRef(null), fileInput = React.useRef(null), menu = React.useRef(null);
       const inputRef=React.useRef({inputActions,insertReference});inputRef.current={inputActions,insertReference};
       const icon = path => React.createElement('svg',{viewBox:'0 0 24 24',width:18,height:18,fill:'none',stroke:'currentColor',strokeWidth:1.8,'aria-hidden':true},React.createElement('path',{d:path}));
       React.useEffect(() => {
-        const outside = event => {if(!menu.current?.contains(event.target))setOpen(false);};
+        const outside = event => {if(!menu.current?.contains(event.target)){setOpen(false);setLessons(null);}};
         document.addEventListener('pointerdown',outside);
         return () => document.removeEventListener('pointerdown',outside);
       },[]);
@@ -97,7 +157,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         pending.current={id,span,timer};
         parent.postMessage({type:'qingsong:pick-materials',requestId:id,sessionId,connectionId},location.origin);
       };
-      return React.createElement('div',{className:'qs-materials-menu',ref:menu,onKeyDown:event=>{if(event.key==='Escape'){setOpen(false);setError('');}}},
+      return React.createElement('div',{className:'qs-materials-menu',ref:menu,onKeyDown:event=>{if(event.key==='Escape'){setOpen(false);setLessons(null);setError('');}}},
         React.createElement('button',{type:'button',className:'qs-materials-button','aria-label':'添加附件或材料池资料','aria-expanded':open,'aria-haspopup':'menu',disabled:locked||picking,onClick:()=>{setError('');setOpen(value=>!value);}},icon('M12 5v14M5 12h14')),
         React.createElement('input',{type:'file',multiple:true,hidden:true,ref:fileInput,accept:'.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.tsv,.txt,.md,.markdown,.json,.yaml,.yml,.png,.jpg,.jpeg,.webp,.gif',onChange:event=>{
           const files=Array.from(event.target.files??[]);event.target.value='';setError('');
@@ -106,7 +166,12 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         }}),
         open&&React.createElement('div',{className:'qs-materials-options',role:'menu'},
           React.createElement('button',{type:'button',role:'menuitem',onClick:()=>{setOpen(false);fileInput.current.click();}},icon('M21 11.5 12 20.5a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8L15 6.5'),'上传文件'),
+          React.createElement('button',{type:'button',role:'menuitem',onClick:()=>{setOpen(false);setLessonQuery('');setLessons([]);}},icon('M4 3h12l4 4v14H4Z'),'引用教案'),
           React.createElement('button',{type:'button',role:'menuitem',onClick:pickPool},icon('M3 7h7l2-3h9v16H3Z'),'从材料池选择')),
+        lessons!==null&&React.createElement('div',{className:'qs-lesson-picker',role:'dialog','aria-label':'引用教案'},
+          React.createElement('div',null,React.createElement('strong',null,'引用教案'),React.createElement('button',{type:'button','aria-label':'关闭教案选择',onClick:()=>setLessons(null)},'关闭')),
+          React.createElement('input',{autoFocus:true,'aria-label':'搜索教案',placeholder:'搜索教案名称',value:lessonQuery,onChange:event=>setLessonQuery(event.target.value)}),
+          lessonLoading?React.createElement('p',{role:'status'},'正在读取教案…'):lessons.length?lessons.map(item=>React.createElement('button',{type:'button',key:item.documentId,onClick:()=>{const span=inputActions.captureInsertion();setLessons(null);void chooseLesson(sessionId,item,span,()=>inputActions.persistDraft());}},item.title+' · 第'+item.revision+'版')):React.createElement('p',null,'没有找到教案，可修改关键词。')),
         error&&React.createElement('span',{className:'qs-materials-error',role:'alert'},React.createElement('span',null,error),React.createElement('button',{type:'button','aria-label':'关闭材料提示',onClick:()=>setError('')},icon('M6 6l12 12M18 6 6 18'))));
     }
     ctx.slots.inject('conversation.input.left',()=>ctx.slots.register({
@@ -179,6 +244,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       const receive = async event => {
         const data = event.data;
         if (event.origin !== location.origin || event.source !== parent || data?.connectionId !== connectionId) return;
+        if (data.type === 'qingsong:lesson-changed') {window.dispatchEvent(new Event('qingsong:lesson-changed'));return;}
         if (data.type === 'qingsong:cancel-context') {if (current?.requestId === data.requestId) cancel(); return;}
         if(data.type==='qingsong:prepare-context'){cancel();current={requestId:data.requestId,controller:new AbortController()};return;}
         if (data.type !== 'qingsong:open-context') return;

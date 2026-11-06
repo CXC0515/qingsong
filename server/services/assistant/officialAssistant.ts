@@ -1,10 +1,10 @@
-import {registerPreparationReferences,sessionPreparationReferences} from "./preparationReferences";
+import {registerPreparationReferences,sessionPreparationReferences,listPreparationReferenceCandidates,createPreparationReference,preparationReferenceStatus,updatePreparationReference} from "./preparationReferences";
 import {preparationRepository} from "../../repositories/preparationRepository";
 import type { PreparationTask } from '../../../src/domain/preparation';
 import {PreparationContractError} from '../../../src/domain/preparationToolContract.mjs';
 import {resolvePreparationTarget,preparationRuntimeContext,preparationAssistantTool,stopSessionTasks,preparationSavedOutcome} from './preparationAssistant';
 import {getNativeWorkspace,setNativeWorkspace,PreparationError,updateTask,getTask} from '../preparation/preparationService';
-import {ZodError} from 'zod';
+import {z,ZodError} from 'zod';
 import {semanticPersonalContext,queueConversationMemory,drainMemoryWorkers} from './memoryService';
 import {teachingBusinessContext} from './capabilities/teaching';
 import { assistantCapability, CapabilityError } from './capabilities';
@@ -361,6 +361,23 @@ export async function officialAssistantProxy(req: Request, res: Response) {
   catch { res.status(400).end(); return; }
   if (target.pathname === '/api/settings/describe' && req.method === 'POST' && req.body?.type === 'client-request' && req.body?.method === 'settings/describe') {
     res.json({type: 'server-response', rpcId: req.body.rpcId, result: {ok: true, value: {writable: false, hasDocument: false, namespaces: [{ns: 'locale', autoGenerate: false, schema: {type: 'object', properties: {preference: {type: 'string'}}}, value: {preference: 'zh-CN-x-qingsong'}, applies: 'live', secrets: [], revision: 0}]}}}); return;
+  }
+  if (target.pathname === '/api/qingsong/lesson-references') {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      if (req.method === 'GET') {
+        const ids = target.searchParams.getAll('id');
+        if (ids.length > 100) throw Error('引用数量过多');
+        res.json(ids.length ? {references: ids.map(preparationReferenceStatus)} : {items: listPreparationReferenceCandidates((target.searchParams.get('q') ?? '').slice(0, 160))});
+      } else if (req.method === 'POST') {
+        const input = req.body;
+        const schema = z.object({preparationId:z.uuid().optional(),documentId:z.uuid().optional(),referenceId:z.uuid().optional()}).strict();
+        const value = schema.parse(input);
+        if (Boolean(value.referenceId) === Boolean(value.preparationId)) throw Error('请选择一份教案或待更新引用');
+        res.json({reference: value.referenceId ? updatePreparationReference(value.referenceId) : createPreparationReference(value)});
+      } else res.status(405).end();
+    } catch (error) {res.status(error instanceof PreparationError ? error.status : 400).json({message:error instanceof PreparationError ? error.message : '教案引用未能读取或更新，原稿和输入保留，请重新选择。'});}
+    return;
   }
   if (target.pathname === '/api/qingsong/preparation-outcome' && req.method === 'GET') {
     try {

@@ -131,6 +131,11 @@ function OfficialAssistantPanel({entry}:Props) {
     window.addEventListener('message',receive);startTimer();
     return()=>{window.removeEventListener('message',receive);stopTimer();};
   },[connectionId]);
+  useEffect(() => {
+    const changed = () => frame.current?.contentWindow?.postMessage({type: "qingsong:lesson-changed", connectionId}, location.origin);
+    window.addEventListener("qingsong:preparation-context", changed);
+    return () => window.removeEventListener("qingsong:preparation-context", changed);
+  }, [connectionId]);
   const [targetError, setTargetError] = useState('');
   const [targetStage, setTargetStage] = useState('');
   const [targetAttempt, setTargetAttempt] = useState(0);

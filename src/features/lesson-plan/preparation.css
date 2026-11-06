@@ -1254,3 +1254,8 @@
  .qs-prep-document-actions>.qs-button svg,.qs-prep-count {display:none}
  .qs-prep-document-actions>select {font-size:16px;padding-inline:6px;max-width:none}
 }
+
+/* The editor scrolls inside the page; reserve launcher space on that surface. */
+@container (max-width:819px) {
+  .qs-prep-writing-foot {padding-bottom:calc(88px + env(safe-area-inset-bottom));}
+}
