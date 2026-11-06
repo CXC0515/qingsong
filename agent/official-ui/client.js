@@ -170,7 +170,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
           React.createElement('button',{type:'button',role:'menuitem',onClick:pickPool},icon('M3 7h7l2-3h9v16H3Z'),'从材料池选择')),
         lessons!==null&&React.createElement('div',{className:'qs-lesson-picker',role:'dialog','aria-label':'引用教案'},
           React.createElement('div',null,React.createElement('strong',null,'引用教案'),React.createElement('button',{type:'button','aria-label':'关闭教案选择',onClick:()=>setLessons(null)},'关闭')),
-          React.createElement('input',{'aria-label':'搜索教案',placeholder:'搜索教案名称',value:lessonQuery,onChange:event=>setLessonQuery(event.target.value)}),
+          React.createElement('input',{autoFocus:true,'aria-label':'搜索教案',placeholder:'搜索教案名称',value:lessonQuery,onChange:event=>setLessonQuery(event.target.value)}),
           lessonLoading?React.createElement('p',{role:'status'},'正在读取教案…'):lessons.length?lessons.map(item=>React.createElement('button',{type:'button',key:item.documentId,onClick:()=>{const span=inputActions.captureInsertion();setLessons(null);void chooseLesson(sessionId,item,span,()=>inputActions.persistDraft());}},item.title+' · 第'+item.revision+'版')):React.createElement('p',null,'没有找到教案，可修改关键词。')),
         error&&React.createElement('span',{className:'qs-materials-error',role:'alert'},React.createElement('span',null,error),React.createElement('button',{type:'button','aria-label':'关闭材料提示',onClick:()=>setError('')},icon('M6 6l12 12M18 6 6 18'))));
     }
