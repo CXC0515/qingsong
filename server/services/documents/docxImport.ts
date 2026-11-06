@@ -542,6 +542,9 @@ export async function importPreparationDocx(
       }
       rows.push({ type: "tableRow", content: cells });
     }
+    const caption = direct(direct(element, 'tblPr') ?? element, 'tblStyle');
+    if (attr(caption, 'val') === 'QingsongColumns' && rows.length === 1 && [2,3].includes(rows[0].content?.length ?? 0))
+      return {type:'columns',content:rows[0].content!.map(cell=>({type:'column',content:cell.content}))};
     return { type: "table", content: rows };
   };
   const body = direct(root, "body");

@@ -1,5 +1,7 @@
 /** Shared persistence contract for the editor, assistants and document converters. */
 export const documentStableNodeTypes: readonly string[] = [
+  "columns",
+  "column",
   "paragraph",
   "heading",
   "blockquote",
@@ -20,6 +22,8 @@ export const documentNodeAttributes: Readonly<
   Record<string, readonly string[]>
 > = {
   doc: [],
+  columns: ["id"],
+  column: ["id"],
   text: [],
   hardBreak: [],
   paragraph: ["id", "textAlign"],

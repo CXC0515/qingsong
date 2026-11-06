@@ -19,6 +19,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import EditorButton, { createMenuButton } from "./EditorButton";
+import { insertDocumentColumns, removeDocumentColumns } from "./documentColumns";
 import DocumentFormatMenu from "./DocumentFormatMenu";
 import DocumentTableMenu from "./DocumentTableMenu";
 import {
@@ -54,6 +55,7 @@ export default function DocumentToolbar({
       heading: editor.getAttributes("heading").level ?? 0,
       bold: editor.isActive("bold"),
       table: editor.isActive("table"),
+      columns: editor.isActive("columns"),
       canUndo: editor.can().undo(),
       canRedo: editor.can().redo(),
     }),
@@ -105,6 +107,10 @@ export default function DocumentToolbar({
       selection: readDocumentSelection(editor, scope),
     });
   const insertion = [
+    ...(!active.columns ? ([2,3] as const).map(count => ({
+      label: count === 2 ? "双栏" : "三栏", icon: <Table2 size={18} />,
+      action: () => insertDocumentColumns(editor, count),
+    })) : [{label:"取消分栏", icon:<Minus size={18} />, action:()=>removeDocumentColumns(editor)}]),
     {
       label: "表格",
       icon: <Table2 size={18} />,

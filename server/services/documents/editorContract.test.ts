@@ -427,3 +427,20 @@ test("Feishu-style Word outline headings and legacy horizontal merges import as 
     </w:tbl></w:body></w:document>`);
   await assert.rejects(importPreparationDocx("synthetic", await archive.generateAsync({ type: "nodebuffer" })), /横向合并范围损坏/);
 });
+
+test('two and three columns survive editor schema, save, Word export and import without table borders',async()=>runWithWorkspace(context,async()=>{
+ for (const count of [2,3]) {
+  const detail=createPreparation({title:'分栏往返'+count,operationId:randomUUID()});
+  const input={type:'doc',content:[{type:'columns',content:Array.from({length:count},(_,index)=>({type:'column',content:[paragraph([text('第'+(index+1)+'栏正文')])]}))}]};
+  const content=schema.nodeFromJSON(input).toJSON() as RichDocument;
+  const saved=saveDocument(detail.preparation.id,detail.documents[0].id,{expectedRevision:1,operationId:randomUUID(),content});
+  const {bytes}=await exportPreparationDocx(saved);
+  const zip=await JSZip.loadAsync(bytes);const xml=await zip.file('word/document.xml')!.async('string');
+  assert.match(xml,/QingsongColumns/);assert.match(xml,/w:val="none"/);
+  const imported=await importPreparationDocx(detail.preparation.id,bytes);
+  assert.equal(imported.content.content[0].type,'columns');
+  assert.equal(imported.content.content[0].content?.length,count);
+  const normalized=normalizeRichDocument(imported.content,detail.preparation.id);
+  assert.equal(schema.nodeFromJSON(normalized).child(0).childCount,count);
+ }
+}));

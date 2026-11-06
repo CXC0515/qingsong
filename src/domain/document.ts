@@ -41,6 +41,7 @@ export interface DocumentRecord {
   sourceDocumentId?: string;
 }
 export interface DocumentRevision extends DocumentRecord {
+  versionNumber?: number;
   reason: string;
   actor: "teacher" | "assistant" | "import";
 }

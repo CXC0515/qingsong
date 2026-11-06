@@ -365,10 +365,21 @@ test('autosaves retain immutable snapshots but checkpoints define visible histor
  const detail=prep.createPreparation({title:'自动保存检查',operationId:op()});const id=detail.preparation.id,doc=detail.documents[0];
  const a=prep.saveDocument(id,doc.id,{expectedRevision:1,operationId:op(),content:content('第一轮输入'),autosave:true});
  const b=prep.saveDocument(id,doc.id,{expectedRevision:2,operationId:op(),content:content('第二轮输入'),autosave:true});
- assert.equal(prep.listRevisions(id,doc.id).length,3);assert.equal(prep.visibleDocumentRevisions(id,doc.id).length,2);
+ assert.equal(prep.listRevisions(id,doc.id).length,3);assert.equal(prep.visibleDocumentRevisions(id,doc.id).length,0);
  assert.deepEqual(prep.getDocument(id,doc.id,a.revision).content,a.content);
  prep.checkpointDocument(id,doc.id,{expectedRevision:b.revision,operationId:op()});
  prep.saveDocument(id,doc.id,{expectedRevision:3,operationId:op(),content:content('第三轮输入'),autosave:true});
- assert.deepEqual(prep.visibleDocumentRevisions(id,doc.id).map(x=>x.revision),[4,3,1]);
+ assert.deepEqual(prep.visibleDocumentRevisions(id,doc.id).map(x=>[x.versionNumber,x.revision]),[[1,3]]);
+ const checkpoint={expectedRevision:4,operationId:op()};
+ prep.checkpointDocument(id,doc.id,checkpoint);prep.checkpointDocument(id,doc.id,checkpoint);
+ prep.checkpointDocument(id,doc.id,{...checkpoint,operationId:op()});
+ assert.deepEqual(prep.visibleDocumentRevisions(id,doc.id).map(x=>[x.versionNumber,x.revision]),[[2,4],[1,3]]);
  assert.throws(()=>prep.checkpointDocument(id,doc.id,{expectedRevision:3,operationId:op()}),/已有新修改/);
+}));
+
+test('layout rejects empty, single and nested columns without saving broken editor structure',()=>runWithWorkspace(alice,()=>{
+ const column={type:'column',content:[{type:'paragraph'}]};
+ for(const node of [{type:'columns',content:[column]}, {type:'columns',content:[column,{type:'column',content:[]}]},
+  {type:'columns',content:[column,{type:'column',content:[{type:'blockquote',content:[{type:'columns',content:[column,column]}]}]}]}])
+  assert.throws(()=>prep.normalizeRichDocument({type:'doc',content:[node]}),/分栏/);
 }));

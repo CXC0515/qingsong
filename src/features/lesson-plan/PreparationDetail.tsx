@@ -324,7 +324,7 @@ export default function PreparationDetail({
           </span>
           <GlassButton
             disabled={Boolean(busy)}
-            onClick={() => void (async()=>{if(!(await draft.flush()))return;try{await checkpointPreparationDocument(preparationId,document.id,draft.getRevision());setError('');}catch(cause){setError((cause as Error).message);}})()}
+            onClick={() => void (async()=>{if(busy)return;setBusy('保存版本');try{if(!(await draft.flush()))return;await checkpointPreparationDocument(preparationId,document.id,draft.getRevision());setError('');onShowToast('已保存新的编号版本。');}catch(cause){setError((cause as Error).message);}finally{setBusy('');}})()}
           >
             <Save size={16} />
             保存版本

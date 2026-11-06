@@ -720,7 +720,7 @@ test('preparation: native workspace binding, candidate creation and explicit tea
   assert.equal((await call(endpoint+'?id='+picked.id)).references[0].revision,1);
 
   assert.match(JSON.stringify(applied.document.content),/合成教案闭环/);
-  assert.equal((await call('/api/preparations/'+prep+'/documents/'+doc+'/revisions')).revisions.length,2);
+  assert.equal((await call('/api/preparations/'+prep+'/documents/'+doc+'/revisions')).revisions.length,0);
   const history=await call('/api/preparations/'+prep+'/documents/'+doc+'/revisions/1');
   assert.equal(history.document.revision,1);
   for(let i=0;i<160;i++) {const session=await page(cookie,target.sessionId);if(session.records?.some(record=>record.event?.type==='turn/end'))break;await new Promise(resolve=>setTimeout(resolve,50));}

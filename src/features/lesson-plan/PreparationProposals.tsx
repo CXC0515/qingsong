@@ -121,7 +121,7 @@ export default function PreparationProposals({
                 </GlassButton>
                 <div className="qs-prep-proposal-comparison">
                   <section>
-                    <h4>当前稿 · 版本 {document.revision}</h4>
+                    <h4>当前稿</h4>
                     <Suspense fallback={<p role="status">正在载入预览…</p>}><DocumentEditor
                       content={
                         comparison.before.content.length
