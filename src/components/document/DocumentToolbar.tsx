@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useEditorState, type Editor } from "@tiptap/react";
 import {
   Bold,
@@ -17,9 +17,15 @@ import {
   Minus,
   Quote,
   Sparkles,
+  Columns2,
+  Columns3,
 } from "lucide-react";
 import EditorButton, { createMenuButton } from "./EditorButton";
-import { insertDocumentColumns, removeDocumentColumns } from "./documentColumns";
+import {
+  insertDocumentColumns,
+  removeDocumentColumns,
+} from "./documentColumns";
+import EditorContextLayer from "./EditorContextLayer";
 import DocumentFormatMenu from "./DocumentFormatMenu";
 import DocumentTableMenu from "./DocumentTableMenu";
 import {
@@ -31,6 +37,8 @@ type Menu = "insert" | "format" | "table" | null;
 export default function DocumentToolbar({
   editor,
   menuRequest,
+  insertAnchor,
+  onToolbarInsert,
   imageBusy,
   onImage,
   onFormula,
@@ -39,6 +47,8 @@ export default function DocumentToolbar({
 }: {
   editor: Editor;
   menuRequest: number;
+  insertAnchor?: () => DOMRect | null;
+  onToolbarInsert?: () => void;
   imageBusy: boolean;
   onImage?: () => void;
   onFormula: () => void;
@@ -56,6 +66,14 @@ export default function DocumentToolbar({
       bold: editor.isActive("bold"),
       table: editor.isActive("table"),
       columns: editor.isActive("columns"),
+      columnCount: (() => {
+        const { $from } = editor.state.selection;
+        for (let d = $from.depth; d > 0; d--)
+          if ($from.node(d).type.name === "columns")
+            return $from.node(d).childCount;
+        return 0;
+      })(),
+      ratios: editor.getAttributes("columns").ratios as number[] | null,
       canUndo: editor.can().undo(),
       canRedo: editor.can().redo(),
     }),
@@ -69,7 +87,10 @@ export default function DocumentToolbar({
   }, [menuRequest]);
   useEffect(() => {
     const close = (event: PointerEvent) => {
-      if (!host.current?.contains(event.target as Node)) {
+      if (
+        !host.current?.contains(event.target as Node) &&
+        !(event.target as Element).closest?.("[data-editor-context-layer]")
+      ) {
         setMenu(null);
       }
     };
@@ -107,10 +128,19 @@ export default function DocumentToolbar({
       selection: readDocumentSelection(editor, scope),
     });
   const insertion = [
-    ...(!active.columns ? ([2,3] as const).map(count => ({
-      label: count === 2 ? "双栏" : "三栏", icon: <Table2 size={18} />,
-      action: () => insertDocumentColumns(editor, count),
-    })) : [{label:"取消分栏", icon:<Minus size={18} />, action:()=>removeDocumentColumns(editor)}]),
+    ...(!active.columns
+      ? ([2, 3] as const).map((count) => ({
+          label: count === 2 ? "双栏" : "三栏",
+          icon: count === 2 ? <Columns2 size={18} /> : <Columns3 size={18} />,
+          action: () => insertDocumentColumns(editor, count),
+        }))
+      : [
+          {
+            label: "取消分栏",
+            icon: <Minus size={18} />,
+            action: () => removeDocumentColumns(editor),
+          },
+        ]),
     {
       label: "表格",
       icon: <Table2 size={18} />,
@@ -159,6 +189,14 @@ export default function DocumentToolbar({
         ]
       : []),
   ].filter((item) => item.label.includes(filter.trim()));
+  const contextMenu = (content: ReactNode, label: string) =>
+    insertAnchor ? (
+      <EditorContextLayer anchor={insertAnchor} label={label} menu>
+        {content}
+      </EditorContextLayer>
+    ) : (
+      content
+    );
   return (
     <div ref={host} className="qs-editor-controls">
       <div className="qs-editor-toolbar" role="toolbar" aria-label="正文格式">
@@ -192,7 +230,10 @@ export default function DocumentToolbar({
           label="插入内容"
           text
           active={menu === "insert" || menu === "table"}
-          onClick={() => toggle("insert")}
+          onClick={() => {
+            onToolbarInsert?.();
+            toggle("insert");
+          }}
         >
           <Plus size={17} />
           <span>插入</span>
@@ -224,6 +265,53 @@ export default function DocumentToolbar({
           </EditorButton>
         </div>
       </div>
+      {active.columns && (
+        <div
+          className="qs-editor-table-bar"
+          role="toolbar"
+          aria-label="当前分栏操作"
+        >
+          <span>当前分栏</span>
+          <select
+            aria-label="分栏比例"
+            value={active.ratios?.join(":") ?? "equal"}
+            onChange={(event) =>
+              editor
+                .chain()
+                .focus()
+                .updateAttributes("columns", {
+                  ratios:
+                    event.target.value === "equal"
+                      ? null
+                      : event.target.value.split(":").map(Number),
+                })
+                .run()
+            }
+          >
+            <option value="equal">等宽</option>
+            {active.ratios &&
+              !["1:2", "2:1", "1:2:1"].includes(active.ratios.join(":")) && (
+                <option value={active.ratios.join(":")}>自定义比例</option>
+              )}
+            {active.columnCount === 2 ? (
+              <>
+                <option value="1:2">左窄右宽</option>
+                <option value="2:1">左宽右窄</option>
+              </>
+            ) : (
+              <option value="1:2:1">中间较宽</option>
+            )}
+          </select>
+          <EditorButton
+            label="取消分栏"
+            text
+            onClick={() => removeDocumentColumns(editor)}
+          >
+            <Minus size={17} />
+            <span>取消分栏</span>
+          </EditorButton>
+        </div>
+      )}
       {active.table && (
         <div
           className="qs-editor-table-bar"
@@ -271,44 +359,58 @@ export default function DocumentToolbar({
           )}
         </div>
       )}
-      {menu === "insert" && (
-        <div className="qs-editor-popover" role="dialog" aria-label="插入内容">
-          <label className="qs-editor-menu-search">
-            <span>插入内容</span>
-            <input
-              aria-label="查找可插入的内容"
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-              placeholder="输入名称，如表格、标题"
-              autoFocus
-            />
-          </label>
-          <div className="qs-editor-menu-grid">
-            {insertion.map((item) =>
-              button(
-                item.label,
-                item.icon,
-                () => {
-                  item.action();
-                  if (item.label === "表格") setMenu("table");
-                },
-                imageBusy && item.label === "正在上传图片",
-              ),
-            )}
-          </div>
-          {onAssistant &&
-            button("请 AI 编写或完善当前段落", <Sparkles size={18} />, () =>
-              ask(
-                "请结合本次备课资料与要求，编写或完善当前段落，先给出修改建议。",
-                "block",
-              ),
-            )}
-        </div>
-      )}
+      {menu === "insert" &&
+        contextMenu(
+          <div
+            className={insertAnchor ? undefined : "qs-editor-popover"}
+            role={insertAnchor ? undefined : "dialog"}
+            aria-label={insertAnchor ? undefined : "插入内容"}
+          >
+            <label className="qs-editor-menu-search">
+              <span>插入内容</span>
+              <input
+                aria-label="查找可插入的内容"
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+                placeholder="输入名称，如表格、标题"
+                autoFocus
+              />
+            </label>
+            <div className="qs-editor-menu-grid">
+              {insertion.map((item) =>
+                button(
+                  item.label,
+                  item.icon,
+                  () => {
+                    item.action();
+                    if (item.label === "表格") setMenu("table");
+                  },
+                  imageBusy && item.label === "正在上传图片",
+                ),
+              )}
+            </div>
+            {onAssistant &&
+              button("请 AI 编写或完善当前段落", <Sparkles size={18} />, () =>
+                ask(
+                  "请结合本次备课资料与要求，编写或完善当前段落，先给出修改建议。",
+                  "block",
+                ),
+              )}
+          </div>,
+          "插入内容",
+        )}
       {menu === "format" && (
         <DocumentFormatMenu editor={editor} onAction={run} onError={onError} />
       )}
-      {menu === "table" && <DocumentTableMenu editor={editor} onAction={run} />}
+      {menu === "table" &&
+        contextMenu(
+          <DocumentTableMenu
+            editor={editor}
+            onAction={run}
+            embedded={Boolean(insertAnchor)}
+          />,
+          "选择表格行列",
+        )}
     </div>
   );
 }

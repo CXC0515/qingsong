@@ -282,7 +282,7 @@ export async function importPreparationDocx(
       ) {
         flush();
         const asset = await image(node);
-        if (asset) blocks.push(asset);
+        if (asset) {if(alignment)asset.attrs={...asset.attrs,textAlign:alignment};blocks.push(asset);}
         return;
       }
       let marks = inherited;
@@ -544,7 +544,12 @@ export async function importPreparationDocx(
     }
     const caption = direct(direct(element, 'tblPr') ?? element, 'tblStyle');
     if (attr(caption, 'val') === 'QingsongColumns' && rows.length === 1 && [2,3].includes(rows[0].content?.length ?? 0))
-      return {type:'columns',content:rows[0].content!.map(cell=>({type:'column',content:cell.content}))};
+      {
+        const widths=rows[0].content!.map(cell=>Number((cell.attrs?.colwidth as number[] | undefined)?.[0])||1);
+        const total=widths.reduce((sum,n)=>sum+n,0);
+        const ratios=widths.map(n=>Math.max(1,Math.round(n/total*100)));
+        return {type:'columns',...(new Set(ratios).size>1?{attrs:{ratios}}:{}),content:rows[0].content!.map(cell=>({type:'column',content:cell.content}))};
+      }
     return { type: "table", content: rows };
   };
   const body = direct(root, "body");

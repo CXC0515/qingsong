@@ -16,7 +16,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     function SentLessonReference({node}) {
       const [reference,setReference]=React.useState(null);
       React.useEffect(()=>{const controller=new AbortController();void requestJSON('./api/qingsong/lesson-references?id='+encodeURIComponent(node.data.referenceId),{signal:controller.signal}).then(value=>setReference(value.references[0])).catch(()=>{});return()=>controller.abort();},[node.data.referenceId]);
-      return React.createElement('button',{type:'button',className:'qs-sent-lesson-reference',onClick:()=>openLessonPreview(node.data.referenceId)},reference?reference.title+' · 教案引用':'查看教案引用');
+      return React.createElement('button',{type:'button',className:'qs-sent-lesson-reference',onClick:()=>openLessonPreview(node.data.referenceId)},reference ? (reference.selection ? '“'+reference.selection.text.slice(0,100)+'” · 选中文字' : reference.title+' · 教案引用') : '查看引用');
     }
     ctx.slots.inject('conversation.user.text.node',()=>ctx.slots.register({name:'conversation.user.text.node',key:lessonSource,priority:-100},props=>React.createElement(SentLessonReference,props)));
     const handleLessonLink=event=>{
@@ -35,7 +35,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       if (!response.ok) throw Error(value.message || '引用未能读取，原输入保留，请重试。');
       return value;
     };
-    const lessonInsert = reference => ({source:lessonSource,ref:reference.id,label:reference.title+' · 教案引用',appearance:'file',clipboardText:lessonToken(reference.id)});
+    const lessonInsert = reference => ({source:lessonSource,ref:reference.id,label:reference.selection ? '“'+reference.selection.text.slice(0,60)+'”' : reference.title+' · 教案引用',appearance:'file',clipboardText:lessonToken(reference.id)});
     const createLesson = value => requestJSON('./api/qingsong/lesson-references',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(value)});
     const lessonCandidates = async (query, signal) => (await requestJSON('./api/qingsong/lesson-references?q='+encodeURIComponent(query),{signal})).items;
     const chooseLesson = async (sessionId, candidate, span, persist) => {
@@ -56,11 +56,11 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     function LessonReference({sessionId,inputActions,useInput}) {
       const occurrences=useInput(state=>state.occurrences), phase=useInput(state=>state.phase);
       const signature=occurrences.filter(item=>item.source===lessonSource).map(item=>item.ref).join(',');
-      const [stale,setStale]=React.useState([]),[error,setError]=React.useState('');
+      const [references,setReferences]=React.useState([]),[error,setError]=React.useState('');
       React.useEffect(()=>{
-        if(!signature){setStale([]);return;}
+        setReferences([]);setError('');if(!signature)return;
         const controller=new AbortController();
-        const check=()=>requestJSON('./api/qingsong/lesson-references?'+signature.split(',').map(id=>'id='+encodeURIComponent(id)).join('&'),{signal:controller.signal}).then(value=>setStale(value.references.filter(item=>item.stale))).catch(cause=>{if(!controller.signal.aborted)setError(cause.message);});
+        const check=()=>requestJSON('./api/qingsong/lesson-references?'+signature.split(',').map(id=>'id='+encodeURIComponent(id)).join('&'),{signal:controller.signal}).then(value=>{setReferences(value.references);setError('');}).catch(cause=>{if(!controller.signal.aborted)setError(cause.message);});
         void check();window.addEventListener('focus',check);window.addEventListener('qingsong:lesson-changed',check);
         return()=>{controller.abort();window.removeEventListener('focus',check);window.removeEventListener('qingsong:lesson-changed',check);};
       },[sessionId,signature]);
@@ -78,10 +78,10 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         } catch(cause){setError(cause.message);}
       };
       React.useEffect(()=>{
-        const insert=()=>{const reference=pendingReferences.get(sessionId);if(!reference)return;const scope=ctx.sessions.scope(sessionId);const input=scope&&ctx.conversation.input.for(scope);if(input?.insertReference({source:lessonSource,ref:reference.id,label:reference.title+" · 教案引用",appearance:"file",clipboardText:lessonToken(reference.id)},inputActions.captureInsertion())){inputActions.persistDraft();pendingReferences.delete(sessionId);}else input?.notify("error","教案引用未能加入，原输入保留，请重新从教案添加。");};
+        const insert=()=>{const reference=pendingReferences.get(sessionId);if(!reference)return;const scope=ctx.sessions.scope(sessionId);const input=scope&&ctx.conversation.input.for(scope);if(input?.insertReference(lessonInsert(reference),inputActions.captureInsertion())){inputActions.persistDraft();pendingReferences.delete(sessionId);}else input?.notify("error","教案引用未能加入，原输入保留，请重新从教案添加。");};
         window.addEventListener("qingsong:add-lesson-reference",insert);insert();return()=>window.removeEventListener("qingsong:add-lesson-reference",insert);
       },[sessionId,inputActions]);
-      return React.createElement('div',{className:'qs-lesson-updates'},stale.map(reference=>React.createElement('button',{key:reference.id,type:'button',disabled:phase!=='plain',onClick:()=>void update(reference)},reference.title+'：更新引用')),error&&React.createElement('span',{role:'alert'},error));
+      return React.createElement('div',{className:'qs-lesson-updates'},references.filter(reference=>reference.selection).map(reference=>React.createElement('details',{key:reference.id,className:'qs-selection-quote'},React.createElement('summary',null,reference.selection.text.slice(0,100)),React.createElement('small',null,reference.title+' · 选中文字'),React.createElement('blockquote',null,reference.selection.text),React.createElement('button',{type:'button',onClick:()=>openLessonPreview(reference.id)},'查看引用'))),references.filter(reference=>reference.stale).map(reference=>React.createElement('button',{key:reference.id,type:'button',disabled:phase!=='plain',onClick:()=>void update(reference)},reference.title+'：更新引用')),error&&React.createElement('span',{role:'alert'},error));
     }
     ctx.slots.inject('conversation.input.dock',()=>ctx.slots.register({name:'conversation.input.dock',id:'qingsong-lesson-reference',priority:-101},props=>React.createElement(LessonReference,props)));
     function FailureNotice({node, sessionId, retry}) {

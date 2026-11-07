@@ -45,7 +45,7 @@ function OfficialAssistantPanel({entry}:Props) {
       if(data.type==='qingsong:open-lesson'&&uuid.test(data.preparationId)&&(!data.documentId||uuid.test(data.documentId))){navigate(data.preparationId,data.documentId);return;}
       if(data.type!=='qingsong:preview-lesson'||!uuid.test(data.referenceId))return;
       const id=data.referenceId;setLessonPreview({id,title:'正在读取教案引用…'});
-      void apiFetch('/api/assistant/official/api/qingsong/lesson-references?preview='+encodeURIComponent(id),{signal:controller.signal}).then(async response=>{const value=await response.json();if(!response.ok)throw Error(value.message);return value;}).then(value=>setLessonPreview(current=>current?.id===id?{id,title:value.reference.title+' · 教案引用',content:value.content,url:value.url,selection:value.reference.selection?.text}:current)).catch(cause=>{if(!controller.signal.aborted)setLessonPreview(current=>current?.id===id?{...current,error:cause.message||'引用暂时无法读取，原会话和教案保留，请重试。'}:current);});
+      void apiFetch('/api/assistant/official/api/qingsong/lesson-references?preview='+encodeURIComponent(id),{signal:controller.signal}).then(async response=>{const value=await response.json();if(!response.ok)throw Error(value.message);return value;}).then(value=>setLessonPreview(current=>current?.id===id?{id,title:value.reference.title+(value.reference.selection?' · 选中文字':' · 教案引用'),content:value.content,url:value.url,selection:value.reference.selection?.text}:current)).catch(cause=>{if(!controller.signal.aborted)setLessonPreview(current=>current?.id===id?{...current,error:cause.message||'引用暂时无法读取，原会话和教案保留，请重试。'}:current);});
     };
     window.addEventListener('message',receive);return()=>{controller.abort();window.removeEventListener('message',receive);};
   },[connectionId]);
@@ -216,8 +216,8 @@ function OfficialAssistantPanel({entry}:Props) {
   return <GlassSurface className="qs-assistant-panel qs-official-assistant flex h-full min-h-0 flex-col overflow-hidden">
     {lessonPreview&&<ResponsiveDialog title={lessonPreview.title} wide compactFull onClose={()=>setLessonPreview(null)}>
       {lessonPreview.error&&<p role="alert">{lessonPreview.error}</p>}
-      {lessonPreview.selection&&<blockquote>{lessonPreview.selection}</blockquote>}
-      {lessonPreview.content&&<Suspense fallback={<p role="status">正在载入预览…</p>}><ReferenceDocumentEditor documentKey={'reference:'+lessonPreview.id} content={lessonPreview.content} readOnly/></Suspense>}
+      {lessonPreview.selection&&<blockquote className="qs-reference-text-preview">{lessonPreview.selection}</blockquote>}
+      {lessonPreview.content&&!lessonPreview.selection&&<Suspense fallback={<p role="status">正在载入预览…</p>}><ReferenceDocumentEditor documentKey={'reference:'+lessonPreview.id} content={lessonPreview.content} readOnly/></Suspense>}
       {lessonPreview.url&&<GlassButton onClick={()=>{if(!window.dispatchEvent(new Event('qingsong:preparation-before-leave',{cancelable:true})))return;history.pushState(null,'',lessonPreview.url);window.dispatchEvent(new PopStateEvent('popstate'));setLessonPreview(null);}}>打开当前教案</GlassButton>}
     </ResponsiveDialog>}
     <style>{".qs-official-assistant>.lg-content{display:flex;flex-direction:column;min-height:0;flex:1;padding:0;gap:0;overflow:hidden}.qs-official-frame{display:flex;flex:1;min-height:0;margin:12px;border-radius:18px;overflow:hidden;background:#fff}"}</style>

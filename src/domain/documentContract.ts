@@ -22,7 +22,7 @@ export const documentNodeAttributes: Readonly<
   Record<string, readonly string[]>
 > = {
   doc: [],
-  columns: ["id"],
+  columns: ["id", "ratios"],
   column: ["id"],
   text: [],
   hardBreak: [],
@@ -38,7 +38,7 @@ export const documentNodeAttributes: Readonly<
   tableHeader: ["id", "colspan", "rowspan", "colwidth", "align"],
   codeBlock: ["id", "language"],
   horizontalRule: ["id"],
-  image: ["id", "assetId", "src", "alt", "title", "width", "height"],
+  image: ["id", "assetId", "src", "alt", "title", "width", "height", "textAlign"],
   inlineMath: ["id", "latex", "omml"],
   blockMath: ["id", "latex", "omml"],
 };
@@ -137,6 +137,8 @@ export function documentAttributeIssue(
             : 10000;
       if (!Number.isInteger(value) || Number(value) < 1 || Number(value) > max)
         return "表格、列表或图片尺寸无效";
+    } else if (key === "ratios") {
+      if(!Array.isArray(value)||![2,3].includes(value.length)||value.some(n=>!Number.isInteger(n)||n<1||n>100))return "分栏比例无效";
     } else if (key === "colwidth") {
       if (
         !Array.isArray(value) ||

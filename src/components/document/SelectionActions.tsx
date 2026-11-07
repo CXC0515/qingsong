@@ -1,7 +1,18 @@
-import { useEffect, useState } from "react";
+import { useCallback } from "react";
 import { useEditorState, type Editor } from "@tiptap/react";
-import { Bold, Italic, Sparkles } from "lucide-react";
+import { TextSelection } from "@tiptap/pm/state";
+import {
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  Sparkles,
+  Columns2,
+  Columns3,
+} from "lucide-react";
 import EditorButton from "./EditorButton";
+import EditorContextLayer from "./EditorContextLayer";
+import { insertDocumentColumns } from "./documentColumns";
 import {
   readDocumentSelection,
   type DocumentAssistantRequest,
@@ -14,95 +25,103 @@ export default function SelectionActions({
   editor: Editor;
   onAssistant?: (request: DocumentAssistantRequest) => void;
 }) {
-  const selection = useEditorState({
+  const selected = useEditorState({
     editor,
     selector: ({ editor }) => ({
+      text:
+        editor.state.selection instanceof TextSelection &&
+        !editor.state.selection.empty &&
+        /\S/u.test(
+          editor.state.doc.textBetween(
+            editor.state.selection.from,
+            editor.state.selection.to,
+          ),
+        ),
       from: editor.state.selection.from,
       to: editor.state.selection.to,
       focused: editor.isFocused,
       bold: editor.isActive("bold"),
       italic: editor.isActive("italic"),
+      underline: editor.isActive("underline"),
+      strike: editor.isActive("strike"),
+      canColumns:
+        !editor.isActive("columns") &&
+        editor.state.selection.$from.blockRange(editor.state.selection.$to)
+          ?.depth === 0,
     }),
   });
-  const [position, setPosition] = useState<{
-    left: number;
-    top: number;
-  } | null>(null);
-  useEffect(() => {
-    const locate = () => {
-      if (
-        editor.isDestroyed ||
-        selection.from === selection.to ||
-        !selection.focused
-      ) {
-        setPosition(null);
-        return;
-      }
-      try {
-        const a = editor.view.coordsAtPos(selection.from),
-          b = editor.view.coordsAtPos(selection.to);
-        const top = Math.min(a.top, b.top) - 52;
-        // The fixed toolbar stays inside the viewport; outside selections do not leave a floating orphan.
-        if (
-          Math.max(a.bottom, b.bottom) < 56 ||
-          Math.min(a.top, b.top) > window.innerHeight
-        ) {
-          setPosition(null);
-          return;
-        }
-        setPosition({
-          left: Math.max(
-            10,
-            Math.min((a.left + b.left) / 2 - 146, window.innerWidth - 302),
-          ),
-          top: Math.max(58, top),
-        });
-      } catch {
-        setPosition(null);
-      }
-    };
-    locate();
-    window.addEventListener("scroll", locate, true);
-    window.addEventListener("resize", locate);
-    return () => {
-      window.removeEventListener("scroll", locate, true);
-      window.removeEventListener("resize", locate);
-    };
-  }, [editor, selection.from, selection.to, selection.focused]);
-  if (!position) return null;
-  const ask = () =>
-    onAssistant?.({
-      instruction:
-        "请修改引用内容。\n修改建议如下：\n",
-      selection: readDocumentSelection(editor),
-    });
+  const anchor = useCallback(() => {
+    if (editor.isDestroyed) return null;
+    const { from, to } = editor.state.selection;
+    const a = editor.view.coordsAtPos(from),
+      b = editor.view.coordsAtPos(to);
+    return new DOMRect(
+      Math.min(a.left, b.left),
+      Math.min(a.top, b.top),
+      Math.abs(b.right - a.left),
+      Math.max(a.bottom, b.bottom) - Math.min(a.top, b.top),
+    );
+  }, [editor, selected.from, selected.to]);
+  if (!selected.text || !selected.focused) return null;
   return (
-    <div
-      className="qs-editor-selection-actions"
-      role="toolbar"
-      aria-label="选中内容快捷操作"
-      style={position}
-    >
+    <EditorContextLayer anchor={anchor} label="选中文字操作">
       <EditorButton
         label="选中文字加粗"
-        active={selection.bold}
+        active={selected.bold}
         onClick={() => editor.chain().focus().toggleBold().run()}
       >
         <Bold size={17} />
       </EditorButton>
       <EditorButton
         label="选中文字斜体"
-        active={selection.italic}
+        active={selected.italic}
         onClick={() => editor.chain().focus().toggleItalic().run()}
       >
         <Italic size={17} />
       </EditorButton>
+      <EditorButton
+        label="选中文字下划线"
+        active={selected.underline}
+        onClick={() => editor.chain().focus().toggleUnderline().run()}
+      >
+        <Underline size={17} />
+      </EditorButton>
+      <EditorButton
+        label="选中文字删除线"
+        active={selected.strike}
+        onClick={() => editor.chain().focus().toggleStrike().run()}
+      >
+        <Strikethrough size={17} />
+      </EditorButton>
+      {selected.canColumns && (
+        <>
+          <EditorButton
+            label="选中段落分为双栏"
+            onClick={() => insertDocumentColumns(editor, 2)}
+          >
+            <Columns2 size={17} />
+          </EditorButton>
+          <EditorButton
+            label="选中段落分为三栏"
+            onClick={() => insertDocumentColumns(editor, 3)}
+          >
+            <Columns3 size={17} />
+          </EditorButton>
+        </>
+      )}
       {onAssistant && (
-        <EditorButton label="请 AI 改写选中内容" text onClick={ask}>
+        <EditorButton
+          label="请 AI 改写选中内容"
+          onClick={() =>
+            onAssistant({
+              instruction: "请修改引用内容。\n修改建议如下：\n",
+              selection: readDocumentSelection(editor),
+            })
+          }
+        >
           <Sparkles size={17} />
-          <span>AI 改写选中内容</span>
         </EditorButton>
       )}
-    </div>
+    </EditorContextLayer>
   );
 }
