@@ -10,7 +10,14 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  Table2,
 } from "lucide-react";
+import {
+  CellSelection,
+  TableMap,
+  cellAround,
+  findTable,
+} from "@tiptap/pm/tables";
 import EditorButton, { createMenuButton } from "./EditorButton";
 export default function DocumentTableMenu({
   editor,
@@ -41,6 +48,28 @@ export default function DocumentTableMenu({
         .insertTable({ rows, cols: columns, withHeaderRow: header })
         .run();
     });
+  const selectCells = (kind: "row" | "column" | "table") => () => {
+    const state = editor.state;
+    const cell = cellAround(state.selection.$from);
+    if (!cell) return;
+    let selection: CellSelection;
+    if (kind === "row") selection = CellSelection.rowSelection(cell);
+    else if (kind === "column") selection = CellSelection.colSelection(cell);
+    else {
+      const table = findTable(cell);
+      if (!table) return;
+      const cells = TableMap.get(table.node).map;
+      const first = cells[0];
+      const last = cells[cells.length - 1];
+      if (first === undefined || last === undefined) return;
+      selection = CellSelection.create(
+        state.doc,
+        table.pos + first,
+        table.pos + last,
+      );
+    }
+    editor.view.dispatch(state.tr.setSelection(selection).scrollIntoView());
+  };
   return (
     <div
       className={embedded ? undefined : "qs-editor-popover"}
@@ -50,6 +79,15 @@ export default function DocumentTableMenu({
       {active.table ? (
         <>
           <strong className="qs-editor-menu-title">行列与单元格</strong>
+          <div className="qs-editor-menu-grid">
+            {button("选择当前行", <Rows3 size={18} />, selectCells("row"))}
+            {button(
+              "选择当前列",
+              <Columns3 size={18} />,
+              selectCells("column"),
+            )}
+            {button("选择整张表", <Table2 size={18} />, selectCells("table"))}
+          </div>
           <div className="qs-editor-menu-grid">
             {button("上方插入行", <Rows3 size={18} />, () => {
               editor.chain().focus().addRowBefore().run();

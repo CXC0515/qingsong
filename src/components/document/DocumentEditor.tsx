@@ -12,6 +12,7 @@ import { useEditorState } from "@tiptap/react";
 import DocumentToolbar from "./DocumentToolbar";
 import SelectionActions from "./SelectionActions";
 import DocumentImageActions from "./DocumentImageActions";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import "katex/dist/katex.min.css";
 export type {
   DocumentSelection,
@@ -54,6 +55,14 @@ export default function DocumentEditor({
     top: number;
     left: number;
   } | null>(null);
+  const [hoverBlock, setHoverBlock] = useState<{
+    position: number;
+    insertPosition: number;
+    top: number;
+    left: number;
+    anchor: DOMRect;
+  } | null>(null);
+  const [contextAnchor, setContextAnchor] = useState<DOMRect | null>(null);
   const [contextInsert, setContextInsert] = useState(false);
   const equationPosition = useRef<number | null>(null),
     imageInput = useRef<HTMLInputElement>(null);
@@ -100,6 +109,7 @@ export default function DocumentEditor({
           );
           if (before && !/\s$/.test(before)) return false;
           event.preventDefault();
+          setContextAnchor(null);
           setContextInsert(true);
           setMenuRequest((value) => value + 1);
           return true;
@@ -143,7 +153,7 @@ export default function DocumentEditor({
       const coords = editor.view.coordsAtPos(blankLine);
       const box = host.current.getBoundingClientRect();
       setLinePosition({
-        top: coords.top - box.top,
+        top: coords.top - box.top + (coords.bottom - coords.top - 28) / 2,
         left: Math.max(0, coords.left - box.left - 34),
       });
     };
@@ -151,13 +161,16 @@ export default function DocumentEditor({
     const observer = new ResizeObserver(update);
     observer.observe(host.current!);
     window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
     return () => {
       observer.disconnect();
       window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
     };
   }, [editor, readOnly, blankLine, content]);
   const insertAnchor = useCallback(() => {
     if (!editor || editor.isDestroyed) return null;
+    if (contextAnchor) return contextAnchor;
     const coords = editor.view.coordsAtPos(editor.state.selection.from);
     return new DOMRect(
       coords.left - 34,
@@ -165,7 +178,80 @@ export default function DocumentEditor({
       28,
       coords.bottom - coords.top,
     );
-  }, [editor]);
+  }, [editor, contextAnchor]);
+  const trackHoveredBlock = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (
+      !editor ||
+      readOnly ||
+      (event.target instanceof Element &&
+        event.target.closest(".qs-editor-line-insert"))
+    )
+      return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const content = target.closest(".qs-document-content");
+    if (!content) return;
+    if (target.closest("table, tr, td, th")) {
+      setHoverBlock(null);
+      return;
+    }
+    const coordinates = editor.view.posAtCoords({
+      left: event.clientX,
+      top: event.clientY,
+    });
+    if (!coordinates) return;
+    const $position = editor.state.doc.resolve(coordinates.pos);
+    let start = -1;
+    let insertPosition = -1;
+    for (let depth = $position.depth; depth > 0; depth--) {
+      const node = $position.node(depth);
+      if (node.isTextblock) {
+        start = $position.before(depth);
+        insertPosition = $position.after(depth);
+        break;
+      }
+    }
+    let blockNode = start >= 0 ? editor.state.doc.nodeAt(start) : null;
+    if (!blockNode && $position.nodeAfter?.type.name === "image") {
+      start = coordinates.pos;
+      blockNode = $position.nodeAfter;
+      insertPosition = start + blockNode.nodeSize;
+    } else if (!blockNode && $position.nodeBefore?.type.name === "image") {
+      blockNode = $position.nodeBefore;
+      start = coordinates.pos - blockNode.nodeSize;
+      insertPosition = coordinates.pos;
+    }
+    if (
+      !blockNode ||
+      start < 0 ||
+      insertPosition < 0 ||
+      (blockNode.type.name === "paragraph" && blockNode.content.size === 0)
+    ) {
+      setHoverBlock(null);
+      return;
+    }
+    const dom = editor.view.nodeDOM(start);
+    if (!(dom instanceof HTMLElement)) return;
+    const box = dom.getBoundingClientRect();
+    const hostBox = host.current?.getBoundingClientRect();
+    if (!hostBox) return;
+    setHoverBlock((current) =>
+      current?.position === start
+        ? current
+        : {
+            position: start,
+            insertPosition,
+            top: box.top - hostBox.top + (box.height - 28) / 2,
+            left: Math.max(0, box.left - hostBox.left - 34),
+            anchor: new DOMRect(
+              box.left - 34,
+              box.top + (box.height - 28) / 2,
+              28,
+              28,
+            ),
+          },
+    );
+  };
   const insertFormula = () => {
     if (!editor || !formula?.trim()) return;
     if (equationPosition.current !== null) {
@@ -206,6 +292,9 @@ export default function DocumentEditor({
     <div
       ref={host}
       className={`qs-document-editor ${readOnly ? "is-readonly" : ""}`}
+      onMouseMove={trackHoveredBlock}
+      onMouseLeave={() => setHoverBlock(null)}
+      onScrollCapture={() => setHoverBlock(null)}
     >
       {!readOnly && editor && !editor.isDestroyed && (
         <>
@@ -213,7 +302,10 @@ export default function DocumentEditor({
             editor={editor}
             menuRequest={menuRequest}
             insertAnchor={contextInsert ? insertAnchor : undefined}
-            onToolbarInsert={() => setContextInsert(false)}
+            onToolbarInsert={() => {
+              setContextInsert(false);
+              setContextAnchor(null);
+            }}
             imageBusy={imageBusy}
             onImage={
               onImageUpload ? () => imageInput.current?.click() : undefined
@@ -267,14 +359,35 @@ export default function DocumentEditor({
           </button>
         </div>
       )}
-      {linePosition !== null && !readOnly && (
+      {(hoverBlock || linePosition) !== null && !readOnly && (
         <button
           type="button"
           className="qs-editor-line-insert"
-          style={linePosition}
-          aria-label="在空行插入内容"
+          style={
+            hoverBlock
+              ? { top: hoverBlock.top, left: hoverBlock.left }
+              : linePosition!
+          }
+          aria-label={hoverBlock ? "在此段落后插入内容" : "在空行插入内容"}
           onMouseDown={(event) => event.preventDefault()}
-          onClick={() => {
+          onClick={(event) => {
+            if (hoverBlock && editor) {
+              editor
+                .chain()
+                .insertContentAt(hoverBlock.insertPosition, {
+                  type: "paragraph",
+                })
+                .setTextSelection(hoverBlock.insertPosition + 1)
+                .focus()
+                .run();
+              setContextAnchor(hoverBlock.anchor);
+            } else {
+              setContextAnchor(
+                (
+                  event.currentTarget as HTMLButtonElement
+                ).getBoundingClientRect(),
+              );
+            }
             setContextInsert(true);
             setMenuRequest((value) => value + 1);
           }}
