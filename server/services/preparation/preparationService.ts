@@ -335,6 +335,8 @@ export function normalizeRichDocument(
     if (parent.type === "table") checkTable(parent);
     if (parent.type === "columns" && (![2,3].includes(parent.content?.length ?? 0) || parent.content?.some(column => column.content?.some(child => child.type === 'columns'))))
       fail("INVALID_DOCUMENT", "分栏须包含二至三栏，且不能嵌套分栏，尚未保存。");
+    if(parent.type === "columns" && Array.isArray(parent.attrs?.ratios) && parent.attrs.ratios.length !== parent.content?.length)
+      fail("INVALID_DOCUMENT", "分栏比例与栏数不一致，尚未保存。");
     if (parent.type === "column" && !parent.content?.length)
       fail("INVALID_DOCUMENT", "分栏缺少正文段落，尚未保存。");
     if (parent.type === "listItem" && parent.content?.[0]?.type !== "paragraph")

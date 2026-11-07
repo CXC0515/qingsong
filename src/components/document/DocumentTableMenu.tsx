@@ -15,8 +15,10 @@ import EditorButton, { createMenuButton } from "./EditorButton";
 export default function DocumentTableMenu({
   editor,
   onAction,
+  embedded = false,
 }: {
   editor: Editor;
+  embedded?: boolean;
   onAction: (action: () => void) => void;
 }) {
   const [rows, setRows] = useState(3),
@@ -41,8 +43,8 @@ export default function DocumentTableMenu({
     });
   return (
     <div
-      className="qs-editor-popover"
-      role="dialog"
+      className={embedded ? undefined : "qs-editor-popover"}
+      role={embedded ? undefined : "dialog"}
       aria-label={active.table ? "表格操作菜单" : "选择表格行列"}
     >
       {active.table ? (

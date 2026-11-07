@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { RichDocument } from "../../domain/document";
 import { createDocumentExtensions } from "./documentExtensions";
@@ -11,6 +11,7 @@ import { Plus } from "lucide-react";
 import { useEditorState } from "@tiptap/react";
 import DocumentToolbar from "./DocumentToolbar";
 import SelectionActions from "./SelectionActions";
+import DocumentImageActions from "./DocumentImageActions";
 import "katex/dist/katex.min.css";
 export type {
   DocumentSelection,
@@ -49,7 +50,11 @@ export default function DocumentEditor({
     [imageBusy, setImageBusy] = useState(false),
     [menuRequest, setMenuRequest] = useState(0);
   const host = useRef<HTMLDivElement>(null);
-  const [lineTop, setLineTop] = useState<number | null>(null);
+  const [linePosition, setLinePosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const [contextInsert, setContextInsert] = useState(false);
   const equationPosition = useRef<number | null>(null),
     imageInput = useRef<HTMLInputElement>(null);
   const extensions = useMemo(
@@ -95,6 +100,7 @@ export default function DocumentEditor({
           );
           if (before && !/\s$/.test(before)) return false;
           event.preventDefault();
+          setContextInsert(true);
           setMenuRequest((value) => value + 1);
           return true;
         },
@@ -115,23 +121,51 @@ export default function DocumentEditor({
       return;
     editor.commands.setContent(content, { emitUpdate: false });
   }, [editor, content]);
-  const blankLine = useEditorState({editor, selector: ({editor}) => {
-    if (!editor) return null;
-    const {selection} = editor.state;
-    return selection.empty && selection.$from.parent.type.name === 'paragraph' && selection.$from.parent.content.size === 0 ? selection.from : null;
-  }});
+  const blankLine = useEditorState({
+    editor,
+    selector: ({ editor }) => {
+      if (!editor) return null;
+      const { selection } = editor.state;
+      return selection.empty &&
+        selection.$from.parent.type.name === "paragraph" &&
+        selection.$from.parent.content.size === 0
+        ? selection.from
+        : null;
+    },
+  });
   useEffect(() => {
-    if (!editor || readOnly || blankLine === null) {setLineTop(null); return;}
+    if (!editor || readOnly || blankLine === null) {
+      setLinePosition(null);
+      return;
+    }
     const update = () => {
       if (editor.isDestroyed || !host.current) return;
       const coords = editor.view.coordsAtPos(blankLine);
-      setLineTop(coords.top - host.current.getBoundingClientRect().top);
+      const box = host.current.getBoundingClientRect();
+      setLinePosition({
+        top: coords.top - box.top,
+        left: Math.max(0, coords.left - box.left - 34),
+      });
     };
     update();
-    const observer = new ResizeObserver(update); observer.observe(host.current!);
-    window.addEventListener('scroll', update, true);
-    return () => {observer.disconnect();window.removeEventListener('scroll', update, true);};
+    const observer = new ResizeObserver(update);
+    observer.observe(host.current!);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", update, true);
+    };
   }, [editor, readOnly, blankLine, content]);
+  const insertAnchor = useCallback(() => {
+    if (!editor || editor.isDestroyed) return null;
+    const coords = editor.view.coordsAtPos(editor.state.selection.from);
+    return new DOMRect(
+      coords.left - 34,
+      coords.top,
+      28,
+      coords.bottom - coords.top,
+    );
+  }, [editor]);
   const insertFormula = () => {
     if (!editor || !formula?.trim()) return;
     if (equationPosition.current !== null) {
@@ -169,12 +203,17 @@ export default function DocumentEditor({
     }
   };
   return (
-    <div ref={host} className={`qs-document-editor ${readOnly ? "is-readonly" : ""}`}>
+    <div
+      ref={host}
+      className={`qs-document-editor ${readOnly ? "is-readonly" : ""}`}
+    >
       {!readOnly && editor && !editor.isDestroyed && (
         <>
           <DocumentToolbar
             editor={editor}
             menuRequest={menuRequest}
+            insertAnchor={contextInsert ? insertAnchor : undefined}
+            onToolbarInsert={() => setContextInsert(false)}
             imageBusy={imageBusy}
             onImage={
               onImageUpload ? () => imageInput.current?.click() : undefined
@@ -187,6 +226,7 @@ export default function DocumentEditor({
             onError={onError}
           />
           <SelectionActions editor={editor} onAssistant={onRequestAssistant} />
+          <DocumentImageActions editor={editor} />
         </>
       )}
       <input
@@ -227,7 +267,21 @@ export default function DocumentEditor({
           </button>
         </div>
       )}
-      {lineTop !== null && !readOnly && <button type="button" className="qs-editor-line-insert" style={{top:lineTop}} aria-label="在空行插入内容" onMouseDown={event=>event.preventDefault()} onClick={()=>setMenuRequest(value=>value+1)}><Plus size={16}/></button>}
+      {linePosition !== null && !readOnly && (
+        <button
+          type="button"
+          className="qs-editor-line-insert"
+          style={linePosition}
+          aria-label="在空行插入内容"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            setContextInsert(true);
+            setMenuRequest((value) => value + 1);
+          }}
+        >
+          <Plus size={16} />
+        </button>
+      )}
       <EditorContent editor={editor} />
     </div>
   );

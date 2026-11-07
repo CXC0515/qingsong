@@ -211,16 +211,18 @@ export async function exportPreparationDocx(
       if (node.type === "columns") {
         const none = {style:BorderStyle.NONE, size:0, color:'FFFFFF'};
         const cells: TableCell[] = [];
-        for (const column of node.content ?? []) {
+        const ratios = Array.isArray(node.attrs?.ratios) && node.attrs.ratios.length === node.content?.length ? node.attrs.ratios as number[] : (node.content ?? []).map(()=>1);
+        const total = ratios.reduce((sum,n)=>sum+n,0);
+        for (const [index,column] of (node.content ?? []).entries()) {
           const children = await blocks(column.content ?? []);
           cells.push(new TableCell({children:children.length ? children : [new Paragraph('')],
-            width:{size:100/(node.content?.length || 2),type:WidthType.PERCENTAGE},
+            width:{size:100*ratios[index]/total,type:WidthType.PERCENTAGE},
             borders:{top:none,bottom:none,left:none,right:none}, margins:{left:120,right:120},
           }));
         }
         result.push(new Table({rows:[new TableRow({children:cells})],
           width:{size:100,type:WidthType.PERCENTAGE}, layout:TableLayoutType.FIXED,
-          columnWidths:cells.map(()=>Math.floor(9638/cells.length)),
+          columnWidths:ratios.map(n=>Math.floor(9638*n/total)),
           borders:{top:none,bottom:none,left:none,right:none,insideHorizontal:none,insideVertical:none},
           // A named borderless table style preserves column boundaries on Word round trips.
           style:'QingsongColumns',
@@ -330,6 +332,7 @@ export async function exportPreparationDocx(
         result.push(
           new Paragraph({
             children: [await image(node)],
+            alignment: node.attrs?.textAlign === "center" ? AlignmentType.CENTER : node.attrs?.textAlign === "right" ? AlignmentType.RIGHT : AlignmentType.LEFT,
             spacing: { after: 160 },
           }),
         );

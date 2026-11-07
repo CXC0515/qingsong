@@ -273,11 +273,18 @@
  .qs-task-columns[data-page="workbench"]>.qs-assistant-dock{width:var(--qs-assistant-width,auto);max-width:100%;min-width:0}
 }
 /* Tiptap owns image resizing and persists width/height through its transaction. */
-.qs-document-editor [data-resize-handle]{width:10px;height:10px;border:1px solid #36738a;border-radius:2px;background:white;touch-action:none;z-index:2;cursor:nwse-resize;visibility:hidden}
+.qs-document-editor [data-resize-handle]{width:10px;height:10px;border:1px solid #36738a;border-radius:50%;background:white;touch-action:none;z-index:2;cursor:nwse-resize;visibility:hidden}
 .qs-document-editor [data-resize-handle=bottom-left],.qs-document-editor [data-resize-handle=top-right]{cursor:nesw-resize}
 .qs-document-editor [data-resize-container].ProseMirror-selectednode [data-resize-handle],.qs-document-editor [data-resize-container]:has(.ProseMirror-selectednode) [data-resize-handle],.qs-document-editor [data-resize-state=true] [data-resize-handle]{visibility:visible}
 .qs-document-editor [data-resize-container].ProseMirror-selectednode [data-resize-wrapper]{outline:1px solid #36738a}
 .qs-document-editor [data-resize-handle]::after{content:"";position:absolute;inset:-10px}
 @media(pointer:coarse){.qs-document-editor [data-resize-handle]::after{inset:-17px}}
 .qs-document-editor.is-readonly [data-resize-handle]{display:none}
+.qs-document-editor [data-resize-wrapper]{max-width:100%;width:fit-content;line-height:0}
+.qs-document-editor [data-resize-wrapper] img{display:block;max-width:100%;height:auto!important}
+.qs-document-editor [data-resize-handle=top-left]{transform:translate(-50%,-50%)}
+.qs-document-editor [data-resize-handle=top-right]{transform:translate(50%,-50%)}
+.qs-document-editor [data-resize-handle=bottom-left]{transform:translate(-50%,50%)}
+.qs-document-editor [data-resize-handle=bottom-right]{transform:translate(50%,50%)}
+.qs-document-editor [data-resize-container]:has(.ProseMirror-selectednode) [data-resize-wrapper]{outline:1px solid #36738a}
 .qs-document-editor img{max-width:100%;height:auto}

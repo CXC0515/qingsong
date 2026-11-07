@@ -1,5 +1,5 @@
 import { DocumentColumns, DocumentColumn } from "./documentColumns";
-import { Extension, type Extensions } from "@tiptap/core";
+import { Extension, ResizableNodeView, type Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { TableKit } from "@tiptap/extension-table";
 import Image from "@tiptap/extension-image";
@@ -70,7 +70,59 @@ const StableIdentity = Extension.create({
 });
 const OwnedImage = Image.extend({
   addAttributes() {
-    return { ...this.parent?.(), assetId: { default: null } };
+    return {
+      ...this.parent?.(),
+      assetId: { default: null },
+      textAlign: { default: null },
+    };
+  },
+  addNodeView() {
+    const parent = this.parent?.();
+    if (!parent) return null;
+    return (props) => {
+      const view = parent(props) as ResizableNodeView;
+      const element = view.dom.querySelector("img")!;
+      const originalUpdate = view.update.bind(view),
+        originalDestroy = view.destroy.bind(view);
+      const apply = () => {
+        const attrs = view.node.attrs;
+        element.style.width = attrs.width ? `${attrs.width}px` : "";
+        element.style.height = "auto";
+        view.dom.style.justifyContent =
+          attrs.textAlign === "center"
+            ? "center"
+            : attrs.textAlign === "right"
+              ? "flex-end"
+              : "flex-start";
+      };
+      const limit = () => {
+        const container = view.dom.parentElement;
+        if (!container) return;
+        const style = getComputedStyle(container);
+        view.maxSize = {
+          width: Math.max(
+            48,
+            container.clientWidth -
+              parseFloat(style.paddingLeft) -
+              parseFloat(style.paddingRight),
+          ),
+        };
+      };
+      view.dom.addEventListener("mousedown", limit, true);
+      view.dom.addEventListener("touchstart", limit, true);
+      view.update = (node, decorations, inner) => {
+        const valid = originalUpdate(node, decorations, inner);
+        if (valid) apply();
+        return valid;
+      };
+      view.destroy = () => {
+        view.dom.removeEventListener("mousedown", limit, true);
+        view.dom.removeEventListener("touchstart", limit, true);
+        originalDestroy();
+      };
+      apply();
+      return view;
+    };
   },
 });
 const EquationSource = Extension.create({
@@ -104,7 +156,15 @@ export function createDocumentExtensions(
       placeholder:
         "开始编写教案，输入 / 插入内容；选中文字或表格可请 AI 协助。",
     }),
-    OwnedImage.configure({resize:{enabled:true,directions:['top-left','top-right','bottom-left','bottom-right'],minWidth:48,minHeight:32,alwaysPreserveAspectRatio:true}}),
+    OwnedImage.configure({
+      resize: {
+        enabled: true,
+        directions: ["top-left", "top-right", "bottom-left", "bottom-right"],
+        minWidth: 48,
+        minHeight: 32,
+        alwaysPreserveAspectRatio: true,
+      },
+    }),
     Mathematics.configure({
       inlineOptions: {
         onClick: (node, position) => onEquation?.(node.attrs.latex, position),
