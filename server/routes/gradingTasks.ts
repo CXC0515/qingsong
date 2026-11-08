@@ -1047,6 +1047,7 @@ router.post('/:taskId/trial-grading', async (request, response) => {
 
 router.post('/:taskId/analysis', async (request, response) => {
   const analysisStartedAt = new Date();
+  const requestId = randomUUID();
   const config = getModelConfig();
   if (!isModelConfigured(config)) {
     response.status(503).json({ code: 'MODEL_NOT_CONFIGURED' });
@@ -1073,7 +1074,9 @@ router.post('/:taskId/analysis', async (request, response) => {
   }
   try {
     const previousAnalysis = getFirstSectionAnalysis(request.params.taskId);
-    const analyzer = new OpenAICompatibleQuestionAnalyzer(config);
+    const analyzer = new OpenAICompatibleQuestionAnalyzer(config, fetch, undefined, event => {
+      console.info(JSON.stringify({ ...event, requestId, taskId: request.params.taskId }));
+    });
     const rawAnalysis = await analyzer.analyzeAssignment(analysisMaterials, parsedCatalog.data);
     if (rawAnalysis.questions.length === 0) {
       response.status(422).json({ code: 'QUESTIONS_NOT_EXTRACTED' });
@@ -1133,9 +1136,10 @@ router.post('/:taskId/analysis', async (request, response) => {
     deleteTrialGradingResult(request.params.taskId);
     deleteGradingBatch(request.params.taskId);
     deleteVisionValidationForTask(request.params.taskId);
+    console.info(JSON.stringify({ event: 'first_section_analysis_saved', requestId, taskId: request.params.taskId, questionCount: questions.length, durationMs: Date.now() - analysisStartedAt.getTime() }));
     response.json({ analysis });
   } catch (error) {
-    console.error(JSON.stringify({ event: 'first_section_analysis_failed', taskId: request.params.taskId, error: error instanceof Error ? error.message : String(error) }));
+    console.error(JSON.stringify({ event: 'first_section_analysis_failed', requestId, taskId: request.params.taskId, durationMs: Date.now() - analysisStartedAt.getTime(), error: error instanceof Error ? error.message : String(error) }));
     const message = error instanceof Error ? error.message : 'ANALYSIS_FAILED';
     const failure = classifyQuestionAnalysisError(message);
     response.status(failure.statusCode).json({ code: failure.code });

@@ -1,5 +1,16 @@
 /* Shared by the injected browser client and the deterministic navigation tests. */
 (function (global) {
+  const sessionRefreshes = new WeakMap();
+  function refreshSessions(ctx, signal) {
+    let pending = sessionRefreshes.get(ctx.sessions);
+    if (!pending) {
+      pending = Promise.resolve().then(() => ctx.sessions.refresh()).finally(() => {
+        if (sessionRefreshes.get(ctx.sessions) === pending) sessionRefreshes.delete(ctx.sessions);
+      });
+      sessionRefreshes.set(ctx.sessions, pending);
+    }
+    return abortable(pending, signal);
+  }
   class NavigationError extends Error {
     constructor(stage, cause) {
       super("Assistant navigation failed: " + stage, { cause });
@@ -94,10 +105,7 @@
         changeStage("session-directory");
         // Host-created sessions are not safe to retain until the native catalog knows them.
         if (!ctx.sessions.list.getSnapshot().byId[target.sessionId])
-          await abortable(ctx.sessions.refresh(), signal);
-        // A first refresh may have joined an older in-flight pull that began before Host creation.
-        if (!ctx.sessions.list.getSnapshot().byId[target.sessionId])
-          await abortable(ctx.sessions.refresh(), signal);
+          await refreshSessions(ctx, signal);
         await waitFor(
           ctx.sessions.list,
           (snapshot) => {
@@ -143,7 +151,7 @@
       let workspace = ctx.workspaces.list.getSnapshot().items.find(item => item.workspaceId === target.workspaceId);
       let listed = ctx.sessions.list.getSnapshot().byId ?? {};
       if ((workspace.sessionIds ?? []).some(id => !listed[id])) {
-        await abortable(ctx.sessions.refresh(), signal);
+        await refreshSessions(ctx, signal);
         workspace = ctx.workspaces.list.getSnapshot().items.find(item => item.workspaceId === target.workspaceId);
         listed = ctx.sessions.list.getSnapshot().byId ?? {};
       }
