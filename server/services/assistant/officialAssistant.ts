@@ -32,6 +32,7 @@ import { startOfficialRuntime } from '../../../agent/official-runtime.mjs';
 import { allowOfficialCall } from '../../../agent/official-policy.mjs';
 import { relayOfficialSocket } from '../../../agent/official-relay.mjs';
 import {loadGenerationPolicy,generationFingerprint} from './generationPolicy';
+import { readDshPromptConfig } from './dshPromptConfig';
 
 import { Transform } from 'node:stream';
 import { AssistantMaterialError, assistantMaterialTool, materialSessionId, officialMaterialHome, registerMessageMaterials, selectPoolMaterials } from './officialAttachments';
@@ -166,7 +167,10 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
           res.end('{}'); return;
         }
         await authorizeInstance(instance); if (instance.closing) throw Error('CLOSING'); instance.touched = Date.now();
-        if (body.kind === 'reference-titles') {
+        if (body.kind === 'dsh-prompts') {
+          const config = await readDshPromptConfig();
+          res.end(JSON.stringify({ revision: config.revision, nodes: config.nodes.filter(node => node.editable).map(({id, kind, enabled, content, description, requires, version, hash}) => ({id, kind, enabled, content, description, requires, version, hash})) }));
+        } else if (body.kind === 'reference-titles') {
           const ids=z.array(z.uuid()).max(20).parse(body.referenceIds);
           const titles=runWithWorkspace(context,()=>ids.flatMap(id=>{try{return [preparationReferenceStatus(id).title];}catch{return [];}}));
           res.end(JSON.stringify({titles}));

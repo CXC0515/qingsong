@@ -1,5 +1,5 @@
 import {preparationTool} from './official-preparation.mjs';
-import {contextGuidance,buildContext,refreshContext,businessRuntimeContext} from './context-builder.mjs';
+import {buildContext,refreshContext,businessRuntimeContext} from './context-builder.mjs';
 import {capabilityToolParameters} from '../src/domain/assistantCapabilityDefinitions.mjs';
 import {executeCapability,httpReadFailure,ReadToolFailure} from './tool-contract-recovery.mjs';
 import {skillManifest,publishedSkillNames} from './official-skills.mjs';
@@ -13,7 +13,8 @@ export function apply(ctx) {
   const generationPolicy=JSON.parse(process.env.QS_GENERATION_POLICY??'{"entries":{}}');
   const turns = new Map();
   const registeredMaterials = new Map();
-  ctx.effect(() => ctx.systemPrompt.section({name:'青松上下文使用规则', order:120, text:contextGuidance, interpolate:false}));
+  ctx.effect(() => ctx.systemPrompt.context({name:'管理员配置的教学提示词', order:110, required:true, interpolate:false,
+    text: ({agent}) => turns.get(agent?.id)?.adminPrompt ?? ''}));
   ctx.effect(() => ctx.systemPrompt.context({name:'教师个人规则', order:100, required:true, interpolate:false,
     text: ({agent}) => turns.get(agent?.id)?.contextParts?.rules ?? ''}));
   ctx.effect(() => ctx.systemPrompt.context({name:'本轮相关记忆与材料', order:200, required:true, interpolate:false,
@@ -56,6 +57,10 @@ export function apply(ctx) {
       state.timer.unref();
       const human=messages.filter(message=>message.source?.kind==="user").at(-1);
       try {
+        const promptConfig = await bridge({kind:'dsh-prompts'}, signal);
+        const promptNode = promptConfig.nodes?.find(node => node.id === 'teaching-context' && node.enabled);
+        state.adminPrompt = promptNode?.content ?? '';
+        state.enabledSkills = new Set((promptConfig.nodes ?? []).filter(node => node.kind === 'skill' && node.enabled).map(node => node.id.slice('skill:'.length)));
         state.preparationContext = await registerLessonReferences(agent.id, messages, human, signal);
         state.referenceMessageId = human?.id;
         const acquired = await bridge({kind: 'acquire', lease, sessionId: agent.id}, signal);
@@ -101,6 +106,7 @@ export function apply(ctx) {
     if(exec.name==='skill'){
       if(!publishedSkillNames.has(exec.arguments?.name))return '此Skill不在青松发布目录中，不能加载。';
       const state=turns.get(exec.agent?.id);
+      if(!state?.enabledSkills?.has(exec.arguments?.name))return '此Skill当前未在管理员配置中披露，不能加载。';
       if(!state||++state.queries>(state.budget?.queries??12))return '本轮读取额度已用完，已有对话保留，请拆分问题后重试。';
       return undefined;
     }

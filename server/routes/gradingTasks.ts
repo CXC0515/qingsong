@@ -164,6 +164,7 @@ const extractEvidenceCrop = async (material: StoredMaterial, pageNumber: number,
 };
 
 const classifyQuestionAnalysisError = (message: string) => {
+  if (message === 'MODEL_NO_QUESTIONS') return { statusCode: 422, code: 'QUESTIONS_NOT_EXTRACTED' };
   const status = Number(message.match(/^MODEL_REQUEST_FAILED:(\d{3})$/)?.[1]);
   if (status === 401 || status === 403) return { statusCode: 503, code: 'MODEL_AUTH_FAILED' };
   if (status === 429) return { statusCode: 429, code: 'MODEL_RATE_LIMITED' };
@@ -1074,6 +1075,10 @@ router.post('/:taskId/analysis', async (request, response) => {
     const previousAnalysis = getFirstSectionAnalysis(request.params.taskId);
     const analyzer = new OpenAICompatibleQuestionAnalyzer(config);
     const rawAnalysis = await analyzer.analyzeAssignment(analysisMaterials, parsedCatalog.data);
+    if (rawAnalysis.questions.length === 0) {
+      response.status(422).json({ code: 'QUESTIONS_NOT_EXTRACTED' });
+      return;
+    }
     const catalogById = new Map(parsedCatalog.data.map(node => [node.id, node]));
     const normalizeKnowledgeCandidates = (candidates: { nodeId: string; nodeName: string; confidence: number }[]) =>
       candidates.flatMap(candidate => {

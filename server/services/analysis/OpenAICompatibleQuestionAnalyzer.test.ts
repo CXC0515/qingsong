@@ -39,6 +39,11 @@ const validQuestion = {
 };
 
 const modelOutput = { scope: '整份作业', questions: [validQuestion] };
+const analysisMaterials: StoredMaterial[] = [
+  { id: 'assignment-1', taskId: 'task-1', kind: 'assignment', fileName: 'question.txt', mimeType: 'text/plain', status: 'ready', diskPath: '/tmp/question.txt', publicUrl: '/question.txt', normalizedDocument: { assetId: 'assignment-1', sourceFormat: 'text', markdown: '第一题', blocks: [{ id: 'q-1', order: 0, type: 'paragraph', text: '第一题' }], resources: [], warnings: [], parsedAt: '2026-09-12T00:00:00.000Z' } },
+  { id: 'answer-1', taskId: 'task-1', kind: 'reference-answer', fileName: 'answer.txt', mimeType: 'text/plain', status: 'ready', diskPath: '/tmp/answer.txt', publicUrl: '/answer.txt', normalizedDocument: { assetId: 'answer-1', sourceFormat: 'text', markdown: '答案', blocks: [{ id: 'a-1', order: 0, type: 'paragraph', text: '答案' }], resources: [], warnings: [], parsedAt: '2026-09-12T00:00:00.000Z' } }
+];
+const modelResponse = (questions: unknown[]) => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ scope: '整份作业', questions }) } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 
 test('keeps valid knowledge candidates unchanged', () => {
   const recovered = sanitizeRecoverableFirstSectionOutput(modelOutput);
@@ -72,6 +77,31 @@ test('still rejects malformed core question fields', () => {
     questions: [{ ...validQuestion, stem: '', knowledgeCandidates: ['知识点'] }]
   });
   assert.throws(() => firstSectionModelOutputSchema.parse(recovered.output));
+});
+
+test('allows empty model response for recovery, retries once, and accepts recovered questions', async () => {
+  let calls = 0;
+  let requestSchema: Record<string, unknown> | undefined;
+  const fakeFetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    calls += 1;
+    requestSchema = (JSON.parse(String(init?.body ?? '{}')) as { response_format: { json_schema: { schema: Record<string, unknown> } } }).response_format.json_schema.schema;
+    return calls === 1 ? modelResponse([]) : modelResponse([validQuestion]);
+  }) as typeof fetch;
+  const result = await new OpenAICompatibleQuestionAnalyzer({ apiKey: 'test', baseUrl: 'https://example.test/v1', visionModel: 'gpt-6-luna' }, fakeFetch)
+    .analyzeAssignment(analysisMaterials, []);
+  assert.equal(calls, 2);
+  assert.equal(result.questions.length, 1);
+  assert.equal((requestSchema?.properties as Record<string, { minItems?: number }>).questions?.minItems, undefined);
+});
+
+test('fails after two empty responses without returning an empty analysis', async () => {
+  let calls = 0;
+  const fakeFetch = (async () => { calls += 1; return modelResponse([]); }) as typeof fetch;
+  await assert.rejects(
+    new OpenAICompatibleQuestionAnalyzer({ apiKey: 'test', baseUrl: 'https://example.test/v1', visionModel: 'gpt-6-luna' }, fakeFetch).analyzeAssignment(analysisMaterials, []),
+    /MODEL_NO_QUESTIONS/
+  );
+  assert.equal(calls, 2);
 });
 
 test('sends OCR coordinates and source pages in one strict multimodal request', async () => {
