@@ -224,6 +224,49 @@
 .qs-admin-feedback { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; border-radius:14px; background:color-mix(in srgb,#ef4444 9%,transparent); }
 .qs-admin-notice { padding:12px 16px; border-radius:14px; background:var(--theme-primary-light); }
 .qs-admin-empty { padding:20px 0; }
+.qs-dsh-prompt-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; }
+.qs-dsh-prompt-heading h2 { margin:0; font-size:18px; font-weight:700; }
+.qs-dsh-prompt-heading p,.qs-dsh-editor-head p { margin:6px 0 0; color:var(--qs-muted); font-size:13px; line-height:1.6; }
+.qs-dsh-prompt-meta { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
+.qs-dsh-prompt-meta span,.qs-dsh-status { padding:5px 9px; border:1px solid var(--qs-line); border-radius:7px; color:var(--qs-muted); font-size:12px; white-space:nowrap; }
+.qs-dsh-prompt-layout { display:grid; grid-template-columns:minmax(240px,300px) minmax(0,1fr); gap:18px; align-items:start; }
+.qs-dsh-prompt-list { position:sticky; top:14px; display:flex; flex-direction:column; gap:6px; padding:12px; }
+.qs-dsh-list-head { display:flex; align-items:center; justify-content:space-between; padding:6px 4px 10px; font-size:13px; }
+.qs-dsh-list-head span,.qs-dsh-node small { color:var(--qs-muted); font-size:11px; }
+.qs-dsh-node { display:grid; grid-template-columns:20px minmax(0,1fr) 8px; gap:10px; align-items:start; width:100%; min-height:58px; padding:10px; border:1px solid transparent; border-radius:7px; background:transparent; color:var(--qs-ink); text-align:left; cursor:pointer; }
+.qs-dsh-node:hover,.qs-dsh-node.is-selected { border-color:var(--qs-line); background:var(--qs-surface); }
+.qs-dsh-node span { display:flex; min-width:0; flex-direction:column; gap:4px; }
+.qs-dsh-node strong { font-size:13px; }
+.qs-dsh-node small { overflow-wrap:anywhere; line-height:1.45; }
+.qs-dsh-node i { width:8px; height:8px; margin-top:4px; border-radius:50%; background:#9ba3a0; }
+.qs-dsh-node i.is-enabled { background:#328265; }
+.qs-dsh-readonly { display:flex; gap:8px; margin-top:10px; padding:10px 6px 2px; border-top:1px solid var(--qs-line); color:var(--qs-muted); font-size:11px; line-height:1.5; }
+.qs-dsh-prompt-editor { display:flex; min-width:0; flex-direction:column; gap:14px; }
+.qs-dsh-editor-head { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
+.qs-dsh-title-row { display:flex; flex-wrap:wrap; align-items:center; gap:9px; }
+.qs-dsh-title-row h3 { margin:0; font-size:16px; }
+.qs-dsh-status { padding:3px 7px; }
+.qs-dsh-status.is-enabled { color:#22694f; border-color:#79aa91; }
+.qs-dsh-editor-head small { display:block; margin-top:8px; color:var(--qs-muted); font-size:11px; overflow-wrap:anywhere; }
+.qs-dsh-toggle { display:flex; flex:none; align-items:center; gap:9px; font-size:12px; }
+.qs-dsh-toggle button { position:relative; width:42px; height:26px; padding:2px; border:1px solid var(--qs-line); border-radius:14px; background:#a0aaa4; cursor:pointer; }
+.qs-dsh-toggle button[aria-checked=true] { background:#438b70; }
+.qs-dsh-toggle button i { display:block; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform .16s ease; }
+.qs-dsh-toggle button[aria-checked=true] i { transform:translateX(16px); }
+.qs-dsh-workspace { min-width:0; padding:14px; }
+.qs-dsh-editor-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.qs-dsh-editor-toolbar>div { display:flex; flex-wrap:wrap; align-items:baseline; gap:9px; }
+.qs-dsh-editor-toolbar span { color:var(--qs-muted); font-size:11px; }
+.qs-dsh-workspace textarea { display:block; box-sizing:border-box; width:100%; min-height:440px; padding:14px; border:1px solid var(--qs-line); border-radius:6px; background:var(--qs-solid); color:var(--qs-ink); font:14px/1.7 ui-monospace,SFMono-Regular,Menlo,monospace; resize:vertical; }
+.qs-dsh-compare { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.qs-dsh-compare section { min-width:0; }
+.qs-dsh-compare h4 { margin:0 0 8px; font-size:12px; }
+.qs-dsh-compare pre { min-height:260px; max-height:440px; margin:0; padding:12px; overflow:auto; border:1px solid var(--qs-line); border-radius:6px; background:var(--qs-solid); color:var(--qs-ink); white-space:pre-wrap; overflow-wrap:anywhere; font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.qs-dsh-prompt-actions { position:sticky; bottom:8px; z-index:10; }
+.qs-dsh-prompt-actions .qs-admin-save-surface { max-width:100%; }
+.qs-dsh-history { display:flex; align-items:center; gap:5px; color:var(--qs-muted); font-size:12px; }
+.qs-dsh-history select { max-width:190px; min-height:40px; padding:6px 8px; border:1px solid var(--qs-line); border-radius:6px; background:var(--qs-solid); color:var(--qs-ink); }
+.qs-dsh-prompt-foot { display:flex; align-items:flex-start; gap:8px; color:var(--qs-muted); font-size:12px; line-height:1.5; }
 .qs-temperature-controls { display:grid; grid-template-columns:minmax(0,1fr) 80px; align-items:center; gap:14px; }
 .qs-temperature-slider { position:relative; min-width:0; height:44px; }
 .qs-temperature-track { position:absolute; left:0; right:0; top:18px; height:8px; border-radius:999px; pointer-events:none; }
@@ -256,6 +299,22 @@
  .qs-admin-save > span { width:100%; min-width:0; overflow-wrap:anywhere; }
  .qs-admin-save > .qs-button-host { flex:1; }
  .qs-admin-save .qs-button { width:100%; }
+ .qs-dsh-prompt-heading,.qs-dsh-editor-head { align-items:stretch; flex-direction:column; }
+ .qs-dsh-prompt-meta { justify-content:flex-start; }
+ .qs-dsh-prompt-layout { grid-template-columns:minmax(0,1fr); gap:12px; }
+ .qs-dsh-prompt-list { position:static; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .qs-dsh-list-head,.qs-dsh-readonly { grid-column:1 / -1; }
+ .qs-dsh-node { min-height:52px; }
+ .qs-dsh-node small { display:none; }
+ .qs-dsh-toggle { justify-content:space-between; }
+ .qs-dsh-editor-toolbar { align-items:stretch; flex-direction:column; }
+ .qs-dsh-workspace { padding:10px; }
+ .qs-dsh-workspace textarea { min-height:55dvh; font-size:14px; }
+ .qs-dsh-compare { grid-template-columns:minmax(0,1fr); }
+ .qs-dsh-compare pre { min-height:160px; max-height:32dvh; }
+ .qs-dsh-history { flex:1 1 100%; }
+ .qs-dsh-history select { flex:1; max-width:none; }
+ .qs-dsh-prompt-actions { bottom:env(safe-area-inset-bottom); }
 }
 
 /* Neutral utility surfaces inherit the same appearance in the shell and portals.

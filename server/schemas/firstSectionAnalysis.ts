@@ -55,12 +55,16 @@ const questionUnitSchema = z.object({
   reviewReasons: z.array(z.string())
 });
 
-export const firstSectionModelOutputSchema = z.object({
+export const firstSectionResponseSchema = z.object({
   scope: z.literal('整份作业'),
   questions: z.array(questionUnitSchema.extend({
     subquestions: z.array(questionUnitSchema)
   }))
 });
 
+export const firstSectionModelOutputSchema = firstSectionResponseSchema.extend({
+  questions: firstSectionResponseSchema.shape.questions.min(1, 'MODEL_NO_QUESTIONS')
+});
+
 export type FirstSectionModelOutput = z.infer<typeof firstSectionModelOutputSchema>;
-export const firstSectionAnalysisJsonSchema = z.toJSONSchema(firstSectionModelOutputSchema);
+export const firstSectionAnalysisJsonSchema = z.toJSONSchema(firstSectionResponseSchema);

@@ -260,28 +260,38 @@ export class OpenAICompatibleQuestionAnalyzer {
       }
     }
 
-    const response = await this.fetcher(`${this.config.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${this.config.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: this.config.visionModel,
-        messages: [
-          { role: 'system', content: '只返回符合要求的 JSON，不要输出解释性文字。' },
-          { role: 'user', content: userContent }
-        ],
-        response_format: { type: 'json_schema', json_schema: { name: 'first_section_analysis', strict: true, schema: firstSectionAnalysisJsonSchema } },
-        reasoning_effort: 'medium'
-      }),
-      signal: AbortSignal.timeout(300_000)
-    });
-    if (!response.ok) throw new Error(`MODEL_REQUEST_FAILED:${response.status}`);
-    const payload = await response.json() as { choices?: { message?: { content?: string } }[] };
-    const content = payload.choices?.[0]?.message?.content;
-    if (!content) throw new Error('MODEL_EMPTY_RESPONSE');
-    const { output, recoveries } = sanitizeRecoverableFirstSectionOutput(extractJson(content));
-    if (recoveries.length) {
-      console.warn(JSON.stringify({ event: 'first_section_analysis_output_recovered', recoveries }));
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const requestContent = attempt === 0
+        ? userContent
+        : [{ type: 'text', text: '上一次结果没有识别出任何题目，但输入材料包含完整 OCR 和页面原图。请重新逐页检查题目材料，按原顺序提取所有真实题目；不要把“无法确定答案”当作“没有题目”。若材料确实没有题目，仍不得编造，输出空数组。' }, ...userContent];
+      const response = await this.fetcher(`${this.config.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${this.config.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: this.config.visionModel,
+          messages: [
+            { role: 'system', content: '只返回符合要求的 JSON，不要输出解释性文字。' },
+            { role: 'user', content: requestContent }
+          ],
+          response_format: { type: 'json_schema', json_schema: { name: 'first_section_analysis', strict: true, schema: firstSectionAnalysisJsonSchema } },
+          reasoning_effort: 'medium'
+        }),
+        signal: AbortSignal.timeout(300_000)
+      });
+      if (!response.ok) throw new Error(`MODEL_REQUEST_FAILED:${response.status}`);
+      const payload = await response.json() as { choices?: { message?: { content?: string } }[] };
+      const content = payload.choices?.[0]?.message?.content;
+      if (!content) throw new Error('MODEL_EMPTY_RESPONSE');
+      const { output, recoveries } = sanitizeRecoverableFirstSectionOutput(extractJson(content));
+      if (recoveries.length) {
+        console.warn(JSON.stringify({ event: 'first_section_analysis_output_recovered', recoveries }));
+      }
+      if (Array.isArray((output as { questions?: unknown[] })?.questions) && (output as { questions: unknown[] }).questions.length === 0) {
+        if (attempt === 0) continue;
+        throw new Error('MODEL_NO_QUESTIONS');
+      }
+      return firstSectionModelOutputSchema.parse(output);
     }
-    return firstSectionModelOutputSchema.parse(output);
+    throw new Error('MODEL_NO_QUESTIONS');
   }
 }
