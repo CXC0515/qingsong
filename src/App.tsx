@@ -757,7 +757,7 @@ export default function App() {
       headerContextRef={setClassroomHeaderTarget}
       activePage={activePage}
       assistantOpen={assistantVisible}
-      assistant={workbenchVisited || assistantVisible || activePage==='lesson-plan' ? <AssistantDock surface={activePage==='workbench'?'workbench':'task'} identityKey={authState.user.id} open={assistantVisible} pinned={assistantPinned} entry={assistantEntry} onClose={() => setAssistantOpen(false)}/> : null}
+      assistant={wideWorkbench || workbenchVisited || assistantVisible || activePage==='lesson-plan' ? <AssistantDock surface={activePage==='workbench'?'workbench':'task'} identityKey={authState.user.id} open={assistantVisible} pinned={assistantPinned} entry={assistantEntry} onClose={() => setAssistantOpen(false)}/> : null}
       classes={classes}
       expandedGroups={expandedGroups}
       navGroups={navGroups}
