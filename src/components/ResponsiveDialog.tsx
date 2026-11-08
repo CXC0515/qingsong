@@ -7,8 +7,8 @@ let openDialogs = 0;
 let originalBodyOverflow = '';
 
 /** Native modal provides focus containment, Escape and focus restoration. */
-export default function ResponsiveDialog({ children, title, subtitle, onClose, busy = false, sideOnMedium = false, wide = false, compactFull = false, mobileSnap = false, footer, confirmDiscard = false, closeRef, header }: {
-  children: ReactNode; title: string; subtitle?: ReactNode; onClose: () => void; busy?: boolean; sideOnMedium?: boolean; wide?:boolean; compactFull?:boolean; mobileSnap?:boolean; footer?:ReactNode; confirmDiscard?:boolean; closeRef?:Ref<()=>void>;header?:ReactNode;
+export default function ResponsiveDialog({ children, title, subtitle, onClose, busy = false, sideOnMedium = false, wide = false, compactFull = false, mobileSnap = false, closeOnBackdrop = false, footer, confirmDiscard = false, closeRef, header }: {
+  children: ReactNode; title: string; subtitle?: ReactNode; onClose: () => void; busy?: boolean; sideOnMedium?: boolean; wide?:boolean; compactFull?:boolean; mobileSnap?:boolean; closeOnBackdrop?:boolean; footer?:ReactNode; confirmDiscard?:boolean; closeRef?:Ref<()=>void>;header?:ReactNode;
 }) {
   const stops = [30, 60, 80];
   const [snap,setSnap]=useState(1);
@@ -44,10 +44,7 @@ export default function ResponsiveDialog({ children, title, subtitle, onClose, b
     <><dialog ref={ref} aria-label={title} aria-busy={busy} data-responsive-dialog data-side-on-medium={sideOnMedium || undefined} data-mobile-snap={mobileSnap||undefined} data-sheet-state={mobileSnap?['peak','half','full'][snap]:undefined} data-sheet-dragging={dragHeight!==null||undefined}
       style={mobileSnap?{'--qs-sheet-fraction':(dragHeight??stops[snap])/100} as any:undefined}
       onCancel={event => { event.preventDefault(); requestClose(); }}
-      onClick={event => { if (event.target === event.currentTarget) {
-        const bounds=event.currentTarget.getBoundingClientRect();
-        if(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom)requestClose();
-      } }}
+      onClick={event => { if (closeOnBackdrop && event.target === event.currentTarget) requestClose(); }}
       className={`qs-dialog m-0 mt-auto max-h-[92dvh] w-full max-w-none overflow-hidden rounded-t-3xl border-0 bg-transparent p-0 text-slate-900 shadow-none backdrop:bg-black/40 sm:m-auto ${wide?'sm:max-w-5xl':'sm:max-w-lg'} sm:rounded-2xl dark:bg-zinc-900 dark:text-slate-100 ${compactFull?'qs-dialog-full':''} ${sideOnMedium ? 'sm:ml-auto sm:mr-0 sm:my-0 sm:h-dvh sm:max-h-dvh sm:rounded-none' : ''}`}>
       <GlassSurface className="qs-dialog-surface"><div className="qs-dialog-frame">
         <div className={`flex ${mobileSnap?'min-h-11 items-center':''} shrink-0 touch-none justify-center sm:hidden`} role={mobileSnap?'slider':undefined} tabIndex={mobileSnap?0:undefined} aria-orientation={mobileSnap?'vertical':undefined} aria-label={mobileSnap?'调整面板高度':undefined} aria-valuemin={mobileSnap?30:undefined} aria-valuemax={mobileSnap?80:undefined} aria-valuenow={mobileSnap?stops[snap]:undefined} aria-valuetext={mobileSnap?`${['peak','half','full'][snap]} ${stops[snap]}%`:undefined}

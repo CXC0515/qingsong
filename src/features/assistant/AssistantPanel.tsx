@@ -224,7 +224,7 @@ function OfficialAssistantPanel({entry}:Props) {
   }, [ready,entry?.mode,entry?.preparationId,entry?.documentId,entry?.sessionId,entry?.instruction,entry?.requestKey,connectionId,targetAttempt]);
   const retry=()=>{closeMaterialPick();automaticReconnects.current=0;setConnectionId(crypto.randomUUID());};
   return <GlassSurface className="qs-assistant-panel qs-official-assistant flex h-full min-h-0 flex-col overflow-hidden">
-    {lessonPreview&&<ResponsiveDialog title={lessonPreview.title} wide compactFull onClose={()=>setLessonPreview(null)}>
+    {lessonPreview&&<ResponsiveDialog title={lessonPreview.title} wide compactFull closeOnBackdrop onClose={()=>setLessonPreview(null)}>
       {lessonPreview.error&&<p role="alert">{lessonPreview.error}</p>}
       {lessonPreview.selection&&<blockquote className="qs-reference-text-preview">{lessonPreview.selection}</blockquote>}
       {lessonPreview.content&&!lessonPreview.selection&&<Suspense fallback={<p role="status">正在载入预览…</p>}><ReferenceDocumentEditor documentKey={'reference:'+lessonPreview.id} content={lessonPreview.content} readOnly/></Suspense>}

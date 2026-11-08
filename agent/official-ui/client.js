@@ -21,7 +21,9 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     function SentLessonReference({node}) {
       const [reference,setReference]=React.useState(null);
       React.useEffect(()=>{const controller=new AbortController();void requestJSON('./api/qingsong/lesson-references?id='+encodeURIComponent(node.data.referenceId),{signal:controller.signal}).then(value=>setReference(value.references[0])).catch(()=>{});return()=>controller.abort();},[node.data.referenceId]);
-      return React.createElement('button',{type:'button',className:'qs-sent-lesson-reference',onClick:()=>openLessonPreview(node.data.referenceId)},reference ? (reference.selection ? '“'+reference.selection.text.slice(0,100)+'” · 选中文字' : reference.title+' · 教案引用') : '查看引用');
+      if(!reference)return React.createElement('span',{className:'qs-sent-lesson-reference'},'正在读取教案引用…');
+      const href='/?page=lesson-plan&preparationId='+encodeURIComponent(reference.preparationId)+'&documentId='+encodeURIComponent(reference.documentId);
+      return React.createElement('a',{className:'qs-sent-lesson-reference',href,title:'打开对应教案'},reference.selection ? '“'+reference.selection.text.slice(0,100)+'” · 选中文字' : reference.title+' · 教案');
     }
     ctx.slots.inject('conversation.user.text.node',()=>ctx.slots.register({name:'conversation.user.text.node',key:lessonSource,priority:-100},props=>React.createElement(SentLessonReference,props)));
     function SentMaterialReference({node,sessionId}) {
