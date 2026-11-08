@@ -31,6 +31,7 @@ function OfficialAssistantPanel({entry}:Props) {
   const [error, setError] = useState('');
   const [materialPick, setMaterialPick] = useState<MaterialPickRequest | null>(null);
   const [lessonPreview,setLessonPreview]=useState<{id:string;title:string;content?:RichDocument;url?:string;error?:string;selection?:string}|null>(null);
+  const automaticReconnects = useRef(0);
   useEffect(()=>{
     const controller=new AbortController();
     const navigate=(preparationId:string,documentId?:string)=>{
@@ -121,9 +122,16 @@ function OfficialAssistantPanel({entry}:Props) {
   };
   useEffect(() => {
     let started=performance.now(),connected=false,timer:ReturnType<typeof setInterval>|null=null;
+    let connectionPhase: 'page'|'catalogs' = 'page';
     setReady(false);setError('');setPhase('page');setElapsed(0);setSlow(false);
     setSessionLoad(null);
-    const startTimer=()=>{if(timer!==null||connected)return;timer=setInterval(()=>{const seconds=Math.floor((performance.now()-started)/1000);setElapsed(seconds);if(seconds>=15)setSlow(true);if(seconds>=45)setError(current=>current||'连接尚未完成，已有会话保留。可重新连接；不会自动重发消息。');},1000);};
+    const startTimer=()=>{if(timer!==null||connected)return;timer=setInterval(()=>{const seconds=Math.floor((performance.now()-started)/1000);setElapsed(seconds);if(seconds>=15)setSlow(true);if(seconds>=45)setError(current=>current||'连接尚未完成，已有会话保留。可重新连接；不会自动重发消息。');
+      // A stale native auth/WS connection can leave DSH in catalogs forever.
+      // Recreate the iframe before its long native retry loop becomes visible.
+      if(connectionPhase==='catalogs'&&seconds>=12&&automaticReconnects.current<2){
+        automaticReconnects.current+=1;setError('正在刷新助手连接，已有会话保留；不会重发消息。');stopTimer();setConnectionId(crypto.randomUUID());
+      }
+    },1000);};
     const stopTimer=()=>{if(timer!==null)clearInterval(timer);timer=null;};
     const receive=(event:MessageEvent)=>{
       if(event.origin!==location.origin||event.source!==frame.current?.contentWindow)return;
@@ -136,6 +144,7 @@ function OfficialAssistantPanel({entry}:Props) {
       }
       if(event.data?.type==='qingsong:connection'){
         if(event.data.phase==='catalogs'||event.data.phase==='reconnecting'){
+          connectionPhase='catalogs';
           if(connected||timer===null){connected=false;started=performance.now();setReady(false);setElapsed(0);setSlow(false);setError('');startTimer();}
           setPhase('catalogs');
         }
@@ -145,6 +154,7 @@ function OfficialAssistantPanel({entry}:Props) {
         }
       }
       if(event.data?.type==='qingsong:ready'||(event.data?.type==='qingsong:connection'&&event.data.phase==='ready')){
+        connectionPhase='catalogs';
         if(!connected)console.info('[青松助手] 页面连接完成',{durationMs:Math.round(performance.now()-started)});
         connected=true;setReady(true);setError('');setSlow(false);stopTimer();
       }
@@ -212,7 +222,7 @@ function OfficialAssistantPanel({entry}:Props) {
     });
     return () => {controller.abort(); clearTimeout(acknowledgementTimer); send('qingsong:cancel-context'); window.removeEventListener('message',acknowledge);};
   }, [ready,entry?.mode,entry?.preparationId,entry?.documentId,entry?.sessionId,entry?.instruction,entry?.requestKey,connectionId,targetAttempt]);
-  const retry=()=>{closeMaterialPick();setConnectionId(crypto.randomUUID());};
+  const retry=()=>{closeMaterialPick();automaticReconnects.current=0;setConnectionId(crypto.randomUUID());};
   return <GlassSurface className="qs-assistant-panel qs-official-assistant flex h-full min-h-0 flex-col overflow-hidden">
     {lessonPreview&&<ResponsiveDialog title={lessonPreview.title} wide compactFull onClose={()=>setLessonPreview(null)}>
       {lessonPreview.error&&<p role="alert">{lessonPreview.error}</p>}
