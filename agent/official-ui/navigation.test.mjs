@@ -156,17 +156,17 @@ test("workspace follow errors and timeouts expose the failing phase and clean su
   assert.equal(f.workspaces.observers, 0);
 });
 
-test("a catalog pull already in flight before host creation is followed by a fresh pull", async () => {
+test("a catalog pull already in flight is shared instead of duplicated", async () => {
   const f = fixture();
   f.workspaces.set({ items: [{ workspaceId: "w1" }], state: "idle" });
   let pulls = 0;
   f.ctx.sessions.refresh = async () => {
     pulls++;
-    if (pulls === 2)
+    if (pulls === 1)
       f.sessions.set({ byId: { s1: { id: "s1" } }, phase: "ready" });
   };
   await openContext(f.ctx, { workspaceId: "w1", sessionId: "s1" });
-  assert.equal(pulls, 2);
+  assert.equal(pulls, 1);
   assert.ok(f.calls.includes("open:s1"));
 });
 

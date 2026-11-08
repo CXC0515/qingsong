@@ -104,6 +104,32 @@ test('fails after two empty responses without returning an empty analysis', asyn
   assert.equal(calls, 2);
 });
 
+test('retries one transient model outage without changing the configured model', async () => {
+  let calls = 0;
+  const fakeFetch = (async () => {
+    calls += 1;
+    if (calls === 1) return new Response('{"error":"busy"}', { status: 503 });
+    return modelResponse([validQuestion]);
+  }) as typeof fetch;
+  const result = await new OpenAICompatibleQuestionAnalyzer({ apiKey: 'test', baseUrl: 'https://example.test/v1', visionModel: 'gpt-6-luna' }, fakeFetch)
+    .analyzeAssignment(analysisMaterials, []);
+  assert.equal(calls, 2);
+  assert.equal(result.questions[0]?.displayNo, '1');
+});
+
+test('retries once when the model returns invalid JSON or an incomplete object', async () => {
+  let calls = 0;
+  const fakeFetch = (async () => {
+    calls += 1;
+    if (calls === 1) return new Response(JSON.stringify({ choices: [{ message: { content: '{"scope":"整份作业","questions":[{}]}' } }] }), { status: 200 });
+    return modelResponse([validQuestion]);
+  }) as typeof fetch;
+  const result = await new OpenAICompatibleQuestionAnalyzer({ apiKey: 'test', baseUrl: 'https://example.test/v1', visionModel: 'gpt-6-luna' }, fakeFetch)
+    .analyzeAssignment(analysisMaterials, []);
+  assert.equal(calls, 2);
+  assert.equal(result.questions.length, 1);
+});
+
 test('sends OCR coordinates and source pages in one strict multimodal request', async () => {
   let requestBody: Record<string, unknown> = {};
   const fakeFetch = (async (_url: string | URL | Request, init?: RequestInit) => {
