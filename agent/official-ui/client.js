@@ -7,11 +7,16 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     const materialUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const connectionId = (window.name || '').replace(/^qingsong-assistant:/, '');
     const lessonSource="qingsong-lesson";
+    const materialPattern = /\[\[青松材料:([0-9a-f-]{36})\]\]/gi;
     const openLessonPreview = id => {parent.postMessage({type:'qingsong:preview-lesson',referenceId:id,connectionId},location.origin);return true;};
     // The native renderer owns message structure; tokens remain intact in the model log.
     ctx.effect(()=>ctx.uiConversation.userText.register({id:lessonSource,order:5,match(text,from){
       const pattern=/\[\[青松教案:([0-9a-f-]{36})\]\]/gi;pattern.lastIndex=from;const found=pattern.exec(text);
       if(found&&materialUuid.test(found[1]))return {id:lessonSource,start:found.index,end:found.index+found[0].length,data:{referenceId:found[1]}};
+    }}));
+    ctx.effect(()=>ctx.uiConversation.userText.register({id:materialSource,order:6,match(text,from){
+      materialPattern.lastIndex=from;const found=materialPattern.exec(text);
+      if(found&&materialUuid.test(found[1]))return {id:materialSource,start:found.index,end:found.index+found[0].length,data:{referenceId:found[1]}};
     }}));
     function SentLessonReference({node}) {
       const [reference,setReference]=React.useState(null);
@@ -19,6 +24,12 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       return React.createElement('button',{type:'button',className:'qs-sent-lesson-reference',onClick:()=>openLessonPreview(node.data.referenceId)},reference ? (reference.selection ? '“'+reference.selection.text.slice(0,100)+'” · 选中文字' : reference.title+' · 教案引用') : '查看引用');
     }
     ctx.slots.inject('conversation.user.text.node',()=>ctx.slots.register({name:'conversation.user.text.node',key:lessonSource,priority:-100},props=>React.createElement(SentLessonReference,props)));
+    function SentMaterialReference({node,sessionId}) {
+      const [name,setName]=React.useState('已引用资料');
+      React.useEffect(()=>{const controller=new AbortController();void requestJSON('./api/qingsong/material-reference-labels?sessionId='+encodeURIComponent(sessionId)+'&id='+encodeURIComponent(node.data.referenceId),{signal:controller.signal}).then(value=>{const reference=value.references?.find(item=>item.id===node.data.referenceId);if(reference)setName(reference.name);}).catch(()=>{});return()=>controller.abort();},[node.data.referenceId,sessionId]);
+      return React.createElement('span',{className:'qs-sent-material-reference',title:name},'资料 · '+name);
+    }
+    ctx.slots.inject('conversation.user.text.node',()=>ctx.slots.register({name:'conversation.user.text.node',key:materialSource,priority:-100,inject:sessionId=>({sessionId})},props=>React.createElement(SentMaterialReference,props)));
     const handleLessonLink=event=>{
       const anchor=event.target.closest?.('a[href]');if(!anchor)return;
       let url;try{url=new URL(anchor.getAttribute('href'),location.origin);}catch{return;}
@@ -145,6 +156,28 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       },[lessons===null,lessonQuery]);
       const pending = React.useRef(null), fileInput = React.useRef(null), menu = React.useRef(null);
       const inputRef=React.useRef({inputActions,insertReference});inputRef.current={inputActions,insertReference};
+      React.useEffect(()=>{
+        const onKeyDown=event=>{
+          if(event.key!=='@'||event.isComposing||event.altKey||event.ctrlKey||event.metaKey||phase!=='plain'||!event.target?.closest?.('[data-composer-input]'))return;
+          const insertion=inputActions.captureInsertion();
+          if(insertion.start!==insertion.end)return;
+          const selection=window.getSelection();
+          const node=selection?.anchorNode;
+          if(!node||node.nodeType!==Node.TEXT_NODE||selection.anchorOffset!==selection.focusOffset)return;
+          const before=node.textContent?.slice(0,selection.anchorOffset)??'';
+          if(!/\S$/u.test(before)||!/[\p{L}\p{N}_]$/u.test(before))return;
+          const start=selection.anchorOffset;
+          event.preventDefault();
+          if(!inputActions.insertText('@',insertion))return;
+          const caret=inputActions.captureInsertion();
+          const scope=ctx.sessions.scope(sessionId);
+          const triggers=scope&&ctx.inputTriggers.sessionOf(scope);
+          if(triggers)triggers.toggleSource(materialSource,{trigger:'@',query:'',quoted:false,position:'inline',span:{start:caret.start-1,end:caret.start,draftRev:caret.draftRev}});
+          inputActions.persistDraft();
+        };
+        document.addEventListener('keydown',onKeyDown,true);
+        return()=>document.removeEventListener('keydown',onKeyDown,true);
+      },[sessionId,inputActions,phase]);
       const icon = path => React.createElement('svg',{viewBox:'0 0 24 24',width:18,height:18,fill:'none',stroke:'currentColor',strokeWidth:1.8,'aria-hidden':true},React.createElement('path',{d:path}));
       React.useEffect(() => {
         const outside = event => {if(!menu.current?.contains(event.target)){setOpen(false);setLessons(null);}};

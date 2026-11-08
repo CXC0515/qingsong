@@ -35,7 +35,7 @@ import {loadGenerationPolicy,generationFingerprint} from './generationPolicy';
 import { readDshPromptConfig } from './dshPromptConfig';
 
 import { Transform } from 'node:stream';
-import { AssistantMaterialError, assistantMaterialTool, materialSessionId, officialMaterialHome, registerMessageMaterials, selectPoolMaterials } from './officialAttachments';
+import { AssistantMaterialError, assistantMaterialTool, materialReferenceLabels, materialSessionId, officialMaterialHome, registerMessageMaterials, selectPoolMaterials } from './officialAttachments';
 import { RESOURCE_UPLOAD_LIMIT_BYTES } from '../../../src/domain/uploadPolicy';
 import { reserveMaterialStorage, releaseMaterialStorage } from './officialMaterialQuota';
 import { AssistantMaterialReadError } from './materialReader';
@@ -432,6 +432,19 @@ export async function officialAssistantProxy(req: Request, res: Response) {
       res.json(await selectPoolMaterials(context, body.sessionId, body.requestId, body.itemIds));
     } catch (error) {
       res.status(400).json({ code: error instanceof AssistantMaterialError ? error.code : 'MATERIAL_SELECTION_FAILED', message: error instanceof AssistantMaterialError ? error.message : '材料引用未能确认加入，原件与对话保留，请重新打开材料选择重试。' });
+    }
+    return;
+  }
+  if (target.pathname === '/api/qingsong/material-reference-labels' && req.method === 'GET') {
+    try {
+      const context = getWorkspaceContext();
+      const sessionId = target.searchParams.get('sessionId');
+      if (!materialSessionId(sessionId)) throw new AssistantMaterialError('INVALID_SESSION');
+      const instance = await ensureInstance(context, () => checkIdentity(req.headers, context), createHash('sha256').update(req.headers.cookie ?? '').digest('hex'));
+      if (!await nativeWorkspaceCall(instance.runtime, instance.cookie, 'session/projections', { sessionId })) throw new AssistantMaterialError('INVALID_SESSION');
+      res.json({ references: await materialReferenceLabels(context, sessionId, target.searchParams.getAll('id')) });
+    } catch {
+      res.status(400).json({ references: [], message: '资料引用状态暂时无法读取；原资料和会话保留。' });
     }
     return;
   }

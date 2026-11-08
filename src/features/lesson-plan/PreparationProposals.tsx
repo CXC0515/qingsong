@@ -33,7 +33,10 @@ export default function PreparationProposals({
       proposal.documentId === document.id && proposal.status === "pending",
   );
   const apply = async (proposal: DocumentProposal) => {
-    if (!(await beforeMutation())) return;
+    if (!(await beforeMutation())) {
+      onError("当前教案修改尚未保存，AI 修改还没有应用。请先确认保存状态后重试。");
+      return;
+    }
     setBusy(proposal.id);
     try {
       await applyDocumentProposal(
@@ -70,6 +73,13 @@ export default function PreparationProposals({
         const comparison = showFull
           ? { before: document.content, after: proposal.content }
           : changes;
+        const disabledReason = busy
+          ? "正在处理另一条修改建议。"
+          : !changes.hasChanges
+            ? "这条建议与当前稿相同，无法应用。"
+            : proposal.baseRevision !== document.revision
+              ? "当前稿已变化，这条建议基于旧版本，需重新生成后再应用。"
+              : "";
         return (
           <article key={proposal.id} className="qs-prep-proposal">
             <p>{proposal.summary}</p>
@@ -102,6 +112,8 @@ export default function PreparationProposals({
                   proposal.baseRevision !== document.revision
                 }
                 onClick={() => void apply(proposal)}
+                aria-label={disabledReason ? `应用修改：${disabledReason}` : "应用修改"}
+                title={disabledReason || undefined}
               >
                 <Check size={16} />
                 应用修改
@@ -114,6 +126,7 @@ export default function PreparationProposals({
                 不采用
               </GlassButton>
             </div>
+            {disabledReason && <small className="qs-prep-proposal-disabled-reason" role="status">{disabledReason}</small>}
             {expanded === proposal.id && (
               <div>
                 <GlassButton onClick={() => setShowFull((value) => !value)}>

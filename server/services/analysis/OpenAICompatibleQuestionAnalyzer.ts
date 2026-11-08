@@ -39,6 +39,7 @@ interface AnalyzerDocument {
 }
 
 const invalidKnowledgeCandidateReason = '知识点返回格式异常，未自动关联';
+const maxAnalysisOutputTokens = 24_000;
 
 const comparableText = (value: string) => value
   .normalize('NFKC')
@@ -279,6 +280,7 @@ export class OpenAICompatibleQuestionAnalyzer {
           headers: { Authorization: `Bearer ${this.config.apiKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model: this.config.visionModel,
+            max_tokens: maxAnalysisOutputTokens,
             messages: [
               { role: 'system', content: '只返回符合要求的 JSON，不要输出解释性文字。' },
               { role: 'user', content: requestContent }
@@ -297,9 +299,14 @@ export class OpenAICompatibleQuestionAnalyzer {
           }
           throw failure;
         }
-        const payload = await response.json() as { choices?: { message?: { content?: string } }[] };
-        const content = payload.choices?.[0]?.message?.content;
+        const payload = await response.json() as { choices?: { message?: { content?: string }; finish_reason?: string }[]; usage?: { completion_tokens?: number } };
+        const choice = payload.choices?.[0];
+        const content = choice?.message?.content;
         if (!content) throw new Error('MODEL_EMPTY_RESPONSE');
+        if (choice?.finish_reason === 'length') {
+          this.onEvent({ event: 'first_section_analysis_truncated', attempt: attempt + 1, finishReason: choice.finish_reason, completionTokens: payload.usage?.completion_tokens ?? null, outputTokenLimit: maxAnalysisOutputTokens });
+          throw new Error('MODEL_OUTPUT_TRUNCATED');
+        }
         const { output, recoveries } = sanitizeRecoverableFirstSectionOutput(extractJson(content));
         if (recoveries.length) {
           this.onEvent({ event: 'first_section_analysis_output_recovered', recoveries });
@@ -317,7 +324,7 @@ export class OpenAICompatibleQuestionAnalyzer {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (attempt === 0 && !message.startsWith('MODEL_REQUEST_FAILED:') && message !== 'MODEL_NO_QUESTIONS') {
-          this.onEvent({ event: 'first_section_analysis_retry', reason: 'invalid_model_output', error: message.slice(0, 160) });
+          this.onEvent({ event: 'first_section_analysis_retry', reason: message === 'MODEL_OUTPUT_TRUNCATED' ? 'truncated_output' : 'invalid_model_output', error: message.slice(0, 160) });
           await new Promise(resolve => setTimeout(resolve, retryDelayMs));
           continue;
         }

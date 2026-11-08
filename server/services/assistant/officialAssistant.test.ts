@@ -387,6 +387,11 @@ test('two teachers: real official sessions, tool data, feedback persistence and 
     assert.equal((await rpc(a,'session/prompt',{request:{sessionId:poolSession,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text:'请读[[青松材料:'+referenceId+']]'}]}})).ok,true);
     for(let i=0;i<150;i++){materialPage=await page(a,poolSession);if(materialPage.records?.some(record=>record.event?.type==='turn/end'))break;await new Promise(resolve=>setTimeout(resolve,100));}
     assert.match(JSON.stringify(materialPage),/材料池引用闭环/);
+    const labels=await fetch(apiRoot+'/api/assistant/official/api/qingsong/material-reference-labels?'+new URLSearchParams({sessionId:poolSession,id:referenceId}),{headers:{Cookie:a}});
+    assert.equal(labels.status,200);
+    assert.deepEqual((await labels.json()).references,[{id:referenceId,name:'材料池样本.txt',source:'pool'}]);
+    const foreignLabels=await fetch(apiRoot+'/api/assistant/official/api/qingsong/material-reference-labels?'+new URLSearchParams({sessionId:poolSession,id:referenceId}),{headers:{Cookie:b}});
+    assert.equal(foreignLabels.status,400);
     // Native image history returns only images reachable from the authenticated session.
     const sharp=require('sharp'); const image=await sharp({create:{width:8,height:8,channels:3,background:'green'}}).png().toBuffer();
     const imageSession=(await rpc(a,'session/create',{request:{}})).value.sessionId;
