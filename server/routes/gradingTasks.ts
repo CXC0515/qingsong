@@ -165,6 +165,7 @@ const extractEvidenceCrop = async (material: StoredMaterial, pageNumber: number,
 
 const classifyQuestionAnalysisError = (message: string) => {
   if (message === 'MODEL_NO_QUESTIONS') return { statusCode: 422, code: 'QUESTIONS_NOT_EXTRACTED' };
+  if (message === 'MODEL_OUTPUT_TRUNCATED') return { statusCode: 502, code: 'MODEL_OUTPUT_TRUNCATED' };
   const status = Number(message.match(/^MODEL_REQUEST_FAILED:(\d{3})$/)?.[1]);
   if (status === 401 || status === 403) return { statusCode: 503, code: 'MODEL_AUTH_FAILED' };
   if (status === 429) return { statusCode: 429, code: 'MODEL_RATE_LIMITED' };

@@ -84,6 +84,15 @@ export async function selectPoolMaterials(context: WorkspaceContext, sessionId: 
   });
 }
 
+export async function materialReferenceLabels(context: WorkspaceContext, sessionId: string, ids: unknown) {
+  if (!Array.isArray(ids) || ids.length > 100 || !ids.every(uuid)) throw new AssistantMaterialError('INVALID_MATERIAL_REFERENCE');
+  const state = await load(officialMaterialHome(context), sessionId);
+  const requested = new Set(ids);
+  return state.references
+    .filter(reference => reference.active && requested.has(reference.id))
+    .map(({ id, name, source }) => ({ id, name, source }));
+}
+
 /** Called only by the trusted native pre-step hook using actual user-message blocks. */
 export async function registerMessageMaterials(context: WorkspaceContext, sessionId: string, attachments: unknown, poolIds: unknown) {
   if (!Array.isArray(attachments) || attachments.length > 100 || !Array.isArray(poolIds) || poolIds.length > 500 || !poolIds.every(uuid)) throw new AssistantMaterialError('INVALID_MATERIAL_CONTEXT');

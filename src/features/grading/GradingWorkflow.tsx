@@ -546,6 +546,7 @@ const analysisErrorMessage = (code: string) => {
     MODEL_SERVICE_UNAVAILABLE: { title: 'AI 服务暂时繁忙', detail: '题目和答案材料已保存，本次没有生成拆题结果，请稍后重新拆题。' },
     MODEL_REQUEST_REJECTED: { title: 'AI 服务未接受本次请求', detail: '题目和答案材料已保存，请稍后重试；若持续失败请联系管理员。' },
     MODEL_OUTPUT_INVALID: { title: 'AI 返回的拆题结构不完整', detail: '题目和答案材料已保存，可以重新拆题。' },
+    MODEL_OUTPUT_TRUNCATED: { title: '题目较多，AI 结果未完整返回', detail: '题目和答案材料已保存，未采用不完整结果。请缩小材料范围或按页拆分后重试；已有批改结果保留。' },
     QUESTIONS_NOT_EXTRACTED: { title: 'AI 没有识别出题目', detail: '题目和答案材料已保存。系统已自动重试一次仍未得到题目，请检查题目原图或 OCR 内容后再重试。' },
     ASSIGNMENT_MATERIAL_REQUIRED: { title: '缺少已解析的题目材料', detail: '请先选择题目文件并完成解析。' },
     REFERENCE_ANSWER_REQUIRED: { title: '缺少已解析的参考答案', detail: '请先选择答案文件并完成解析。' },
