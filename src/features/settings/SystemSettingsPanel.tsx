@@ -1,11 +1,12 @@
 ﻿import { GlassButton, GlassSegments  } from '../../components/glass/Glass';
+import ResponsiveChoiceDialog from '../../components/ResponsiveChoiceDialog';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import React, { useEffect, useState } from 'react';
-import { BookOpen, Database, Palette, Pencil, Plus, Save, Settings2, Sliders, Trash2, UserRound, LayoutDashboard } from 'lucide-react';
+import { ChevronDown, BookOpen, Database, Palette, Pencil, Plus, Save, Settings2, Sliders, Trash2, UserRound, LayoutDashboard } from 'lucide-react';
 import { CommitteeRole, ScheduleItem, SchedulePeriod, SchoolClass, TeacherProfile } from '../../domain/types';
 import ScheduleTimeInput from '../../components/ScheduleTimeInput';
 import { isScheduleTime } from '../../domain/scheduleTime';
@@ -114,6 +115,7 @@ export default function SystemSettingsPanel({
   const [shortcutsDirty,setShortcutsDirty]=useState(false);
   const [shortcutsError,setShortcutsError]=useState('');
   const [shortcutsSaving,setShortcutsSaving]=useState(false);
+  const [shortcutPicker,setShortcutPicker]=useState<number|null>(null);
   useEffect(()=>{const controller=new AbortController();setShortcuts(shortcutDefaults);setShortcutVersion(0);setShortcutsDirty(false);setShortcutsError('');void apiFetch('/api/account/workbench-shortcuts',{signal:controller.signal}).then(async response=>{if(!response.ok)throw Error('工作台入口未能读取。');return parseShortcuts(await response.json());}).then(value=>{if(controller.signal.aborted)return;setShortcuts(value.destinations);setShortcutVersion(value.version);setShortcutsDirty(false);}).catch(()=>{if(!controller.signal.aborted)setShortcutsError('工作台入口未能读取，当前默认入口仍可用。');});return()=>controller.abort();},[user.id]);
   const lastPeriod = localSchedulePeriods.at(-1);
   const lastPeriodInUse = lastPeriod ? schedule.some(item => item.period === lastPeriod.period) : false;
@@ -370,13 +372,14 @@ export default function SystemSettingsPanel({
         {activeTab === 'workbench' && <div className="space-y-4">
           <div><h3 className="text-base font-semibold">常用工作</h3><p className="mt-1 text-sm text-slate-500">从侧栏功能中选择；选入已有格位会与原位置互换。</p></div>
           <div className="grid grid-cols-2 gap-3" aria-label="工作台快捷入口位置">
-            {shortcuts.map((destination,index)=><label key={index} className="glass-panel flex min-w-0 flex-col gap-2 rounded-xl p-3">
+            {shortcuts.map((destination,index)=><div key={index} className="glass-panel flex min-w-0 flex-col gap-2 rounded-xl p-3">
               <span className="text-xs text-slate-500">{['左上','右上','左下','右下'][index]}</span>
-              <select aria-label={['左上','右上','左下','右下'][index]+'位置功能'} className="min-h-11 min-w-0 rounded-lg border border-slate-300 bg-white/60 px-2 text-base dark:border-zinc-700 dark:bg-zinc-900" value={destination} onChange={event=>chooseShortcut(index,event.target.value)}>
-                {shortcutDestinations.map(([id,label])=><option key={id} value={id}>{label}</option>)}
-              </select>
-            </label>)}
+              <button type="button" aria-label={['左上','右上','左下','右下'][index]+'位置功能'} aria-haspopup="dialog" disabled={shortcutsSaving} onClick={()=>setShortcutPicker(index)} className="flex min-h-12 w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white/60 px-3 py-2 text-left text-base dark:border-zinc-700 dark:bg-zinc-900">
+                <span className="min-w-0 break-words">{shortcutDestinations.find(([id])=>id===destination)?.[1]}</span><ChevronDown className="h-4 w-4 shrink-0"/>
+              </button>
+            </div>)}
           </div>
+          {shortcutPicker!==null&&<ResponsiveChoiceDialog title={'选择'+['左上','右上','左下','右下'][shortcutPicker]+'位置功能'} value={shortcuts[shortcutPicker]} options={shortcutDestinations.map(([value,label])=>({value,label}))} onChange={value=>chooseShortcut(shortcutPicker,value)} onClose={()=>setShortcutPicker(null)}/>}
           {shortcutsError&&<p role="alert" className="text-sm text-red-700">{shortcutsError}</p>}
           <div className="flex flex-wrap justify-end gap-2">
             <GlassButton disabled={shortcutsSaving} onClick={()=>{setShortcuts(shortcutDefaults);setShortcutsDirty(true);setShortcutsError('');}}>恢复默认</GlassButton>
