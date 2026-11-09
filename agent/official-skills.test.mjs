@@ -22,7 +22,7 @@ test('published Skills have fixed provider entries, dependency-checked, versione
 test('real DSH schema compilation registers the unified tools without enabling arbitrary execution',()=>{
  const names=[],contexts=[],sections=[];let guard;
  applyTeaching({effect:f=>f(),systemPrompt:{context:value=>contexts.push(value),section:value=>sections.push(value)},on:()=>{},tools:{guard:g=>{guard=g;},register:t=>{names.push(t.name);}}});
- assert.deepEqual(names,['qingsong_discover','qingsong_search','qingsong_read','qingsong_material','qingsong_preparation','qingsong_memory']);
+ assert.deepEqual(names,['qingsong_discover','qingsong_search','qingsong_read','qingsong_material','qingsong_preparation','qingsong_schedule','qingsong_memory']);
  assert.equal(sections.length,0,'a static teaching rule must not conflict with the admin-managed prompt');
  const prompt=contexts.find(value=>value.name==='管理员配置的教学提示词');assert.equal(typeof prompt.text,'function');assert.equal(prompt.text({agent:{id:'outside-turn'}}),'');
  assert.equal(guard({name:'qingsong_read'}),undefined);
