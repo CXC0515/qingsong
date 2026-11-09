@@ -11,14 +11,14 @@ import AssistantPanel, { type AssistantEntry } from "./AssistantPanel";
 
 const MIN_WIDTH = 320;
 const DEFAULT_WIDTH = 400;
-const storedPreference = (key: string) => {
+const storedPreference = (key: string, minimum: number) => {
   try {
     const value = Number(localStorage.getItem(key));
-    if (value >= MIN_WIDTH && value <= 600) return { width: value, resized: true };
+    if (value >= MIN_WIDTH && value <= 600) return { width: Math.max(minimum, value), resized: true };
   } catch {
     // Storage is optional; retain the surface's default layout.
   }
-  return { width: DEFAULT_WIDTH, resized: false };
+  return { width: Math.max(minimum, DEFAULT_WIDTH), resized: false };
 };
 /** One persistent iframe across teacher pages. Hiding the dock does not discard its draft. */
 export default function AssistantDock({
@@ -37,14 +37,15 @@ export default function AssistantDock({
   onClose: () => void;
 }) {
   const dock = useRef<HTMLElement>(null);
+  const minimumWidth = surface === "workbench" ? 480 : MIN_WIDTH;
   const storageKey = `qingsong:assistant-width:${identityKey}:${surface}`;
   const [preference, setPreference] = useState(() => ({
     key: storageKey,
-    ...storedPreference(storageKey),
+    ...storedPreference(storageKey, minimumWidth),
   }));
   // Derive the new surface's preference during render, without resizing/remounting the iframe.
   if (preference.key !== storageKey) {
-    setPreference({ key: storageKey, ...storedPreference(storageKey) });
+    setPreference({ key: storageKey, ...storedPreference(storageKey, minimumWidth) });
   }
   const { width, resized } = preference;
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -72,7 +73,7 @@ export default function AssistantDock({
     return () => window.removeEventListener("keydown", escape);
   }, [open, pinned, onClose]);
   const drag = useRef<{ x: number; width: number } | null>(null);
-  const clamp = (value: number) => Math.max(MIN_WIDTH, Math.min(600, value));
+  const clamp = (value: number) => Math.max(minimumWidth, Math.min(600, value));
   const saveWidth = (value: number) => {
     const next = clamp(value);
     setPreference({ key: storageKey, width: next, resized: true });
@@ -96,7 +97,7 @@ export default function AssistantDock({
         : event.key === "ArrowRight"
           ? (dock.current?.getBoundingClientRect().width ?? width) - 24
           : event.key === "Home"
-            ? MIN_WIDTH
+            ? minimumWidth
             : event.key === "End"
               ? 600
               : undefined;
@@ -125,7 +126,7 @@ export default function AssistantDock({
         role="separator"
         aria-label="调整助手宽度"
         aria-orientation="vertical"
-        aria-valuemin={MIN_WIDTH}
+        aria-valuemin={minimumWidth}
         aria-valuemax={600}
         aria-valuenow={width}
         onPointerDown={(event) => {
