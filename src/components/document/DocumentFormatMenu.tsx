@@ -32,6 +32,7 @@ export default function DocumentFormatMenu({
   const active = useEditorState({
     editor,
     selector: ({ editor }) => ({
+      heading:editor.getAttributes("heading").level??0,
       italic: editor.isActive("italic"),
       underline: editor.isActive("underline"),
       strike: editor.isActive("strike"),
@@ -109,6 +110,7 @@ export default function DocumentFormatMenu({
           <Unlink size={18} />
         </EditorButton>
       </div>
+      <label>段落格式<select aria-label="段落格式" value={active.heading} onChange={event=>{const level=Number(event.target.value);onAction(()=>{if(level)editor.chain().focus().setHeading({level:level as 1|2|3}).run();else editor.chain().focus().setParagraph().run();});}}><option value={0}>正文</option><option value={1}>一级标题</option><option value={2}>二级标题</option><option value={3}>三级标题</option></select></label>
       <div className="qs-editor-format-fields">
         <label>
           字体

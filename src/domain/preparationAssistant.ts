@@ -7,6 +7,7 @@ export interface PreparationAssistantContext {
   revision?: number;
   selection?: DocumentSelection;
   instruction?: string;
+  resumeOnly?: boolean;
 }
 export interface PreparationAssistantTarget {
   workspaceId: string;

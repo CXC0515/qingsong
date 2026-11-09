@@ -3,6 +3,8 @@ import type { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
 import * as service from "../services/preparation/preparationService";
 import type { SaveDocumentInput } from "../services/preparation/preparationService";
+import { z } from "zod";
+import { subscribePreparationEditing, confirmDocumentEditing } from "../services/preparation/preparationEditing";
 const router = Router();
 const id = (request: Request, key: string) => String(request.params[key]);
 const handle =
@@ -13,6 +15,26 @@ const handle =
       .then((result) => response.json(result))
       .catch(next);
   };
+router.get("/preparations/:id/editing-events", (request,response,next)=>{
+  try {
+    const preparationId=id(request,"id"),clientId=z.uuid().parse(request.query.clientId);
+    service.getPreparation(preparationId);
+    response.setHeader("Content-Type","text/event-stream");
+    response.setHeader("Cache-Control","no-store");
+    response.setHeader("X-Accel-Buffering","no");
+    response.flushHeaders();
+    const unsubscribe=subscribePreparationEditing(preparationId,clientId,event=>response.write("data: "+JSON.stringify(event)+"\n\n"));
+    response.write('data: {"type":"changed"}\n\n');
+    const timer=setInterval(()=>response.write(": keepalive\n\n"),15000);
+    request.on("close",()=>{clearInterval(timer);unsubscribe();});
+  } catch(error){next(error);}
+});
+router.post("/preparations/:id/editing-ready",handle(request=>{
+  const input=z.object({documentId:z.uuid(),requestId:z.uuid(),clientId:z.uuid(),ok:z.boolean()}).strict().parse(request.body);
+  const preparationId=id(request,"id");service.getDocument(preparationId,input.documentId);
+  confirmDocumentEditing(preparationId,input.documentId,input.requestId,input.clientId,input.ok);
+  return {ok:true};
+}));
 router.use("/preparations", (_request, response, next) => {
   response.setHeader("Cache-Control", "no-store");
   next();

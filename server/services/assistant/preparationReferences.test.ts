@@ -13,6 +13,15 @@ const root=await mkdtemp(path.join(tmpdir(),'qs-lesson-references-'));
 const context:WorkspaceContext={userId:'reference-teacher',workspaceId:'reference-workspace',role:'teacher',root,dataDirectory:path.join(root,'data'),uploadDirectory:path.join(root,'uploads')};
 after(async()=>{closePreparationDatabase();await rm(root,{recursive:true,force:true});});
 const make=()=>prep.createPreparation({title:'引用教案',operationId:randomUUID()});
+test('explicit historical selections never silently broaden to the entire document',()=>runWithWorkspace(context,()=>{
+ const lesson=make(),preparationId=lesson.preparation.id;
+ const selected=createPreparationReference({preparationId,selection:{blockIds:['one'],text:'选中的一段'}});
+ const another=createPreparationReference({preparationId,selection:{blockIds:['two'],text:'另一段'}});
+ registerPreparationReferences('selection-scope',[selected.id,another.id],[]);
+ assert.deepEqual(resolveTaskReference('selection-scope',selected.id).selection,selected.selection);
+ assert.throws(()=>resolveTaskReference('selection-scope'),/多个不同选区/);
+ assert.throws(()=>resolveTaskReference('selection-scope',randomUUID()),/明确本次/);
+}));
 test('picker finds owned versions; updating a source preserves history and refuses stale selections',()=>runWithWorkspace(context,()=>{
  const lesson=make(),id=lesson.preparation.id,doc=lesson.documents[0];
  assert.ok(listPreparationReferenceCandidates('引用教案').some(item=>item.preparationId===id));
@@ -46,11 +55,13 @@ test('opening a preparation creates a reference but no native session or hard bi
  assert.equal(prep.listPreparationSessions(lesson.preparation.id).length,0);
  assert.deepEqual(sessionPreparationReferences('native-chat'),[]);
 }));
-test('one native chat can reference multiple lessons; ambiguous writes stop; targets stay with tasks',()=>runWithWorkspace(context,async()=>{
+test('one native chat groups historical revisions of one lesson while keeping multiple lessons ambiguous',()=>runWithWorkspace(context,async()=>{
  const a=make(),b=make(),session='multi-lesson-chat';
  const ra=createPreparationReference({preparationId:a.preparation.id}),rb=createPreparationReference({preparationId:b.preparation.id});
- registerPreparationReferences(session,[ra.id,rb.id],[ra.id,rb.id]);
- assert.equal(sessionPreparationReferences(session).length,2);
+ prep.saveDocument(a.preparation.id,a.documents[0].id,{expectedRevision:1,operationId:randomUUID(),content:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'revision 2'}]}]}});
+ const latest=createPreparationReference({preparationId:a.preparation.id});
+ registerPreparationReferences(session,[ra.id,rb.id,latest.id],[latest.id,rb.id]);
+ assert.equal(sessionPreparationReferences(session).length,3);
  assert.throws(()=>resolveTaskReference(session),/明确/);
  await assert.rejects(preparationAssistantTool(session,{action:'begin'},'修改'),/明确/);
  const ta:any=await preparationAssistantTool(session,{action:'begin',referenceId:ra.id},'修改A',undefined,'lease-a');
@@ -68,8 +79,11 @@ test('references require actual send, retain version, and never grant another ac
  assert.throws(()=>resolveTaskReference('unsent-chat',reference.id),/明确/);
  registerPreparationReferences('sent-chat',[reference.id],[reference.id]);
  prep.saveDocument(a.preparation.id,a.documents[0].id,{expectedRevision:1,operationId:randomUUID(),content:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'新版'}]}]}});
- assert.equal(resolveTaskReference('sent-chat',reference.id).revision,1);
- await assert.rejects(preparationAssistantTool('sent-chat',{action:'begin',referenceId:reference.id},'修改旧版'),/正文已变化/);
+ assert.equal(resolveTaskReference('sent-chat',reference.id).revision,2);
+ const current=resolveTaskReference('sent-chat',reference.id);
+ assert.equal(current.revision,2);
+ const task:any=await preparationAssistantTool('sent-chat',{action:'begin',referenceId:reference.id},'修改最新版',undefined,'current-lease');
+ assert.equal((prep.getTask(a.preparation.id,task.id) as any).result.baseRevision,2);
  runWithWorkspace({...context,userId:'other-teacher'},()=>{assert.deepEqual(sessionPreparationReferences('sent-chat'),[]);assert.throws(()=>registerPreparationReferences('sent-chat',[reference.id],[reference.id]));});
 }));
 

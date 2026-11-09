@@ -37,6 +37,7 @@ type Menu = "insert" | "format" | "table" | null;
 export default function DocumentToolbar({
   editor,
   menuRequest,
+  formatRequest=0,
   insertAnchor,
   onToolbarInsert,
   imageBusy,
@@ -47,6 +48,7 @@ export default function DocumentToolbar({
 }: {
   editor: Editor;
   menuRequest: number;
+  formatRequest?:number;
   insertAnchor?: () => DOMRect | null;
   onToolbarInsert?: () => void;
   imageBusy: boolean;
@@ -85,6 +87,7 @@ export default function DocumentToolbar({
       setMenu("insert");
     }
   }, [menuRequest]);
+  useEffect(()=>{if(formatRequest)setMenu(editor.isActive("table")?"table":"format");},[formatRequest]);
   useEffect(() => {
     const close = (event: PointerEvent) => {
       if (
@@ -400,7 +403,7 @@ export default function DocumentToolbar({
           "插入内容",
         )}
       {menu === "format" && (
-        <DocumentFormatMenu editor={editor} onAction={run} onError={onError} />
+        contextMenu(<DocumentFormatMenu editor={editor} onAction={run} onError={onError} />,"内容格式")
       )}
       {menu === "table" &&
         contextMenu(

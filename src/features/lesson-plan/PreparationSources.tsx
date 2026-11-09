@@ -31,6 +31,7 @@ interface Props {
   onRead: (source: PreparationSource) => void;
   onImport: (source: PreparationSource) => Promise<void>;
   onError: (message: string) => void;
+  disabled?: boolean;
 }
 export default function PreparationSources({
   preparationId,
@@ -39,6 +40,7 @@ export default function PreparationSources({
   onRead,
   onImport,
   onError,
+  disabled=false,
 }: Props) {
   const [adding, setAdding] = useState(false),
     [busyId, setBusyId] = useState("");
@@ -94,7 +96,7 @@ export default function PreparationSources({
               {source.mimeType.includes("wordprocessingml") && (
                 <button
                   type="button"
-                  disabled={Boolean(busyId)}
+                  disabled={Boolean(busyId) || disabled}
                   onClick={async () => {
                     setBusyId(source.id);
                     try {

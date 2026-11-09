@@ -12,13 +12,15 @@ import { officialMaterialHome } from "./officialAttachments";
 import { readAssistantMaterial } from "./materialReader";
 import type { PreparationAssistantTarget } from "../../../src/domain/preparationAssistant";
 import type { DocumentNode, RichDocument } from "../../../src/domain/document";
-import { createPreparationReference, resolveTaskReference, sessionPreparationReferences } from "./preparationReferences";
+import { createPreparationReference, currentPreparationReferences, resolveTaskReference, sessionPreparationReferences } from "./preparationReferences";
+import { prepareDocumentEditing, releaseDocumentEditing } from "../preparation/preparationEditing";
 import { assertCandidateDelivery } from "../preparation/candidateDelivery";
 
 export const preparationTargetSchema = z
   .object({
     mode: z.enum(["default", "preparation"]),
     sessionId: z.string().regex(/^[a-zA-Z0-9_-]{1,160}$/).optional(),
+    resumeOnly: z.boolean().optional(),
     preparationId: z.uuid().optional(),
     documentId: z.uuid().optional(),
     revision: z.number().int().positive().optional(),
@@ -106,6 +108,7 @@ export async function resolvePreparationTarget(
       preparations.setNativeWorkspace(kind, workspaceId!);
     }
     if (!detail || !document) return { workspaceId: workspaceId!, sessionId:args.sessionId };
+    if(args.resumeOnly)return {workspaceId:workspaceId!,sessionId:args.sessionId,preparationId:detail.preparation.id,documentId:document.id};
     const reference = createPreparationReference({...args,preparationId:detail.preparation.id,documentId:document.id});
     return {workspaceId:workspaceId!,sessionId:args.sessionId,reference,instruction:args.instruction};
   });
@@ -117,7 +120,7 @@ export function preparationSavedOutcome(sessionId: string) {
   const latest=allTasks[0];
   let currentReference;
   try { currentReference = resolveTaskReference(sessionId); } catch (error) {
-    if (!(error instanceof preparations.PreparationError) || error.code !== 'PREPARATION_TARGET_REQUIRED') throw error;
+    if (!(error instanceof preparations.PreparationError) || !['PREPARATION_TARGET_REQUIRED','PREPARATION_SELECTION_REQUIRED'].includes(error.code)) throw error;
   }
   const binding=latest?{preparationId:latest.preparationId,documentId:latest.documentId!}:currentReference;
   if (!binding) return {bound:false as const};
@@ -126,23 +129,31 @@ export function preparationSavedOutcome(sessionId: string) {
   const proposalIds = new Set(tasks.map(task => (task.result as TaskSnapshot | undefined)?.proposalId).filter(Boolean));
   const proposals = preparations.listProposals(binding.preparationId).filter(proposal => proposalIds.has(proposal.id));
   const title=preparations.getPreparation(binding.preparationId).preparation.title;
-  const selected=currentReference?.documentId===document.id?currentReference:undefined;
+  const selected=currentPreparationReferences(sessionId).filter(reference=>reference.preparationId===binding.preparationId&&reference.documentId===document.id&&reference.selection).sort((a,b)=>b.revision-a.revision)[0];
   return {lastInstruction:[...tasks].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))[0]?.instruction,selection:selected?.selection?{...selected.selection,revision:selected.revision,stale:selected.revision!==document.revision}:undefined,bound:true as const, preparationId:binding.preparationId, documentId:document.id, title:title===document.title?title:title+' · '+document.title, revision:document.revision, pending:proposals.filter(p => p.status === 'pending').length, applied:proposals.filter(p => p.status === 'applied').length, tasks:tasks.map(task => ({status:task.status,updatedAt:task.updatedAt})).sort((a,b) => b.updatedAt.localeCompare(a.updatedAt))};
 }
 export function preparationRuntimeContext(sessionId: string) {
   const references = sessionPreparationReferences(sessionId);
   if (!references.length) return null;
-  const entries = references.map(reference => {
+  const allTasks=preparationRepository.list<import("../../../src/domain/preparation").PreparationTask>("preparation_tasks").filter(task=>task.sessionId===sessionId).sort((a,b)=>a.updatedAt.localeCompare(b.updatedAt));
+  const byDocument=new Map<string,typeof references>();
+  for(const reference of references){const key=reference.preparationId+':'+reference.documentId;byDocument.set(key,[...(byDocument.get(key)??[]),reference]);}
+  const entries = [...byDocument.values()].map(group => {
+    const reference=[...group].sort((a,b)=>b.revision-a.revision)[0];
     const detail = preparations.getPreparation(reference.preparationId);
     const latest = preparations.getDocument(reference.preparationId, reference.documentId);
+    const selections=currentPreparationReferences(sessionId).filter(item=>item.preparationId===reference.preparationId&&item.documentId===reference.documentId&&item.selection);
+    const activeTask=[...allTasks].reverse().find(task=>task.preparationId===reference.preparationId&&task.documentId===reference.documentId&&["queued","running"].includes(task.status));
     return {
       ...reference,
+      ...(selections.length===1?{selection:selections[0].selection}:{selection:undefined}),
       stale: latest.revision !== reference.revision,
       latestRevision: latest.revision,
       sourceUrl: '/?page=lesson-plan&preparationId='+reference.preparationId+'&documentId='+reference.documentId,
-      document: {id: reference.documentId, title: reference.title, revision: reference.revision, ref: {type: "lessonPlan", id: reference.documentId, parentId: reference.preparationId}, readFilters: {revision: reference.revision}},
+      document: {id: reference.documentId, title: latest.title, revision: latest.revision, ref: {type: "lessonPlan", id: reference.documentId, parentId: reference.preparationId}, readFilters: {revision: latest.revision}},
       preparation: detail.preparation,
       sources: detail.sources.map(source => ({...source, ref: {type: "preparationSource", id: source.id, parentId: reference.preparationId}})),
+      ...(activeTask?{activeTask:{id:activeTask.id,status:activeTask.status,stage:activeTask.stage,startedAt:activeTask.updatedAt}}:{}),
     };
   });
   return {
@@ -150,7 +161,7 @@ export function preparationRuntimeContext(sessionId: string) {
     // A single source retains the established Skill context shape, without a session binding.
     ...(entries.length === 1 ? entries[0] : {}),
     documentFormat: documentCapabilities,
-    instructions: "这些是教师实际发送的教案版本引用，不是会话归属。先用qingsong_read按document.ref及readFilters读取引用版本。允许讨论多份教案；修改时begin指定referenceId，后续沿用taskId，不猜修改目标。stale为true表示正文已有新版：请教师从教案页重新添加引用后修改。候选由教师确认应用，不能声称已写入正式稿。",
+    instructions: "这些是教师实际发送的教案对象引用，不是会话归属。每轮需要正文时，必须按document.ref及readFilters读取当前最新已保存稿；本轮读取版本以工具回执为准。允许讨论多份教案；修改时begin指定referenceId，后续沿用taskId，不猜修改目标。同一教案的历史修订引用属于同一目标；选区仍须核对稳定块和原文，无法准确定位时请教师重选。候选由教师确认应用，不能声称已写入正式稿。",
   };
 }
 function selectedBlocks(
@@ -160,7 +171,8 @@ function selectedBlocks(
   if (!selection?.blockIds.length) return undefined;
   const selected = new Set(selection.blockIds),
     ancestors = new Set<string>(),
-    found = new Set<string>();
+    found = new Set<string>(),
+    selectedText: string[] = [];
   function visit(node: DocumentNode, selectedAncestors: string[]) {
     const id = typeof node.attrs?.id === "string" ? node.attrs.id : undefined;
     const next =
@@ -169,6 +181,8 @@ function selectedBlocks(
       found.add(id);
       selectedAncestors.forEach((parent) => ancestors.add(parent));
     }
+    if (["paragraph", "heading", "codeBlock"].includes(node.type) && (selected.has(id ?? "") || selectedAncestors.some(parent => selected.has(parent))))
+      selectedText.push(nodeText(node));
     node.content?.forEach((child) => visit(child, next));
   }
   document.content.forEach((node) => visit(node, []));
@@ -178,10 +192,23 @@ function selectedBlocks(
       "选中的内容已变化，未开始改写。请重新选择需要修改的段落。",
       409,
     );
+  if (selection.text && !normalizeSelectionText(selectedText.join("\n")).includes(normalizeSelectionText(selection.text)))
+    throw new preparations.PreparationError(
+      "SELECTION_CHANGED",
+      "选中的原文已经变化，未开始改写。请重新选择需要修改的段落。",
+      409,
+    );
   return {
     blockIds: [...selected].filter((id) => !ancestors.has(id)),
     text: selection.text,
   };
+}
+function nodeText(node: DocumentNode): string {
+  if (node.type === "text") return typeof node.text === "string" ? node.text : "";
+  return node.content?.map(nodeText).join(node.type === "paragraph" ? "" : "\n") ?? "";
+}
+function normalizeSelectionText(value: string): string {
+  return value.replace(/\s+/g, "");
 }
 /** Remove editable subtrees and compare the remaining document, including position and formatting. */
 function assertSelectionScope(
@@ -362,35 +389,30 @@ export async function preparationAssistantTool(
     // A lost begin response must not create a second task in the same execution lease.
     const prior = executionLease ? ownedTasks().at(-1) : undefined;
     if (prior) return verifiedTask(prepId, prior.id, "begin");
-    const selected = reference;
-    if (
-      selected && selected.revision !== document.revision
-    )
-      throw new preparations.PreparationError(
-        "SELECTION_CHANGED",
-        "正文已变化，未开始改写。请重新选择段落后重试。",
-        409,
-      );
-    const snapshot: TaskSnapshot = {
-      executionLease,
-      baseRevision: document.revision,
-      selection: selectedBlocks(document.content, selected?.selection),
-      inputFingerprint: preparations.preparationInputFingerprint(prepId),
-    };
-    const task = preparations.createTask(prepId, {
-      documentId: document.id,
-      sessionId,
-      instruction: sourceText || "备课协作",
-      stage: args.stage,
-      operationId: randomUUID(),
-      result: snapshot,
-    });
-    preparations.updateTask(prepId, task.id, { status: "running" });
-    return verifiedTask(prepId, task.id, "begin", {
-      status: "running",
-      stage: args.stage,
-    });
+    try {
+      await prepareDocumentEditing(prepId,document.id,signal);
+      signal?.throwIfAborted();
+      const current=preparations.getDocument(prepId,document.id);
+      preparations.assertDocumentEditable(prepId,document.id);
+      const snapshot: TaskSnapshot = {
+        executionLease,
+        baseRevision: current.revision,
+        selection: selectedBlocks(current.content, reference?.selection),
+        inputFingerprint: preparations.preparationInputFingerprint(prepId),
+      };
+      const task = preparations.createTask(prepId, {
+        documentId: current.id, sessionId,
+        instruction: sourceText || "备课协作", stage: args.stage,
+        operationId: randomUUID(), result: snapshot,
+      });
+      preparations.updateTask(prepId, task.id, { status: "running" });
+      return verifiedTask(prepId, task.id, "begin", {status:"running",stage:args.stage});
+    } catch(error) {
+      if(error instanceof preparations.PreparationError)throw error;
+      throw new preparations.PreparationError("EDITOR_NOT_READY",error instanceof Error?error.message:"页面草稿保存状态未确认，未开始修改。",409);
+    } finally {releaseDocumentEditing(prepId,document.id);}
   }
+
   const task = preparations.getTask(prepId, args.taskId);
   if (task.sessionId !== sessionId || task.documentId !== document.id)
     throw new preparations.PreparationError(

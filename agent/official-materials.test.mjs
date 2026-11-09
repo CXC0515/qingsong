@@ -5,6 +5,13 @@ import {validOfficialContent} from './official-policy.mjs';
 const id='12345678-1234-1234-1234-123456789abc';
 const ref={attachmentId:'sha256:'+ 'a'.repeat(64),name:'课堂.txt',bytes:12};
 const ctx={attachments:{fileHostPath:r=>'/private/'+r.attachmentId,imageHostPath:r=>'/images/'+r.attachmentId}};
+test('unknown image capability is distinct from a declared text-only model',async()=>{
+ let called=false;
+ const fake={...ctx,llm:{resolveModelInfo:async()=>({})}};
+ const tool=materialTool(fake,async()=>{called=true;return{};},new Map([['unknown',{queries:0}]]));
+ await assert.rejects(tool.execute({action:'render'},{agent:{id:'unknown',options:{provider:'fixture',model:'unknown'},session:{requestHeader:()=>undefined}},signal:new AbortController().signal}),/尚未登记/);
+ assert.equal(called,false);
+});
 
 test('only real human source may register attachments or material-pool references',()=>{
  const result=materialContext(ctx,[

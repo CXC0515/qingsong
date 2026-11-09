@@ -42,7 +42,9 @@ export async function requireImageModel(ctx, exec) {
   const model = routed?.model ?? exec.agent?.options.model;
   if (!provider || !model) throw Error('当前模型能力未能确认，材料仍保留，请重新选择支持图片的模型。');
   const active = await ctx.llm.resolveModelInfo(provider, model, exec.signal);
-  if (!active.inputModalities?.includes('image')) throw Error('当前模型不支持图片，材料仍保留。请切换支持图片的模型后查看页面。');
+  if (!Array.isArray(active?.inputModalities) || !active.inputModalities.length)
+    throw Error('当前模型的图片能力尚未登记，暂未发送图片，材料仍保留。请管理员核对模型能力，或选择已确认支持图片的模型。');
+  if (!active.inputModalities.includes('image')) throw Error('当前模型已登记为不支持图片，暂未发送图片，材料仍保留。请切换支持图片的模型后查看页面。');
 }
 
 /** Existing turn state and budget stay owned by official-teaching. */
