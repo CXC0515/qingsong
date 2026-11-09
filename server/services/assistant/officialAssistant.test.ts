@@ -50,7 +50,8 @@ const model = createServer(async (req, res) => {
     res.write('data: '+JSON.stringify(frame(delta))+'\n\n');res.end('data: '+JSON.stringify(frame({},args?'tool_calls':'stop'))+'\n\ndata: [DONE]\n\n');return;
   }
   if(queryScenario==='reminder-write'||(process.env.QS_NATIVE_PREVIEW&&messageText.includes('日程写入验收'))){
-    const previous=input.messages.filter((m:any)=>m.role==='tool').at(-1);
+    const latestUser=input.messages.findLastIndex((m:any)=>m.role==='user'&&!String(m.content).includes('Current runtime context.'));
+    const previous=input.messages.slice(latestUser+1).filter((m:any)=>m.role==='tool').at(-1);
     const text=JSON.stringify(input.messages.filter((m:any)=>m.role==='user'&&!String(m.content).includes('Current runtime context.')));
     const args=text.includes('安排')?{action:'propose_create',proposalId:crypto.randomUUID(),name:'备课安排',startAt:new Date(Date.now()+8*3600000+7*86400000).toISOString().slice(0,10)+'T18:00'}:{action:'create',operationId:crypto.randomUUID(),name:'交教案',...(text.includes('三点')?{date:new Date(Date.now()+8*3600000+86400000).toISOString().slice(0,10),time:'15:00'}:{})};
     const delta=previous?{role:'assistant',content:previous.content}:{role:'assistant',tool_calls:[{index:0,id:crypto.randomUUID(),type:'function',function:{name:'qingsong_schedule',arguments:JSON.stringify(args)}}]};
