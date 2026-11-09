@@ -29,6 +29,8 @@ import { resourceRepository } from "../../repositories/resourceRepository";
 import { preparationRepository as repo } from "../../repositories/preparationRepository";
 import { RESOURCE_UPLOAD_LIMIT_BYTES } from "../../../src/domain/uploadPolicy";
 
+import { preparationEditingChanged } from "./preparationEditing";
+
 export class PreparationError extends Error {
   constructor(
     public code: string,
@@ -519,7 +521,7 @@ function documentCheckpoints(documentId: string): DocumentCheckpoint[] {
 export function checkpointDocument(preparationId: string, documentId: string, input: unknown) {
   const parsed=z.object({expectedRevision:z.number().int().positive(),operationId}).strict().parse(input);
   return once(parsed.operationId,['checkpoint',preparationId,documentId,parsed],()=>{
-    editable(preparationId);const document=getDocument(preparationId,documentId);
+    editable(preparationId);assertDocumentEditable(preparationId,documentId);const document=getDocument(preparationId,documentId);
     if(document.revision!==parsed.expectedRevision)fail('VERSION_CONFLICT','教案已有新修改，本次未记录版本。请核对当前稿后重试。',409);
     const checkpoints = documentCheckpoints(documentId);
     if (checkpoints.at(-1)?.revision === document.revision) return document;
@@ -534,6 +536,10 @@ export function visibleDocumentRevisions(preparationId:string,documentId:string)
     ...getDocument(preparationId,documentId,checkpoint.revision), actor:'teacher',
     reason:'手动保存版本', versionNumber:checkpoint.versionNumber, updatedAt:checkpoint.savedAt,
   }));
+}
+export function assertDocumentEditable(preparationId:string,documentId:string) {
+  if(listTasks(preparationId).some(task=>task.documentId===documentId&&["queued","running"].includes(task.status)))
+    fail("DOCUMENT_AI_BUSY","AI 正在修改这份教案，本次未覆盖正文。你的输入仍保留；请等待完成或停止任务后再保存。",423);
 }
 export function saveDocument(
   preparationId: string,
@@ -556,6 +562,7 @@ export function saveDocument(
     parsed.operationId,
     ["save", preparationId, documentId, parsed, actor, reason],
     () => {
+      assertDocumentEditable(preparationId,documentId);
       const preparation = editable(preparationId),
         current = getDocument(preparationId, documentId);
       if (current.revision !== parsed.expectedRevision)
@@ -593,6 +600,7 @@ export function forkDocument(
     .strict()
     .parse(input);
   return once(parsed.operationId, ["fork", preparationId, parsed], () => {
+    assertDocumentEditable(preparationId,parsed.sourceDocumentId);
     const preparation = editable(preparationId),
       source = getDocument(
         preparationId,
@@ -981,6 +989,7 @@ export function discardProposal(
       );
       if (!proposal || proposal.preparationId !== preparationId)
         fail("PROPOSAL_NOT_FOUND", "找不到这份修改建议，正文未修改。", 404);
+      assertDocumentEditable(preparationId,proposal!.documentId);
       if (proposal!.status === "applied")
         fail(
           "PROPOSAL_ALREADY_HANDLED",
@@ -1051,6 +1060,7 @@ export function createTask(
         updatedAt: date,
       };
     repo.put("preparation_tasks", task, preparationId);
+    preparationEditingChanged(preparationId);
     return task;
   });
 }
@@ -1102,6 +1112,7 @@ export function updateTask(
     if ((JSON.stringify(result.result) ?? "").length > 2_500_000)
       fail("TASK_RESULT_LIMIT", "任务结果过大，未保存；已有教案保留。");
     repo.put("preparation_tasks", result, preparationId);
+    preparationEditingChanged(preparationId);
     return result;
   });
 }

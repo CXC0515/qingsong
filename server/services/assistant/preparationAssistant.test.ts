@@ -15,6 +15,7 @@ import { readPreparation } from './capabilities/preparation';
 import type { RichDocument } from '../../../src/domain/document';
 
 import {registerPreparationReferences} from "./preparationReferences";
+import {subscribePreparationEditing,confirmDocumentEditing} from '../preparation/preparationEditing';
 async function resolvePreparationTarget(input:any,native:any){const target=await resolveNativeTarget(input,native);const sessionId=input.sessionId??"test-session-"+input.preparationId;await native("session/create",{sessionId});if(target.reference)registerPreparationReferences(sessionId,[target.reference.id],[target.reference.id]);return {...target,sessionId};}
 const root = await mkdtemp(path.join(tmpdir(), 'qs-preparation-assistant-'));
 const context: WorkspaceContext = { userId: 'teacher-helper', workspaceId: 'workspace-helper', role: 'teacher', root, dataDirectory: path.join(root, 'data'), uploadDirectory: path.join(root, 'uploads') };
@@ -37,6 +38,32 @@ function nativeFixture() {
     return {};
   }};
 }
+test('begin captures the revision after every open editor saves, then locks manual writes',()=>runWithWorkspace(context,async()=>{
+ const {id,doc}=fixture(),native=nativeFixture();
+ const target=await resolvePreparationTarget({mode:'preparation',preparationId:id,documentId:doc.id},native.call);
+ const off=subscribePreparationEditing(id,'visible-editor',event=>{
+  if(event.type!=='prepare')return;
+  prep.saveDocument(id,doc.id,{expectedRevision:doc.revision,operationId:op(),content:document('刚输入的内容')});
+  confirmDocumentEditing(id,doc.id,event.requestId!,'visible-editor',true);
+ });
+ try{
+  const task=await preparationAssistantTool(target.sessionId!,{action:'begin'},'修改',undefined,'save-handshake') as any;
+  assert.equal(task.result.baseRevision,doc.revision+1);
+  assert.throws(()=>prep.saveDocument(id,doc.id,{expectedRevision:doc.revision+1,operationId:op(),content:document('意外覆盖')}),/AI 正在修改/);
+  stopSessionTasks(target.sessionId!,'cancelled',undefined,'save-handshake');
+  assert.equal(prep.getDocument(id,doc.id).content.content[0].content?.[0].text,'刚输入的内容');
+ }finally{off();}
+}));
+test('selection remains usable after unrelated edits but refuses changed selected text',()=>runWithWorkspace(context,async()=>{
+ const {id,doc}=fixture(),native=nativeFixture();
+ const target=await resolvePreparationTarget({mode:'preparation',preparationId:id,documentId:doc.id,selection:{blockIds:['paragraph-first'],text:'原文第一段'}},native.call);
+ prep.saveDocument(id,doc.id,{expectedRevision:doc.revision,operationId:op(),content:document('原文第一段','第二段改了')});
+ const task=await preparationAssistantTool(target.sessionId!,{action:'begin'},'修改选区',undefined,'selection-latest') as any;
+ assert.deepEqual(task.result.selection.blockIds,['paragraph-first']);
+ stopSessionTasks(target.sessionId!,'cancelled',undefined,'selection-latest');
+ prep.saveDocument(id,doc.id,{expectedRevision:doc.revision+1,operationId:op(),content:document('第一段也改了')});
+ await assert.rejects(preparationAssistantTool(target.sessionId!,{action:'begin'},'修改选区',undefined,'selection-changed'),/选中的原文已经变化/);
+}));
 
 test('readback reports persisted revision, session-owned candidates and tasks without writing', async () => runWithWorkspace(context,async () => {
   const {id,doc} = fixture(), native = nativeFixture();
@@ -105,6 +132,7 @@ test('late release from an earlier turn cannot stop the next turn or modify its 
   const target = await resolvePreparationTarget({mode:'preparation',preparationId:id,documentId:doc.id},native.call);
   const firstLease = target.sessionId + ':turn-first', nextLease = target.sessionId + ':turn-next';
   const first = await preparationAssistantTool(target.sessionId!,{action:'begin'},'第一轮',undefined,firstLease) as {id:string};
+  stopSessionTasks(target.sessionId!,'interrupted',undefined,firstLease);
   const next = await preparationAssistantTool(target.sessionId!,{action:'begin'},'下一轮',undefined,nextLease) as {id:string};
   stopSessionTasks(target.sessionId!,'interrupted',undefined,firstLease);
   assert.equal(prep.getTask(id,first.id).status,'interrupted');

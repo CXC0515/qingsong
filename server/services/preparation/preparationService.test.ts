@@ -31,6 +31,20 @@ const content = (text: string) => ({
   type: "doc" as const,
   content: [{ type: "paragraph", content: [{ type: "text", text }] }],
 });
+test('AI write locks protect only their document and release on every terminal outcome',()=>runWithWorkspace(alice,()=>{
+ const detail=prep.createPreparation({title:'写入互斥',operationId:op()}),id=detail.preparation.id,doc=detail.documents[0];
+ const other=prep.forkDocument(id,{sourceDocumentId:doc.id,revision:1,title:'另一稿',operationId:op()});
+ const proposal=prep.createProposal(id,{documentId:doc.id,baseRevision:1,content:content('建议'),summary:'建议',operationId:op()});
+ for(const status of ['completed','cancelled','failed','interrupted','needs-input'] as const){
+  const task=prep.createTask(id,{documentId:doc.id,instruction:'修改',operationId:op()});
+  assert.throws(()=>prep.saveDocument(id,doc.id,{expectedRevision:1,operationId:op(),content:content('禁止')}),/AI 正在修改/);
+  assert.throws(()=>prep.restoreRevision(id,doc.id,{revision:1,expectedRevision:1,operationId:op()}),/AI 正在修改/);
+  assert.throws(()=>prep.applyProposal(id,proposal.id,{operationId:op()}),/AI 正在修改/);
+  assert.doesNotThrow(()=>prep.assertDocumentEditable(id,other.id));
+  prep.updateTask(id,task.id,{status});assert.doesNotThrow(()=>prep.assertDocumentEditable(id,doc.id));
+ }
+ assert.equal(prep.getDocument(id,doc.id).revision,1);
+}));
 after(async () => {
   closePreparationDatabase();
   closeResourceDatabase();

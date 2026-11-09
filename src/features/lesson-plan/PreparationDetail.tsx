@@ -42,6 +42,7 @@ import DocumentHistory, {
 } from "./DocumentHistory";
 import { useDocumentDraft } from "./useDocumentDraft";
 import { PreparationSettings, ForkDialog } from "./PreparationDialogs";
+import { apiFetch } from "../../services/apiClient";
 import { getKnowledgeGraph } from "../../services/resourceApi";
 import type { KnowledgeEntity } from "../../domain/types";
 import PreparationTasks from "./PreparationTasks";
@@ -97,6 +98,9 @@ export default function PreparationDetail({
   const document =
     detail.documents.find((item) => item.id === documentId) ??
     detail.documents[0];
+  const [pendingLock,setPendingLock]=useState<string|null>(null);
+  const releasedLock=useRef(false);
+  const aiLocked=pendingLock===document.id||detail.tasks.some(task=>task.documentId===document.id&&["queued","running"].includes(task.status));
   const acceptDocument = useCallback(
     (next: DocumentRecord) =>
       setDetail((current) => ({
@@ -141,7 +145,7 @@ export default function PreparationDetail({
       }
     };
     const changed = () => {
-      void refresh().catch(() => {});
+      void refresh().then(()=>{if(releasedLock.current){setPendingLock(null);releasedLock.current=false;}}).catch(() => {});
     };
     window.addEventListener("qingsong:preparation-before-leave", prevent);
     window.addEventListener("qingsong:preparation-changed", changed);
@@ -155,6 +159,31 @@ export default function PreparationDetail({
       window.removeEventListener("qingsong:preparation-changed", changed);
     };
   }, [refresh]);
+  useEffect(()=>{
+    const clientId=crypto.randomUUID();
+    const stream=new EventSource('/api/preparations/'+preparationId+'/editing-events?clientId='+clientId);
+    let active=true;
+    let recoveryTimer:ReturnType<typeof setTimeout>|undefined;
+    stream.onmessage=event=>{
+      const value=JSON.parse(event.data);
+      if(value.type==='prepare'){
+        if(value.documentId===document.id){
+          releasedLock.current=false;setPendingLock(document.id);
+          clearTimeout(recoveryTimer);
+          recoveryTimer=setTimeout(()=>{releasedLock.current=true;void refresh().then(()=>{if(active)setPendingLock(null);}).catch(()=>{});},15000);
+        }
+        void (async()=>{
+          const ok=value.documentId!==document.id||await flushRef.current();
+          if(!active)return;
+          await apiFetch('/api/preparations/'+preparationId+'/editing-ready',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({documentId:value.documentId,requestId:value.requestId,clientId,ok})});
+        })().catch(()=>setError('未能确认 AI 修改前的保存状态。输入仍保留，请核对保存后重试。'));
+      } else {
+        if(value.type==='released')releasedLock.current=true;
+        void refresh().then(()=>{if(active&&value.type==='released')setPendingLock(current=>current===value.documentId?null:current);}).catch(()=>{});
+      }
+    };
+    return()=>{active=false;clearTimeout(recoveryTimer);stream.close();};
+  },[preparationId,document.id,refresh]);
   useEffect(() => {
     if (initialDocumentId) setDocumentId(initialDocumentId);
   }, [initialDocumentId]);
@@ -255,7 +284,7 @@ export default function PreparationDetail({
           <Settings2 size={16} />
           备课信息
         </GlassButton>
-        <GlassButton
+        <GlassButton disabled={aiLocked}
           onClick={async () => {
             if (await draft.flush()) {setMore(false);setHistory(true);}
           }}
@@ -263,20 +292,20 @@ export default function PreparationDetail({
           <History size={16} />
           历史版本
         </GlassButton>
-        <GlassButton onClick={() => {setMore(false);setForking(true);}}>
+        <GlassButton disabled={aiLocked} onClick={() => {setMore(false);setForking(true);}}>
           <FilePlus2 size={16} />
           另存教学版本
         </GlassButton>
         <div className="qs-prep-export-actions">
           <GlassButton
-            disabled={Boolean(busy)}
+            disabled={Boolean(busy)||aiLocked}
             onClick={() => void exportCurrent("docx")}
           >
             <Download size={16} />
             Word
           </GlassButton>
           <GlassButton
-            disabled={Boolean(busy)}
+            disabled={Boolean(busy)||aiLocked}
             onClick={() => void exportCurrent("pdf")}
           >
             PDF
@@ -323,8 +352,8 @@ export default function PreparationDetail({
             }
           </span>
           <GlassButton
-            disabled={Boolean(busy)}
-            onClick={() => void (async()=>{if(busy)return;setBusy('保存版本');try{if(!(await draft.flush()))return;await checkpointPreparationDocument(preparationId,document.id,draft.getRevision());setError('');onShowToast('已保存新的编号版本。');}catch(cause){setError((cause as Error).message);}finally{setBusy('');}})()}
+            disabled={Boolean(busy)||aiLocked}
+            onClick={() => void (async()=>{if(busy||aiLocked)return;setBusy('保存版本');try{if(!(await draft.flush()))return;await checkpointPreparationDocument(preparationId,document.id,draft.getRevision());setError('');onShowToast('已保存新的编号版本。');}catch(cause){setError((cause as Error).message);}finally{setBusy('');}})()}
           >
             <Save size={16} />
             保存版本
@@ -354,6 +383,7 @@ export default function PreparationDetail({
         {toolsCompact && <GlassButton aria-expanded={more} onClick={()=>setMore(true)}>更多</GlassButton>}
         {!toolsCompact && <div className="qs-prep-secondary-actions">{secondaryActions()}</div>}
       </div>
+      {aiLocked&&<div className="qs-prep-current-task" role="status"><span>AI 正在修改这份教案，正文暂时只读。你仍可查看和停止任务。</span></div>}
       {toolsCompact && more && <ResponsiveDialog title="更多教案操作" onClose={()=>setMore(false)}><div className="qs-prep-secondary-actions">{secondaryActions()}</div></ResponsiveDialog>}
       {(error || draft.error) && (
         <div className="qs-prep-feedback" role="alert">
@@ -414,11 +444,12 @@ export default function PreparationDetail({
             sources={detail.sources}
             onChanged={refresh}
             onError={report}
+            disabled={aiLocked}
             onRead={(source) => {
               setReader(source);
               setReaderPage(1);
             }}
-            onImport={importSource}
+            onImport={async source=>{if(!aiLocked)await importSource(source);}}
           />
           {Boolean(detail.preparation.knowledgeIds?.length) && (
             <section className="qs-prep-knowledge-summary">
@@ -442,6 +473,14 @@ export default function PreparationDetail({
             preparationId={preparationId}
             document={document}
             proposals={detail.proposals}
+            locked={aiLocked}
+            onRegenerate={async proposal=>{
+              if(aiLocked)return;
+              const task=detail.tasks.find(task=>typeof task.result==="object"&&task.result!==null&&"proposalId" in task.result&&task.result.proposalId===proposal.id);
+              if(!task?.sessionId){report("原任务会话不可用，原建议保留。请在助手中说明新的修改要求。");return;}
+              if(!(await draft.flush()))return;
+              window.dispatchEvent(new CustomEvent("qingsong:preparation-assistant",{detail:{preparationId,documentId:document.id,revision:draft.getRevision(),sessionId:task.sessionId,instruction:"请按最新已保存稿重新生成修改建议。原要求："+task.instruction}}));
+            }}
             beforeMutation={draft.flush}
             onChanged={refresh}
             onError={report}
@@ -452,6 +491,7 @@ export default function PreparationDetail({
             </span>
             <button
               type="button"
+              disabled={aiLocked}
               onClick={() =>
                 void openAssistant(
                   "请完善当前教案。\n修改建议如下：\n",
@@ -465,6 +505,7 @@ export default function PreparationDetail({
             <DocumentEditor
               documentKey={document.id}
               content={draft.content}
+              readOnly={aiLocked}
               onChange={draft.update}
               onSelection={(value) => {
                 selection.current = value;
@@ -488,14 +529,14 @@ export default function PreparationDetail({
           </Suspense>
           <div className="qs-prep-writing-foot">
             <span>可直接编辑，也可以选中一段让 AI 协助修改。</span>
-            <GlassButton onClick={() => void openAssistant()}>
+            <GlassButton disabled={aiLocked} onClick={() => void openAssistant()}>
               <MessageSquare size={15} />
               讨论或修改
             </GlassButton>
           </div>
         </main>
       </div>
-      {history && (
+      {history && !aiLocked && (
         <DocumentHistory
           preparationId={preparationId}
           document={document}
@@ -514,7 +555,7 @@ export default function PreparationDetail({
           }}
         />
       )}
-      {forking && (
+      {forking && !aiLocked && (
         <ForkDialog
           current={document.title}
           onClose={() => setForking(false)}

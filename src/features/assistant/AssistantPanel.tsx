@@ -203,9 +203,16 @@ function OfficialAssistantPanel({entry}:Props) {
     }).then(async response => {
       const value = await response.json();
       if (!response.ok) throw Error(value.message || '工作空间未能打开，已有内容保留。');
+      if(entry.resumeOnly){
+        const target=value.target;
+        if(target.sessionId)return target as PreparationAssistantTarget;
+        setTargetError('这条任务没有可恢复的原会话。教案和任务记录仍保留，请从原会话列表打开。');
+        setTargetStage('');
+        return;
+      }
       return value.target as PreparationAssistantTarget;
     }).then(target => {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || !target) return;
       timings.targetResolution = Math.round(performance.now() - started);
       send('qingsong:open-context', {target});
       acknowledgementTimer = setTimeout(() => {

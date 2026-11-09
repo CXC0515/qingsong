@@ -74,15 +74,27 @@ export function sessionPreparationReferences(sessionId: string): PreparationRefe
     }
   });
 }
+export function currentPreparationReferences(sessionId: string): PreparationReference[] {
+  const current = new Set(repo.setting<{current: string[]}>(sessionKey(sessionId))?.current ?? []);
+  return sessionPreparationReferences(sessionId).filter(reference => current.has(reference.id));
+}
 export function resolveTaskReference(sessionId: string, referenceId?: string): PreparationReference {
   const references = sessionPreparationReferences(sessionId);
-  if (referenceId) {
-    const reference = references.find(ref => ref.id === referenceId);
-    if (reference) return reference;
-  } else {
-    const current = repo.setting<{current: string[]}>(sessionKey(sessionId))?.current ?? [];
-    const candidates = current.length ? references.filter(ref => current.includes(ref.id)) : references;
-    if (candidates.length === 1) return candidates[0];
+  const current = repo.setting<{current: string[]}>(sessionKey(sessionId))?.current ?? [];
+  const named = referenceId ? references.filter(ref => ref.id === referenceId) : [];
+  const candidates = referenceId ? named : current.length ? references.filter(ref => current.includes(ref.id)) : references;
+  const documents = new Map<string, PreparationReference[]>();
+  for (const reference of candidates) {
+    const key = reference.preparationId + ':' + reference.documentId;
+    documents.set(key, [...(documents.get(key) ?? []), reference]);
   }
-  throw new preparations.PreparationError('PREPARATION_TARGET_REQUIRED', '请明确本次要修改的教案引用，已有内容保留；多份教案不能自动猜选。');
+  if (documents.size !== 1)
+    throw new preparations.PreparationError('PREPARATION_TARGET_REQUIRED', '请明确本次要修改的教案引用，已有内容保留；多份教案不能自动猜选。');
+  const refs = [...documents.values()][0];
+  const reference = [...refs].sort((a,b)=>b.revision-a.revision)[0];
+  const latest = preparations.getDocument(reference.preparationId, reference.documentId);
+  const selected = refs.filter(item=>item.selection);
+  if (selected.length > 1) throw new preparations.PreparationError('PREPARATION_SELECTION_REQUIRED', '有多个不同选区，请明确本次选区；原文和引用保留，尚未开始修改。');
+  const selection = selected.length === 1 ? selected[0].selection : undefined;
+  return {...reference, revision:latest.revision, ...(selection ? {selection} : {selection:undefined})};
 }
