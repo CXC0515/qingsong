@@ -6,6 +6,33 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
     const materialToken = id => '[[青松材料:' + id + ']]';
     const materialUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const connectionId = (window.name || '').replace(/^qingsong-assistant:/, '');
+
+    function ScheduleActions({proposal,created,sessionId}){
+      const changed=()=>parent.postMessage({type:'qingsong:schedule-changed',connectionId},location.origin);
+      React.useEffect(()=>{if(created)changed();},[]);
+      const [status,setStatus]=React.useState(proposal?(proposal.action==='propose_create'?'待确认创建：'+proposal.name+' · ':'建议时间：')+(proposal.startAt?proposal.startAt.replace('T',' ')+' · 课表未排课':'时间待定')+' · 需你确认后保存':'正在核对保存状态');
+      const [busy,setBusy]=React.useState(false);
+      const [proposalId,setProposalId]=React.useState(proposal?.proposalId);
+      React.useEffect(()=>{
+        if((!created&&!proposal)||!sessionId)return;
+        const controller=new AbortController();
+        fetch('/api/assistant/official/api/qingsong/schedule-proposals?sessionId='+encodeURIComponent(sessionId),{signal:controller.signal}).then(r=>r.json()).then(value=>{if(controller.signal.aborted)return;const item=value.proposals?.find(item=>proposal?item.proposalId===proposal.proposalId:item.reminderId===created.reminder.id);if(proposal){if(!item){setProposalId(null);setStatus('这条建议已处理或已过期，请查看日程核对当前内容。');}return;}if(item){setProposalId(item.proposalId);setStatus('建议时间：'+item.startAt.replace('T',' ')+' · 课表未排课，仍需你确认');}else setStatus('已保存 · '+(created.reminder.timeKind==='none'?'时间待定':created.reminder.time));}).catch(()=>{if(!controller.signal.aborted)setStatus(created.verified?'已保存':'保存状态待核实');});
+        return()=>controller.abort();
+      },[created?.reminder?.id,proposal?.proposalId,sessionId]);
+      const confirm=async()=>{
+        if(!proposalId||busy)return;setBusy(true);setStatus('正在保存确认内容…');
+        try{const response=await fetch('/api/assistant/official/api/qingsong/schedule-proposals',{method:'POST',headers:{'content-type':'application/json','x-demo-csrf':'1'},body:JSON.stringify({proposalId,sessionId:sessionId})});const value=await response.json();if(!response.ok||!value.verified)throw Error(value.message||'时间更新未确认，原日程保留。');changed();setStatus('已保存 · '+value.reminder.name+' · '+value.reminder.time);setProposalId(null);}catch(error){setStatus(error.message||'时间更新失败，原日程保留。');}finally{setBusy(false);}
+      };
+      const dismiss=async()=>{if(!proposalId||busy)return;setBusy(true);try{const response=await fetch('/api/assistant/official/api/qingsong/schedule-proposals',{method:'DELETE',headers:{'content-type':'application/json','x-demo-csrf':'1'},body:JSON.stringify({proposalId,sessionId:sessionId})});if(!response.ok)throw Error();setProposalId(null);setStatus(proposal?.action==='propose_create'?'已取消建议 · 没有创建日程':'已暂不设置 · 原日程时间保持不变');}catch{setStatus('建议未关闭，原日程保持不变；请重试。');}finally{setBusy(false);}};
+      const open=()=>parent.postMessage({type:'qingsong:open-reminders',connectionId},location.origin);
+      return React.createElement('div',{className:'qs-schedule-actions',role:'status'},React.createElement('span',null,status),React.createElement('div',{className:'qs-schedule-actions-row'},proposalId&&React.createElement('div',{className:'qs-glass-action-host','data-qs-glass-button':true},React.createElement('div',{className:'lg-content'},React.createElement('button',{type:'button',disabled:busy,onClick:confirm},busy?'正在保存…':proposal?.action==='propose_create'?'确认创建':'设为这个时间'))),proposalId&&React.createElement('div',{className:'qs-glass-action-host','data-qs-glass-button':true},React.createElement('div',{className:'lg-content'},React.createElement('button',{type:'button',disabled:busy,onClick:dismiss},proposal?.action==='propose_create'?'暂不创建':'暂不设置'))),React.createElement('div',{className:'qs-glass-action-host','data-qs-glass-button':true},React.createElement('div',{className:'lg-content'},React.createElement('button',{type:'button',onClick:open},'查看日程')))));
+    }
+    function ScheduleTurnActions(props){
+      const serialized=props.useChat(snapshot=>JSON.stringify([...snapshot.nodes.values()].filter(node=>node.kind==='tool-call'&&node.location?.turn===props.turn).flatMap(node=>{const root=node.data?.root;if(root?.name!=='qingsong_schedule'||root.kind!=='tool-result'||root.isError)return [];try{return [JSON.parse(root.content?.find(block=>block.type==='text')?.text??'{}')];}catch{return [];}})));
+      const results=JSON.parse(serialized);
+      return React.createElement(React.Fragment,null,...results.map((result,index)=>{const proposal=['propose_time','propose_create'].includes(result.action)&&result.proposalId?result:null;const created=result.reminder?result:null;return proposal||created?React.createElement(ScheduleActions,{key:result.proposalId??result.reminder.id??index,proposal,created,sessionId:props.sessionId}):null;}));
+    }
+    ctx.slots.inject('conversation.chat.turnTail',()=>ctx.slots.register({name:'conversation.chat.turnTail',id:'qingsong-schedule-actions',inject:sessionId=>({sessionId})},ScheduleTurnActions));
     const lessonSource="qingsong-lesson";
     const materialPattern = /\[\[青松材料:([0-9a-f-]{36})\]\]/gi;
     const openLessonPreview = id => {parent.postMessage({type:'qingsong:preview-lesson',referenceId:id,connectionId},location.origin);return true;};
