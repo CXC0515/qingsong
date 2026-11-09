@@ -412,6 +412,50 @@ migrations.push({version:17,sql:`
   BEGIN SELECT RAISE(ABORT, 'CLASSROOM_SEAT_OUT_OF_RANGE'); END;
 `});
 
+migrations.push({version:18,sql:`
+  CREATE TABLE workbench_shortcuts (
+    user_id TEXT PRIMARY KEY,
+    destinations_json TEXT NOT NULL,
+    version INTEGER NOT NULL CHECK(version > 0),
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE assistant_schedule_operations (
+    operation_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    action TEXT NOT NULL CHECK(action IN ('create','propose_time','confirm_time')),
+    reminder_id TEXT,
+    fingerprint TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX assistant_schedule_operations_scope ON assistant_schedule_operations(user_id,message_id);
+`});
+
+migrations.push({version:19,sql:`
+  CREATE TABLE assistant_schedule_proposals (
+    proposal_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    reminder_id TEXT NOT NULL,
+    expected_updated_at TEXT NOT NULL,
+    start_at TEXT NOT NULL,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('pending','applied','rejected','stale')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX assistant_schedule_proposals_scope ON assistant_schedule_proposals(user_id,message_id,status);
+`});
+
+migrations.push({version:20,sql:`
+  ALTER TABLE assistant_schedule_proposals ADD COLUMN session_id TEXT NOT NULL DEFAULT '';
+`});
+
+migrations.push({version:21,sql:`
+  ALTER TABLE assistant_schedule_proposals ADD COLUMN expected_fingerprint TEXT NOT NULL DEFAULT '';
+`});
+
 export const runRosterMigrations = (database: Database.Database) => {
   const currentVersion = database.pragma('user_version', { simple: true }) as number;
   const pending = migrations.filter(migration => migration.version > currentVersion);

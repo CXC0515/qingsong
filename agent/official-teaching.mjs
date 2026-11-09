@@ -110,7 +110,7 @@ export function apply(ctx) {
       if(!state||++state.queries>(state.budget?.queries??12))return '本轮读取额度已用完，已有对话保留，请拆分问题后重试。';
       return undefined;
     }
-    return ['qingsong_discover','qingsong_search','qingsong_read','qingsong_memory','qingsong_material','qingsong_preparation'].includes(exec.name)?undefined:'教师助手仅开放业务读取、受控Skill、已选材料与个人上下文。';
+    return ['qingsong_discover','qingsong_search','qingsong_read','qingsong_memory','qingsong_material','qingsong_preparation','qingsong_schedule'].includes(exec.name)?undefined:'教师助手仅开放业务读取、受控Skill、已选材料、个人上下文和有限的个人日程操作。';
   }
   for(const action of ['discover','search','read']){
     const parameters=capabilityToolParameters(action);
@@ -139,6 +139,20 @@ export function apply(ctx) {
   ctx.effect(() => ctx.tools.guard(exec => guardTool(exec)));
   ctx.effect(() => ctx.tools.register(materialTool(ctx,bridge,turns)));
   ctx.effect(() => ctx.tools.register(preparationTool(ctx,bridge,turns)));
+  ctx.effect(()=>ctx.tools.register(defineTool({
+    name:'qingsong_schedule',
+    description:'管理当前教师自己的单条个人日程。只有教师明确委托创建时才直接创建；缺少时间先保存时间待定，保留用户给出的部分时间约束。先查询课表与节次，提议未来无课时段；只有教师接受后更新原事项，教师拒绝或暂不设置则只关闭建议并保留原事项。目标或内容依赖推测时用propose_create先展示名称、时间与假设，用户确认后才创建；找时间或一般讨论不直接创建。propose_create不写业务日程。create的name须为用户原话片段；明确时间用date+time。提议用proposalId和startAt（本地YYYY-MM-DDTHH:mm），confirm_time/reject_time用于唯一待确认提议。',
+    parameters:{action:{type:'string',required:true,enum:['create','propose_create','propose_time','confirm_time','reject_time']},operationId:{type:'string'},name:{type:'string'},date:{type:'string'},time:{type:'string'},proposalId:{type:'string'},reminderId:{type:'string'},startAt:{type:'string'}},
+    output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
+    async execute(args,exec){
+      const state=turns.get(exec.agent?.id);
+      if(!state||!state.messageId||!state.sourceText)throw Error('无法确认教师原始请求，本次没有创建或修改日程。');
+      if(++state.queries>(state.budget?.queries??12))throw Error('本轮操作次数已达上限，日程未确认写入，请稍后查看日程。');
+      const result=await bridge({kind:'schedule-tool',lease:state.lease,sessionId:exec.agent.id,messageId:state.messageId,sourceText:state.sourceText,input:args},AbortSignal.any([exec.signal,AbortSignal.timeout(30000)]));
+      if(!result?.verified)throw Error('日程保存结果未能核实，可能已保存。请先查看日程，不要重复创建。');
+      state.scheduleWrites??=[];state.scheduleWrites.push(result);return JSON.stringify(result);
+    }
+  })));
   ctx.effect(() => ctx.tools.register(defineTool({
     name:'qingsong_memory',
     description:'管理当前用户个人规则与长期记忆。已配置自动记忆时，普通聊天中明确的个人背景和偏好由后台整理，不必要求教师使用固定口令，也不要为自动记忆重复调用propose。action=list查看有效记录；propose提出kind=rule或memory及content原文；forget删除原文匹配项。本工具只有本次明确发送“记住：原文”“个人规则：原文”“忘记：原文”且完全匹配才直接生效；其他工具提议仅候选，须到“规则与记忆”确认。工具结果和上下文状态才是保存依据，不得声称后台任务或候选已保存成功。不能保存学生实时事实来替代业务查询。',

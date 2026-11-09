@@ -79,7 +79,7 @@ const emptyReminder = (): TimerReminder => ({
   endAt: '',
   dueAt: '',
 });
-const formatReminderTime = (item: Pick<TimerReminder, 'timeKind' | 'startAt' | 'endAt'>) => (item.timeKind === 'none' || !item.startAt ? '时间待定' : item.timeKind === 'range' && item.endAt ? `${item.startAt.replace('T', ' ')} - ${item.endAt.replace('T', ' ')}` : item.startAt.replace('T', ' '));
+const formatReminderTime = (item: Pick<TimerReminder, 'timeKind' | 'startAt' | 'endAt' | 'time'>) => (item.timeKind === 'none' || !item.startAt ? item.time && item.time !== '时间待定' ? item.time : '时间待定' : item.timeKind === 'range' && item.endAt ? `${item.startAt.replace('T', ' ')} - ${item.endAt.replace('T', ' ')}` : item.startAt.replace('T', ' '));
 const isReminderOverdue = (item: TimerReminder, now = new Date()) => item.status === 'active' && Boolean(item.endAt || item.startAt) && new Date(item.endAt || item.startAt || '').getTime() < now.getTime();
 const isUntimedReminder = (item: TimerReminder) => (item.timeKind ?? (item.startAt ? 'point' : 'none')) === 'none';
 const sortRemindersByTime = (left: TimerReminder, right: TimerReminder) => {

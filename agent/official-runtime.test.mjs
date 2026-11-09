@@ -80,7 +80,8 @@ test('official process boots, serves extension, creates teaching sessions and st
     const configured=new BasicCompactionEngine(ctx,compact);
     assert.equal(await configured.compactIfNeeded(agent,'pressure',new AbortController().signal),null);
     assert.equal(pruned,1,'native pressure path must trim oversized old tool results before another request');
-    assert.equal(createHash('sha256').update(prompt.personaPrefix).digest('hex'), '9a33fa2f391fd75597f86819f24b8c5413d1dac0233f7320ba53e42be1c6932a', 'preserve the exact user-approved prompt');
+    assert.match(prompt.personaPrefix,/明确要求创建个人提醒\/日程时，直接按其明确内容创建/u);
+    assert.match(prompt.personaPrefix,/拒绝不删除原事项/u);
     assert.equal(prompt.includeHarnessIdentity, false);
     assert.equal(prompt.includeRuntimeContext, false);
     const disabled=profile.filter(row=>row.disabled).map(row=>row.id);

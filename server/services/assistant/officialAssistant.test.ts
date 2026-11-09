@@ -49,6 +49,13 @@ const model = createServer(async (req, res) => {
     const delta=args?{role:'assistant',tool_calls:[{index:0,id:crypto.randomUUID(),type:'function',function:{name,arguments:JSON.stringify(args)}}]}:{role:'assistant',content:'本机合成修改候选已就绪，请在修改处对照后应用。'};
     res.write('data: '+JSON.stringify(frame(delta))+'\n\n');res.end('data: '+JSON.stringify(frame({},args?'tool_calls':'stop'))+'\n\ndata: [DONE]\n\n');return;
   }
+  if(queryScenario==='reminder-write'||(process.env.QS_NATIVE_PREVIEW&&messageText.includes('日程写入验收'))){
+    const previous=input.messages.filter((m:any)=>m.role==='tool').at(-1);
+    const text=JSON.stringify(input.messages.filter((m:any)=>m.role==='user'&&!String(m.content).includes('Current runtime context.')));
+    const args=text.includes('安排')?{action:'propose_create',proposalId:crypto.randomUUID(),name:'备课安排',startAt:new Date(Date.now()+8*3600000+7*86400000).toISOString().slice(0,10)+'T18:00'}:{action:'create',operationId:crypto.randomUUID(),name:'交教案',...(text.includes('三点')?{date:new Date(Date.now()+8*3600000+86400000).toISOString().slice(0,10),time:'15:00'}:{})};
+    const delta=previous?{role:'assistant',content:previous.content}:{role:'assistant',tool_calls:[{index:0,id:crypto.randomUUID(),type:'function',function:{name:'qingsong_schedule',arguments:JSON.stringify(args)}}]};
+    res.write('data: '+JSON.stringify(frame(delta))+'\n\n');res.end('data: '+JSON.stringify(frame({},previous?'stop':'tool_calls'))+'\n\ndata: [DONE]\n\n');return;
+  }
   if(queryScenario==='schedule-committee'){
     const previous=input.messages.filter((m:any)=>m.role==='tool').at(-1);let value:any;
     if(previous){try{value=JSON.parse(previous.content);}catch{}}
@@ -749,4 +756,25 @@ test('corrupt grading storage returns a recoverable HTTP error without overwriti
   assert.equal(response.status,503);const body=await response.json();assert.equal(body.code,'DATA_CORRUPT');assert.equal(body.saved,false);assert.match(body.message,/不能当作没有记录/);
   assert.equal(await readFile(file,'utf8'),'{broken');
  }finally{await writeFile(file,original);clearWorkspaceFileStoreCaches();}
+});
+
+test('schedule writes through native DSH preserve explicit time, reject negatives and deduplicate', {timeout:60000,skip:!!process.env.QS_NATIVE_PREVIEW},async()=>{
+ await closeOfficialAssistant();
+ const until=async(check:()=>any)=>{for(let i=0;i<100;i++){if(await check())return;await new Promise(r=>setTimeout(r,100));}throw Error('SCHEDULE_TEST_TIMEOUT');};
+ const cookie=await register('schedule-write@fixture.test','日程写入合成班');
+ const member=getAuthDatabase().prepare("SELECT user_id,workspace_id,role FROM app_workspace_members WHERE user_id=(SELECT id FROM user WHERE email=?)").get('schedule-write@fixture.test') as any;
+ const workspace=createWorkspaceContext(member.user_id,member.workspace_id,member.role);
+ const {listReminders}=await import('../../repositories/scheduleRepository');
+ const read=()=>runWithWorkspace(workspace,()=>listReminders().filter(item=>item.name==='交教案'));
+ queryScenario='reminder-write';
+ try{
+  for(const [text,count] of [['提醒我交教案',1],['明天下午三点提醒我交教案',2],['不要提醒我交教案',2]] as const){
+   const sid=(await rpc(cookie,'session/create',{request:{}})).value.sessionId;
+   assert.ok((await rpc(cookie,'session/prompt',{request:{sessionId:sid,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text}]}})).ok);
+   await until(async()=>JSON.stringify(await page(cookie,sid)).includes('qingsong_schedule'));
+   await until(()=>officialBudget.size.active===0);
+   assert.equal(read().length,count,JSON.stringify(await page(cookie,sid)));
+  }
+  assert.equal(read()[0].timeKind,'none');assert.equal(read()[1].startAt?.slice(11),'15:00');
+ }finally{queryScenario=undefined;}
 });

@@ -9,6 +9,7 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 .pXSMma_titleGroup{flex-direction:column;gap:5px!important}
 .pXSMma_previewBadge{align-self:center!important;color:#929b96!important;background:transparent!important;border:0!important;font-family:inherit!important;font-weight:400!important}
 @media(max-width:600px){[data-composer-input]{font-size:16px!important}button[aria-label="发送消息"],button[aria-label*="停止"],button[aria-label^="选择模型"]{min-width:44px!important;min-height:44px!important}}
+.qs-schedule-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:8px 0;padding:4px 0;color:var(--dsw-alias-label-secondary);font-size:14px;line-height:1.45}.qs-schedule-actions-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.qs-glass-action-host{position:relative;display:inline-grid;min-height:44px;border-radius:14px;background:#ffffff52;color:var(--dsw-alias-label-primary);box-shadow:0 3px 8px -5px #18342730,0 1px 3px -2px #18342720}.qs-glass-action-host>.lg-content{display:flex;align-items:center;min-height:44px;border-radius:14px}.qs-glass-action-host button{min-height:44px;padding:7px 12px;border:1px solid #71887930;border-radius:14px;background:transparent;color:inherit;font:inherit;cursor:pointer}.qs-glass-action-host button:disabled{opacity:.6;cursor:wait}.qs-glass-action-host button:focus-visible{outline:2px solid #426b56;outline-offset:2px}@media(max-width:600px){.qs-schedule-actions{align-items:stretch}.qs-glass-action-host button{min-height:44px}}
 
 .pXSMma_titleGroup{display:none!important}.qs-welcome{color:#7b8580;font-size:18px;font-weight:400;line-height:26px;text-align:center}.qs-welcome small{display:block;margin-top:5px;color:#929b96;font-size:12px}
 
@@ -90,3 +91,7 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 .qs-sent-lesson-reference{cursor:pointer}
 
 .qs-lesson-updates>.qs-selection-quote{flex-basis:100%;margin:2px 0;padding:8px 12px;overflow-wrap:anywhere}.qs-lesson-updates>.qs-selection-quote summary{min-height:36px;line-height:1.5;white-space:pre-wrap}.qs-lesson-updates>.qs-selection-quote button{min-height:44px;background:transparent;color:inherit}.qs-lesson-updates>.qs-selection-quote blockquote{max-height:160px}
+/* Keep schedule decisions above the native sticky composer when scrolled into view. */
+.wSkVaW_scrollBody:has(.qs-schedule-actions){scroll-padding-bottom:calc(var(--dsh-composer-height,180px) + 16px)}
+.qs-schedule-actions{scroll-margin-bottom:16px}
+@media(max-height:480px){.wSkVaW_scrollBody:has(.qs-schedule-actions) [data-composer-seat]{position:relative!important;bottom:auto!important}}

@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { BookOpen, Database, Palette, Pencil, Plus, Save, Settings2, Sliders, Trash2, UserRound } from 'lucide-react';
+import { BookOpen, Database, Palette, Pencil, Plus, Save, Settings2, Sliders, Trash2, UserRound, LayoutDashboard } from 'lucide-react';
 import { CommitteeRole, ScheduleItem, SchedulePeriod, SchoolClass, TeacherProfile } from '../../domain/types';
 import ScheduleTimeInput from '../../components/ScheduleTimeInput';
 import { isScheduleTime } from '../../domain/scheduleTime';
@@ -14,6 +14,9 @@ import type {ReviewPreferences} from '../../domain/reviewPreferences';
 import {themeOptions} from '../../domain/appearance';
 import {useAppearance} from './useAppearance';
 import { readClassroomExportStudentNo, writeClassroomExportStudentNo } from '../../domain/userPreferences';
+import { apiFetch } from '../../services/apiClient';
+import { createNavGroups } from '../../app/navigation';
+import { workbenchShortcutDestinations } from '../../domain/userPreferences';
 
 interface SystemSettingsPanelProps {
   reviewPreferences:ReviewPreferences;
@@ -24,7 +27,7 @@ interface SystemSettingsPanelProps {
   schedulePeriods: SchedulePeriod[];
   schedule: ScheduleItem[];
   onSaveSchedulePeriods: (periods: SchedulePeriod[]) => Promise<void>;
-  requestedSection: 'schedule-periods' | 'assistant' | null;
+  requestedSection: 'schedule-periods' | 'assistant' | 'workbench' | null;
   onRequestedSectionHandled: () => void;
   classes: SchoolClass[];
   committeeRoles: CommitteeRole[];
@@ -38,15 +41,26 @@ interface SystemSettingsPanelProps {
   onSaveTeacherProfile: (profile: TeacherProfile) => Promise<void>;
 }
 
-type SettingsTab = 'teacher' | 'teaching' | 'ai' | 'storage' | 'appearance';
+type SettingsTab = 'teacher' | 'teaching' | 'ai' | 'storage' | 'appearance' | 'workbench';
 
 const tabs: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: 'teacher', label: '教师信息', icon: UserRound },
   { id: 'teaching', label: '教学设置', icon: BookOpen },
   { id: 'ai', label: 'OCR 与评分', icon: Sliders },
   { id: 'storage', label: '导出', icon: Database },
-  { id: 'appearance', label: '外观', icon: Palette }
+  { id: 'appearance', label: '外观', icon: Palette },
+  { id: 'workbench', label: '工作台', icon: LayoutDashboard }
 ];
+
+const shortcutDestinations=[...createNavGroups(0).flatMap(group=>group.items)
+  .filter(item=>workbenchShortcutDestinations.includes(item.id as typeof workbenchShortcutDestinations[number]))
+  .map(item=>[item.id,item.label] as const),['schedule:reminders','提醒日程'] as const];
+const shortcutDefaults=['classroom-tasks','grading-workspace','lesson-plan','classroom'];
+const parseShortcuts=(value:unknown)=>{
+  const destinations=(value as {destinations?:unknown})?.destinations;
+  if(!Array.isArray(destinations)||destinations.length!==4||destinations.some(id=>typeof id!=='string'||!workbenchShortcutDestinations.includes(id as typeof workbenchShortcutDestinations[number]))||new Set(destinations).size!==4)throw Error('工作台入口配置格式无效，默认入口仍可用。');
+  return {destinations:destinations as string[],version:Number.isInteger((value as {version?:unknown}).version)?(value as {version:number}).version:0};
+};
 
 const periodLabels = ['第一节', '第二节', '第三节', '第四节', '第五节', '第六节', '第七节', '第八节', '第九节', '第十节', '第十一节', '第十二节'];
 const addMinutes = (time: string, minutes: number) => {
@@ -95,6 +109,12 @@ export default function SystemSettingsPanel({
   const [saveError, setSaveError] = useState('');
   const [newCommitteeRole,setNewCommitteeRole]=useState('');
   const [roleDrafts,setRoleDrafts]=useState<Record<string,string>>({});
+  const [shortcuts,setShortcuts]=useState<string[]>(shortcutDefaults);
+  const [shortcutVersion,setShortcutVersion]=useState(0);
+  const [shortcutsDirty,setShortcutsDirty]=useState(false);
+  const [shortcutsError,setShortcutsError]=useState('');
+  const [shortcutsSaving,setShortcutsSaving]=useState(false);
+  useEffect(()=>{const controller=new AbortController();setShortcuts(shortcutDefaults);setShortcutVersion(0);setShortcutsDirty(false);setShortcutsError('');void apiFetch('/api/account/workbench-shortcuts',{signal:controller.signal}).then(async response=>{if(!response.ok)throw Error('工作台入口未能读取。');return parseShortcuts(await response.json());}).then(value=>{if(controller.signal.aborted)return;setShortcuts(value.destinations);setShortcutVersion(value.version);setShortcutsDirty(false);}).catch(()=>{if(!controller.signal.aborted)setShortcutsError('工作台入口未能读取，当前默认入口仍可用。');});return()=>controller.abort();},[user.id]);
   const lastPeriod = localSchedulePeriods.at(-1);
   const lastPeriodInUse = lastPeriod ? schedule.some(item => item.period === lastPeriod.period) : false;
   const hasUnsavedScheduleChanges = JSON.stringify(localSchedulePeriods) !== JSON.stringify(schedulePeriods);
@@ -108,6 +128,7 @@ export default function SystemSettingsPanel({
       onRequestedSectionHandled();
       return;
     }
+    if (requestedSection === 'workbench') { setActiveTab('workbench'); onRequestedSectionHandled(); return; }
     if (requestedSection !== 'schedule-periods') return;
     setActiveTab('teaching');
     const timeout = window.setTimeout(() => {
@@ -157,6 +178,25 @@ export default function SystemSettingsPanel({
     } catch (error) {
       setSaveError(activeTab === 'teacher' ? (error instanceof Error && !(error instanceof TypeError) ? error.message : '连接中断，教师信息保存未能确认。当前填写内容已保留，请重试或刷新核对。') : '导出偏好未保存，当前选择保留。请检查浏览器存储权限后重试。');
     } finally { setSaving(false); }
+  };
+
+  const chooseShortcut=(index:number,value:string)=>{
+    setShortcuts(current=>{const next=[...current],other=next.indexOf(value);if(other>=0){next[other]=next[index];next[index]=value;}else next[index]=value;return next;});
+    setShortcutsDirty(true);setShortcutsError('');
+  };
+  const reloadShortcuts=async()=>{
+    const response=await apiFetch('/api/account/workbench-shortcuts');
+    if(!response.ok)throw Error('工作台入口未能重新读取，当前选择仍保留。');
+    const value=parseShortcuts(await response.json());setShortcuts(value.destinations);setShortcutVersion(value.version);setShortcutsDirty(false);
+  };
+  const saveShortcuts=async()=>{
+    if(shortcutsSaving||!shortcutsDirty)return;
+    setShortcutsSaving(true);setShortcutsError('');
+    try{const response=await apiFetch('/api/account/workbench-shortcuts',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({destinations:shortcuts,version:shortcutVersion})});
+      if(response.status===409)throw Error('设置已在其他设备更新。当前选择仍保留，请重新载入后再保存。');
+      if(!response.ok)throw Error('工作台入口未保存，原配置仍有效，请重试。');
+      const value=parseShortcuts(await response.json());setShortcutVersion(value.version);setShortcuts(value.destinations);setShortcutsDirty(false);onShowToast('工作台常用工作已保存');
+    }catch(error){setShortcutsError(error instanceof Error?error.message:'工作台入口未保存，当前选择仍保留，请重试。');}finally{setShortcutsSaving(false);}
   };
 
   const updateSchedulePeriod = (index: number, patch: Partial<SchedulePeriod>) => {
@@ -326,6 +366,24 @@ export default function SystemSettingsPanel({
             </div>
           </div>
         )}
+
+        {activeTab === 'workbench' && <div className="space-y-4">
+          <div><h3 className="text-base font-semibold">常用工作</h3><p className="mt-1 text-sm text-slate-500">从侧栏功能中选择；选入已有格位会与原位置互换。</p></div>
+          <div className="grid grid-cols-2 gap-3" aria-label="工作台快捷入口位置">
+            {shortcuts.map((destination,index)=><label key={index} className="glass-panel flex min-w-0 flex-col gap-2 rounded-xl p-3">
+              <span className="text-xs text-slate-500">{['左上','右上','左下','右下'][index]}</span>
+              <select aria-label={['左上','右上','左下','右下'][index]+'位置功能'} className="min-h-11 min-w-0 rounded-lg border border-slate-300 bg-white/60 px-2 text-base dark:border-zinc-700 dark:bg-zinc-900" value={destination} onChange={event=>chooseShortcut(index,event.target.value)}>
+                {shortcutDestinations.map(([id,label])=><option key={id} value={id}>{label}</option>)}
+              </select>
+            </label>)}
+          </div>
+          {shortcutsError&&<p role="alert" className="text-sm text-red-700">{shortcutsError}</p>}
+          <div className="flex flex-wrap justify-end gap-2">
+            <GlassButton disabled={shortcutsSaving} onClick={()=>{setShortcuts(shortcutDefaults);setShortcutsDirty(true);setShortcutsError('');}}>恢复默认</GlassButton>
+            <GlassButton disabled={shortcutsSaving||!shortcutsDirty} onClick={()=>void reloadShortcuts().catch(error=>setShortcutsError(error.message||'设置未能重新读取。'))}>取消</GlassButton>
+            <GlassButton variant="primary" disabled={shortcutsSaving||!shortcutsDirty} onClick={()=>void saveShortcuts()}>{shortcutsSaving?'正在保存…':'保存'}</GlassButton>
+          </div>
+        </div>}
       </fieldset>
     </div>
   );
