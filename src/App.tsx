@@ -164,7 +164,7 @@ export default function App() {
   const [reminders, setReminders] = useState<TimerReminder[]>([]);
   const [schedulePeriods, setSchedulePeriods] = useState<SchedulePeriod[]>([]);
   const [showWeekends, setShowWeekends] = useState(() => localStorage.getItem(`schedule-show-weekends:${authState.user.id}`) === 'true');
-  const [settingsRequestedSection, setSettingsRequestedSection] = useState<'schedule-periods' | 'assistant' | null>(null);
+  const [settingsRequestedSection, setSettingsRequestedSection] = useState<'schedule-periods' | 'assistant' | 'workbench' | null>(null);
   const [reviewQueue, setReviewQueue] = useState<ReviewItem[]>([]);
   const [workflowStates, setWorkflowStates] = useState<Record<string, WorkflowState>>({});
   const [knowledgeNodes, setKnowledgeNodes] = useState<KnowledgeNode[]>([]);
@@ -229,6 +229,9 @@ export default function App() {
     setActivePageState(pageId);
     return true;
   };
+  useEffect(()=>{const open=()=>{void getScheduleWorkspace().then(value=>setReminders(value.reminders)).catch(()=>undefined);if(setActivePage('schedule'))setScheduleSection('reminders');};window.addEventListener('qingsong:open-reminders',open);return()=>window.removeEventListener('qingsong:open-reminders',open);},[activePage,taskNavigation]);
+
+  useEffect(()=>{const refresh=()=>{void getScheduleWorkspace().then(value=>setReminders(value.reminders)).catch(()=>undefined);};window.addEventListener('qingsong:schedule-changed',refresh);return()=>window.removeEventListener('qingsong:schedule-changed',refresh);},[authState.user.id]);
 
   const openClassroomTask = (taskId?: string, classId = selectedClassId, studentId = '') => {
     if (!canLeaveTask()) return;
@@ -685,6 +688,13 @@ export default function App() {
       setSettingsRequestedSection('assistant');
       return;
     }
+    if (pageId === 'settings' && subPageId === 'workbench') {
+      if (!setActivePage('settings')) return;
+      setSettingsRequestedSection('workbench');
+      return;
+    }
+    if (pageId === 'schedule' && subPageId === 'reminders') setScheduleSection('reminders');
+    else if (pageId === 'schedule') setScheduleSection('schedule');
     if (pageId === 'grading-flow' || pageId === 'grading-tasks' || pageId === 'review-queue') {
       setActivePage('grading-workspace');
       return;
@@ -805,6 +815,7 @@ export default function App() {
               schedule={schedule}
               reminders={reminders}
               selectedClassId={selectedClassId}
+              userId={authState.user.id}
               onNavigate={handleNavigate}
               onRecordLesson={openLessonRecord}
               onEnterClass={(classId) => {

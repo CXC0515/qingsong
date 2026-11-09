@@ -66,3 +66,43 @@ test('persists the school-wide period timetable', () => {
   assert.equal(saved.length, 1);
   assert.deepEqual(saved[0], { period: 1, label: '早读', startTime: '07:40', endTime: '08:20' });
 });
+
+test('assistant reminders are idempotent and proposed times require the same user and session to confirm',()=>{
+ const created=repository.createAssistantReminder({operationId:'op-assistant-1',userId:'teacher-1',messageId:'message-1',fingerprint:'request-1',name:'提交教案',timeKind:'none'});
+ assert.equal(created.reminder.timeKind,'none');
+ assert.equal(repository.createAssistantReminder({operationId:'op-assistant-1',userId:'teacher-1',messageId:'message-1',fingerprint:'request-1',name:'提交教案',timeKind:'none'}).reminder.id,created.reminder.id);
+ assert.equal(repository.createAssistantReminder({operationId:'op-assistant-retry',userId:'teacher-1',messageId:'message-1',fingerprint:'request-1',name:'提交教案',timeKind:'none'}).reminder.id,created.reminder.id);
+ assert.throws(()=>repository.createAssistantReminder({operationId:'op-assistant-conflict',userId:'teacher-1',messageId:'message-1',fingerprint:'different-request',name:'另一事项',timeKind:'none'}),/OPERATION_ID_CONFLICT/);
+ const tomorrow=new Date();const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(tomorrow);const dateParts=Object.fromEntries(parts.filter(part=>part.type!=='literal').map(part=>[part.type,part.value]));const candidate=new Date(Date.UTC(Number(dateParts.year),Number(dateParts.month)-1,Number(dateParts.day)+7,12));const candidateDate=candidate.toISOString().slice(0,10);const weekday=candidate.getUTCDay()||7;
+ repository.saveSchedulePeriods([{period:4,label:'第四节',startTime:'15:00',endTime:'15:40'},{period:5,label:'第五节',startTime:'15:50',endTime:'16:35'}]);
+ repository.saveScheduleItem({id:'assistant-evidence',day:weekday,period:4,title:'教研课',classId:'',className:'',type:'class',time:'15:00 - 15:40',scope:'teacher',teacherName:''});
+ assert.throws(()=>repository.proposeAssistantReminderTime({proposalId:'proposal-busy',userId:'teacher-1',sessionId:'session-1',messageId:'message-1',reminderId:created.reminder.id,startAt:candidateDate+'T15:00'}),/TIME_UNAVAILABLE/);
+ const proposalInput={proposalId:'proposal-1',userId:'teacher-1',sessionId:'session-1',messageId:'message-1',reminderId:created.reminder.id,startAt:candidateDate+'T15:50'};
+ const proposal=repository.proposeAssistantReminderTime(proposalInput);
+ const repeated=repository.proposeAssistantReminderTime({...proposalInput,proposalId:'proposal-retry'});
+ assert.equal(repeated.proposalId,proposal.proposalId);
+ assert.throws(()=>repository.proposeAssistantReminderTime({...proposalInput,proposalId:'proposal-conflict',startAt:candidateDate+'T15:00'}),/TIME_UNAVAILABLE/);
+ assert.equal(repository.listReminders().find(item=>item.id===created.reminder.id)?.timeKind,'none');
+ assert.throws(()=>repository.confirmAssistantReminderTime(proposal.proposalId,'teacher-1','other-session'),/NOT_FOUND/);
+ assert.deepEqual(repository.rejectAssistantReminderTime(proposal.proposalId,'teacher-1','session-1'),{status:'rejected'});
+ assert.equal(repository.listReminders().find(item=>item.id===created.reminder.id)?.timeKind,'none');
+ const second=repository.proposeAssistantReminderTime({...proposalInput,proposalId:'proposal-2'});
+ const applied=repository.confirmAssistantReminderTime(second.proposalId,'teacher-1','session-1');
+ assert.equal(applied.status,'applied');assert.equal(applied.reminder.startAt,candidateDate+'T15:50');
+ assert.equal(repository.confirmAssistantReminderTime(second.proposalId,'teacher-1','session-1').reminder.startAt,candidateDate+'T15:50');
+});
+
+test('assumed creation is only a proposal until accepted, and refusal creates nothing',()=>{
+ const before=repository.listReminders().length;
+ const proposed=repository.proposeAssistantReminderCreation({proposalId:'assumed-create',userId:'teacher-1',sessionId:'session-create',messageId:'m-create',name:'备课安排'});
+ assert.equal(repository.listReminders().length,before);
+ const saved=repository.confirmAssistantReminderTime(proposed.proposalId,'teacher-1','session-create');
+ assert.equal(saved.reminder.name,'备课安排');assert.equal(saved.reminder.timeKind,'none');
+ assert.equal(repository.listReminders().length,before+1);
+ repository.confirmAssistantReminderTime(proposed.proposalId,'teacher-1','session-create');
+ assert.equal(repository.listReminders().length,before+1);
+ const rejected=repository.proposeAssistantReminderCreation({proposalId:'assumed-reject',userId:'teacher-1',sessionId:'session-create',messageId:'m-reject',name:'另一个安排'});
+ repository.rejectAssistantReminderTime(rejected.proposalId,'teacher-1','session-create');
+ assert.equal(repository.listReminders().length,before+1);
+ assert.throws(()=>repository.confirmAssistantReminderTime(rejected.proposalId,'teacher-1','session-create'),/STALE/);
+});

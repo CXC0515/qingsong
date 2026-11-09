@@ -57,6 +57,14 @@ test('invited accounts receive isolated business APIs and owner-only administrat
   assert.equal(ownerAccount.user.name, 'Cleo');
   assert.equal(ownerAccount.profile.nickname, 'Cleo');
   assert.equal(ownerAccount.profile.realName, 'Cleo');
+  const shortcutsPath=`${origin}/api/account/workbench-shortcuts`;
+  const ownerShortcuts=await fetch(shortcutsPath,{headers:{Cookie:owner.cookie}});
+  assert.deepEqual(await ownerShortcuts.json(),{destinations:['classroom-tasks','grading-workspace','lesson-plan','classroom'],version:0});
+  const savedShortcuts=await fetch(shortcutsPath,{method:'PUT',headers:{...mutationHeaders,Cookie:owner.cookie},body:JSON.stringify({destinations:['schedule:reminders','lesson-plan','classroom','grading-workspace'],version:0})});
+  assert.deepEqual(await savedShortcuts.json(),{destinations:['schedule:reminders','lesson-plan','classroom','grading-workspace'],version:1});
+  assert.equal((await fetch(shortcutsPath,{method:'PUT',headers:{...mutationHeaders,Cookie:owner.cookie},body:JSON.stringify({destinations:['classroom-tasks','grading-workspace','lesson-plan','classroom'],version:0})})).status,409);
+  assert.deepEqual(await (await fetch(shortcutsPath,{headers:{Cookie:teacher.cookie}})).json(),{destinations:['classroom-tasks','grading-workspace','lesson-plan','classroom'],version:0});
+  assert.equal((await fetch(shortcutsPath)).status,401);
   const createClass = await fetch(`${origin}/api/classes`, { method: 'POST', headers: { ...mutationHeaders, Cookie: owner.cookie }, body: JSON.stringify({ name: '仅所有者可见', grade: '七年级', term: '2026', headTeacher: '甲', status: 'active' }) });
   assert.equal(createClass.status, 201);
   const ownerRoster = await (await fetch(`${origin}/api/roster`, { headers: { Cookie: owner.cookie } })).json() as { classes: unknown[] };

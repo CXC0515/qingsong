@@ -10,9 +10,11 @@ export function apply(ctx) {
   );
   const css = readFileSync(new URL("./shell.css", import.meta.url), "utf8");
   const failures = readFileSync(new URL("./failure.js", import.meta.url), "utf8");
+  const glass = readFileSync(new URL("./glass.js", import.meta.url), "utf8");
   ctx.on("webserver/index-inject", (table) => {
     table.push({ kind: "script", placement: "head", text: navigation });
     table.push({ kind: "script", placement: "head", text: failures });
+    table.push({ kind: "script", placement: "head", text: glass });
     table.push({
       kind: "style",
       text:

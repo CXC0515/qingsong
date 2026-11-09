@@ -11,6 +11,8 @@ import { auth } from '../auth/auth';
 import { runtimeConfig } from '../config/runtimeConfig';
 import { getAuthDatabase } from '../database/authDatabase';
 import { requireOwner } from '../middleware/authenticated';
+import { getWorkbenchShortcuts, saveWorkbenchShortcuts } from '../repositories/scheduleRepository';
+import { workbenchShortcutDestinations } from '../../src/domain/userPreferences';
 
 const router = Router();
 const profileSchema = z.object({
@@ -43,6 +45,14 @@ router.put('/account/profile', (request, response) => {
     ON CONFLICT(user_id) DO UPDATE SET profile_json = excluded.profile_json, updated_at = excluded.updated_at
   `).run(response.locals.authSession.user.id, JSON.stringify(parsed.data), now);
   return response.json({ profile: parsed.data });
+});
+
+router.get('/account/workbench-shortcuts',(_request,response)=>response.json(getWorkbenchShortcuts(response.locals.authSession.user.id)));
+router.put('/account/workbench-shortcuts',(request,response)=>{
+  const parsed=z.object({destinations:z.array(z.enum(workbenchShortcutDestinations)).length(4),version:z.number().int().min(0)}).strict().safeParse(request.body);
+  if(!parsed.success||new Set(parsed.data?.destinations??[]).size!==4)return response.status(400).json({code:'INVALID_WORKBENCH_SHORTCUTS'});
+  try{return response.json(saveWorkbenchShortcuts(response.locals.authSession.user.id,parsed.data.destinations,parsed.data.version));}
+  catch(error){if(error instanceof Error&&error.message==='WORKBENCH_SHORTCUTS_CONFLICT')return response.status(409).json({code:'WORKBENCH_SHORTCUTS_CONFLICT'});throw error;}
 });
 
 router.get('/admin/accounts', requireOwner, (_request, response) => {

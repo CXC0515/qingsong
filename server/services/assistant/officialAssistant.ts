@@ -26,12 +26,16 @@ import {recallPersonalContext, personalTool, explicitPersonalCommand, PersonalCo
 import { officialBudget } from './officialBudget';
 import {teachingFailure, officialAssetCache} from './officialResponses';
 import {logEvent} from '../../observability/logger';
+import { createAssistantReminder, proposeAssistantReminderCreation, confirmAssistantReminderTime, proposeAssistantReminderTime, listAssistantReminderProposals, rejectAssistantReminderTime, getAssistantReminderProposalContext, isAssistantReminderTimeAvailable } from '../../repositories/scheduleRepository';
+import { readFile as readFileSync } from 'node:fs/promises';
 import {pipeOfficialEventStream} from './officialStream';
 import {prepareOfficialAsset, officialAssetEncoding} from './officialAssets';
 import { startOfficialRuntime } from '../../../agent/official-runtime.mjs';
+import { agentDirectory } from '../../../agent/runtime.mjs';
 import { allowOfficialCall } from '../../../agent/official-policy.mjs';
 import { relayOfficialSocket } from '../../../agent/official-relay.mjs';
 import {loadGenerationPolicy,generationFingerprint} from './generationPolicy';
+import {hasDirectReminderIntent,reminderTimeFromText,hasScheduleTimeApproval,hasScheduleTimeRejection} from './scheduleAuthorization';
 import { readDshPromptConfig } from './dshPromptConfig';
 
 import { Transform } from 'node:stream';
@@ -57,6 +61,7 @@ type Instance = {
   leaseSessions: Map<string, string>;
   sockets: Set<{close: () => void}>;
   humanTexts: Map<string, string[]>;
+  scheduleSources: Map<string,{hash:string;submittedAt:number}>;
   closing?: Promise<void>;
 };
 async function nativeWorkspaceCall(runtime: {port: number}, cookie: string, method: string, request: unknown): Promise<any> {
@@ -153,10 +158,12 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
     const bridge = createServer(async (req, res) => {
       res.setHeader('content-type', 'application/json');
       if (req.method !== 'POST' || req.url !== '/' || req.headers.authorization !== 'Bearer ' + token || !instance) { res.writeHead(403).end('{}'); return; }
+      let requestKind:string|undefined;
       try {
         let text = '';
         for await (const chunk of req) { text += chunk; if (text.length > 512000) throw Error('TOO_LARGE'); }
         const body = JSON.parse(text);
+        requestKind=body.kind;
         const lease = key + ':' + body.lease;
         if (body.kind === 'release') {
           const sessionId = instance.leaseSessions.get(lease);
@@ -235,6 +242,53 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
           const result=runWithWorkspace(context,()=>teachingBusinessContext());
           await authorizeInstance(instance);res.end(JSON.stringify(result));
         }
+        else if(body.kind==='schedule-tool'){
+          if(!materialSessionId(body.sessionId)||typeof body.sourceText!=='string'||body.sourceText.length>8020||typeof body.messageId!=='string')throw Error('INVALID_OPERATION');
+          const trusted=instance.humanTexts.get(body.sessionId)?.includes(createHash('sha256').update(body.sourceText).digest('hex'))?body.sourceText:null;
+          const source=instance.scheduleSources.get(body.sessionId);
+          if(!trusted||!source||source.hash!==createHash('sha256').update(trusted).digest('hex')||!instance.leases.has(lease)||instance.leaseSessions.get(lease)!==body.sessionId)throw Error('UNTRUSTED_SCHEDULE_REQUEST');
+          const args=z.discriminatedUnion('action',[
+            z.object({action:z.literal('create'),operationId:z.uuid(),name:z.string().trim().min(1).max(160),date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),time:z.string().regex(/^\d{2}:\d{2}$/).optional()}).strict(),
+            z.object({action:z.literal('propose_create'),proposalId:z.uuid(),name:z.string().trim().min(1).max(160),startAt:z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/).optional()}).strict(),
+            z.object({action:z.literal('propose_time'),proposalId:z.uuid(),reminderId:z.uuid(),startAt:z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)}).strict(),
+            z.object({action:z.literal('confirm_time'),proposalId:z.uuid()}).strict(),
+            z.object({action:z.literal('reject_time'),proposalId:z.uuid()}).strict()
+          ]).parse(body.input);
+          const reminderName=args.action==='create'?args.name:undefined;
+          if(args.action==='create'&&(!reminderName||!trusted.includes(reminderName)||!hasDirectReminderIntent(trusted)))throw Error('SCHEDULE_INTENT_NOT_CONFIRMED');
+          if(args.action==='create'&&args.date&&!/(今天|明天|后天|大后天|\d{4}[-年/]\d{1,2}[-月/]\d{1,2}日?)/u.test(trusted))throw Error('SCHEDULE_DATE_NOT_IN_MESSAGE');
+          if(args.action==='create'&&args.time&&!/(\d{1,2}[:：]\d{2}|[零〇一二两三四五六七八九十\d]+点)/u.test(trusted))throw Error('SCHEDULE_TIME_NOT_IN_MESSAGE');
+          const result=await runWithWorkspace(context,()=>{
+            if(args.action==='create'){
+              let startAt:string|undefined;
+              const stated=reminderTimeFromText(trusted,source.submittedAt);
+              if((args.date&&args.date!==stated.date)||(args.time&&args.time!==stated.time))throw Error('SCHEDULE_TIME_NOT_IN_MESSAGE');
+              if(stated.date&&stated.time&&(!args.date||!args.time))throw Error('SCHEDULE_EXPLICIT_TIME_REQUIRED');
+              if(args.date){const [year,month,day]=args.date.split('-').map(Number);const calendarDate=new Date(Date.UTC(year,month-1,day,12));if(!Number.isFinite(calendarDate.getTime())||calendarDate.toISOString().slice(0,10)!==args.date)throw Error('INVALID_SCHEDULE_DATE');}
+              if(args.date&&args.time)startAt=args.date+'T'+args.time;
+              const [hour,minute]=args.time?.split(':').map(Number)??[];
+              if(args.time&&(!Number.isInteger(hour)||hour<0||hour>23||!Number.isInteger(minute)||minute<0||minute>59))throw Error('INVALID_SCHEDULE_TIME');
+              const timeLabel=!startAt?(trusted.match(/大后天|后天|明天|今天|下周[一二三四五六日天]?|周[一二三四五六日天]|上午|下午|晚上|中午|早上|\d{1,2}[:：]\d{2}|[一二两三四五六七八九十\d]+点(?:半|[一二三四五六七八九十\d]+分)?/gu)??[]).join(' ')||undefined:undefined;
+              return createAssistantReminder({operationId:args.operationId,userId:context.userId,messageId:body.sessionId+':'+body.messageId,fingerprint:createHash('sha256').update(JSON.stringify({name:args.name,date:args.date,time:args.time})).digest('hex'),name:args.name,timeKind:startAt?'point':'none',startAt,timeLabel});
+            }
+            if(args.action==='propose_create')return {action:'propose_create',...proposeAssistantReminderCreation({proposalId:args.proposalId,userId:context.userId,sessionId:body.sessionId,messageId:body.messageId,name:args.name,startAt:args.startAt})};
+            if(args.action==='propose_time'){
+              const proposalContext=getAssistantReminderProposalContext(args.reminderId);
+              if(!proposalContext)throw Error('ASSISTANT_REMINDER_NOT_FOUND');
+              if(!isAssistantReminderTimeAvailable(args.startAt))throw Error('SCHEDULE_PROPOSAL_NOT_SUPPORTED');
+              const proposal=proposeAssistantReminderTime({proposalId:args.proposalId,userId:context.userId,sessionId:body.sessionId,messageId:body.messageId,reminderId:args.reminderId,startAt:args.startAt});
+              return {action:'propose_time',...proposal};
+            }
+            if(args.action==='confirm_time'){
+              const pending=listAssistantReminderProposals(context.userId,body.sessionId) as {proposalId:string}[];
+              if(pending.length!==1||pending[0].proposalId!==args.proposalId||!hasScheduleTimeApproval(trusted))throw Error('SCHEDULE_PROPOSAL_NOT_CONFIRMED');
+              return confirmAssistantReminderTime(args.proposalId,context.userId,body.sessionId);
+            }
+            if(args.action==='reject_time'){if(!hasScheduleTimeRejection(trusted))throw Error('SCHEDULE_PROPOSAL_NOT_CONFIRMED');return rejectAssistantReminderTime(args.proposalId,context.userId,body.sessionId);}
+            throw Error('SCHEDULE_PROPOSAL_NOT_CONFIRMED');
+          });
+          await authorizeInstance(instance);res.end(JSON.stringify({verified:true,...result}));
+        }
         else if (body.kind === 'personal-context' || body.kind === 'personal-tool' || body.kind === 'memory-observe') {
           if (typeof body.sessionId !== 'string' || body.sessionId.length > 160 || typeof body.sourceText !== 'string' || body.sourceText.length > 8020) throw Error('INVALID_OPERATION');
           if(body.messageId!==undefined&&(typeof body.messageId!=='string'||body.messageId.length>160))throw Error('INVALID_OPERATION');
@@ -264,7 +318,7 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
         else throw Error('INVALID_OPERATION');
       } catch (error) {
         if (!res.headersSent) res.writeHead(400);
-        const failure = error instanceof PreparationContractError ? {code:error.code,message:error.message,issues:error.issues,recovery:error.recovery,nextAction:error.nextAction} : error instanceof CapabilityError ? error.toFailure() : error instanceof PreparationError ? {code:error.code,message:error.message,recovery:['TASK_SCOPE_MISMATCH','TASK_TURN_MISMATCH','TASK_ALREADY_FINISHED','PREPARATION_VERIFY_FAILED'].includes(error.code)?'stop':'correct_arguments',nextAction:'按备课错误核对任务、版本和选区；结果不明先用status查状态，不重复写入。'} : error instanceof ZodError ? {code:'INVALID_TOOL_INPUT',message:'操作参数格式不正确，已有内容保留，请按字段说明修正。',issues:error.issues.map(issue=>({field:issue.path.join('.'),problem:issue.message})),recovery:'correct_arguments'} : error instanceof WorkspaceDataReadError || error instanceof PersonalContextError || error instanceof AssistantMaterialError || error instanceof AssistantMaterialReadError ? {code:error.code,message:error.message} : (error as Error).message === 'MATERIAL_STORAGE_LIMIT' ? { code: 'MATERIAL_STORAGE_LIMIT', message: '附件与解析缓存已达到当前用户512MB限制，原件和对话仍保留，请减少材料或联系管理员。' } : teachingFailure(error);
+        const failure = requestKind==='schedule-tool' ? {code:error instanceof Error?error.message:'SCHEDULE_RESULT_UNKNOWN',message:'本次日程操作未能核实。已保存的事项不会因建议失败而删除；请先查看日程，再核对请求或重新提出时间建议，避免重复创建。',recovery:'clarify',nextAction:'读取原日程和待确认建议，确认实际保存状态后继续；不要声称此前创建失败。'} : error instanceof PreparationContractError ? {code:error.code,message:error.message,issues:error.issues,recovery:error.recovery,nextAction:error.nextAction} : error instanceof CapabilityError ? error.toFailure() : error instanceof PreparationError ? {code:error.code,message:error.message,recovery:['TASK_SCOPE_MISMATCH','TASK_TURN_MISMATCH','TASK_ALREADY_FINISHED','PREPARATION_VERIFY_FAILED'].includes(error.code)?'stop':'correct_arguments',nextAction:'按备课错误核对任务、版本和选区；结果不明先用status查状态，不重复写入。'} : error instanceof ZodError ? {code:'INVALID_TOOL_INPUT',message:'操作参数格式不正确，已有内容保留，请按字段说明修正。',issues:error.issues.map(issue=>({field:issue.path.join('.'),problem:issue.message})),recovery:'correct_arguments'} : error instanceof WorkspaceDataReadError || error instanceof PersonalContextError || error instanceof AssistantMaterialError || error instanceof AssistantMaterialReadError ? {code:error.code,message:error.message} : (error as Error).message === 'MATERIAL_STORAGE_LIMIT' ? { code: 'MATERIAL_STORAGE_LIMIT', message: '附件与解析缓存已达到当前用户512MB限制，原件和对话仍保留，请减少材料或联系管理员。' } : teachingFailure(error);
         logEvent('warn', 'assistant_tool_failed', {code: failure.code});
         res.end(JSON.stringify(failure));
       }
@@ -290,7 +344,7 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
       const initial = await nativeWorkspaceCall(runtime, cookie, 'workspace/create', {path: path.join(context.dataDirectory, 'assistant', key, 'official', 'empty-workspace')});
       runWithWorkspace(context,()=>setNativeWorkspace('default',initial.workspace.workspaceId));
       if (initial.workspace.title === 'empty-workspace') await nativeWorkspaceCall(runtime, cookie, 'workspace/rename', {workspaceId: initial.workspace.workspaceId, title: '我的工作区'});
-      instance = {runtime, bridge, context, cookie, authorizers: new Map([[identity, authorize]]), leaseTimers: new Map(), touched: Date.now(), fingerprint: revision, leases, leaseSessions: new Map(), sockets: new Set(), humanTexts: new Map()};
+      instance = {runtime, bridge, context, cookie, authorizers: new Map([[identity, authorize]]), leaseTimers: new Map(), touched: Date.now(), fingerprint: revision, leases, leaseSessions: new Map(), sockets: new Set(), humanTexts: new Map(), scheduleSources:new Map()};
       logEvent('info', 'assistant_official_startup', {runtimeMs: Math.round(runtimeReady - startTime), authMs: Math.round(authenticated - runtimeReady), workspaceMs: Math.round(performance.now() - authenticated), totalMs: Math.round(performance.now() - startTime)});
       instances.set(key, instance);
       return instance;
@@ -367,6 +421,10 @@ export async function officialAssistantProxy(req: Request, res: Response) {
   let target: URL;
   try { target = new URL(raw, origin()); if (target.origin !== origin() || target.pathname.includes('%')) throw Error(); }
   catch { res.status(400).end(); return; }
+  const glassAsset=target.pathname.match(new RegExp(`^(?:${officialPrefix})?/assets/glass/(config|edge-light|native-backdrop|liquid-glass)\\.(js|css)$`));
+  if(glassAsset&&['GET','HEAD'].includes(req.method)){
+    try{const source=await readFileSync(path.join(agentDirectory,'official-ui','glass-runtime',`${glassAsset[1]}.${glassAsset[2]}`));res.setHeader('Content-Type',glassAsset[2]==='css'?'text/css; charset=utf-8':'text/javascript; charset=utf-8');res.setHeader('Cache-Control','private, max-age=300');res.end(source);}catch{res.status(404).end();}return;
+  }
   if (target.pathname === '/api/settings/describe' && req.method === 'POST' && req.body?.type === 'client-request' && req.body?.method === 'settings/describe') {
     res.json({type: 'server-response', rpcId: req.body.rpcId, result: {ok: true, value: {writable: false, hasDocument: false, namespaces: [{ns: 'locale', autoGenerate: false, schema: {type: 'object', properties: {preference: {type: 'string'}}}, value: {preference: 'zh-CN-x-qingsong'}, applies: 'live', secrets: [], revision: 0}]}}}); return;
   }
@@ -405,6 +463,27 @@ export async function officialAssistantProxy(req: Request, res: Response) {
       const target=await runWithWorkspace(context,()=>resolvePreparationTarget(req.body,(method,request)=>nativeWorkspaceCall(instance.runtime,instance.cookie,method,request)));
       res.json({target});
     } catch(error){res.status(error instanceof PreparationError?error.status:400).json({message:error instanceof Error?error.message:'助手工作空间未能打开，教案和会话保留。',saved:false});}
+    return;
+  }
+  if(target.pathname==='/api/qingsong/schedule-proposals'){
+    try{
+      const context=getWorkspaceContext();
+      if(req.method==='GET'){
+        const sessionId=target.searchParams.get('sessionId');if(!sessionId||!materialSessionId(sessionId))throw Error('INVALID_SESSION');
+        res.json({proposals:listAssistantReminderProposals(context.userId,sessionId)});return;
+      }
+      if(req.method==='POST'){
+        const input=z.object({proposalId:z.uuid(),sessionId:z.string().min(1).max(160)}).strict().parse(req.body);
+        const result=runWithWorkspace(context,()=>confirmAssistantReminderTime(input.proposalId,context.userId,input.sessionId));
+        res.json({verified:true,...result});return;
+      }
+      if(req.method==='DELETE'){
+        const input=z.object({proposalId:z.uuid(),sessionId:z.string().min(1).max(160)}).strict().parse(req.body);
+        const result=runWithWorkspace(context,()=>rejectAssistantReminderTime(input.proposalId,context.userId,input.sessionId));
+        res.json({verified:true,...result});return;
+      }
+      res.status(405).end();
+    }catch(error){res.status(409).json({code:'SCHEDULE_PROPOSAL_UNAVAILABLE',message:error instanceof Error&&error.message==='ASSISTANT_PROPOSAL_STALE'?'这条日程已在其他位置修改，建议未应用。请重新查看日程后再决定。':'时间尚未更新，原日程仍保留；请重新查看待确认项后重试。'});}
     return;
   }
   if (target.pathname === '/api/qingsong/workspace' && req.method === 'POST') {
@@ -476,7 +555,8 @@ export async function officialAssistantProxy(req: Request, res: Response) {
         if (text.trim() && text.length <= 8020) {
           const texts = instance.humanTexts.get(request.sessionId) ?? [];
           instance.humanTexts.set(request.sessionId, [...texts,createHash('sha256').update(text).digest('hex')].slice(-32));
-          if (instance.humanTexts.size > 100) instance.humanTexts.delete(instance.humanTexts.keys().next().value!);
+          instance.scheduleSources.set(request.sessionId,{hash:createHash('sha256').update(text).digest('hex'),submittedAt:Date.now()});
+          if (instance.humanTexts.size > 100) {const oldest=instance.humanTexts.keys().next().value!;instance.humanTexts.delete(oldest);instance.scheduleSources.delete(oldest);}
         }
       }
     }
