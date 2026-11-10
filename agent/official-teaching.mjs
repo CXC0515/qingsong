@@ -142,7 +142,7 @@ export function apply(ctx) {
   ctx.effect(()=>ctx.tools.register(defineTool({
     name:'qingsong_schedule',
     description:'管理当前教师自己的单条个人日程。只有教师明确委托创建时才直接创建；缺少时间先保存时间待定，保留用户给出的部分时间约束。先查询课表与节次，提议未来无课时段；只有教师接受后更新原事项，教师拒绝或暂不设置则只关闭建议并保留原事项。目标或内容依赖推测时用propose_create先展示名称、时间与假设，用户确认后才创建；找时间或一般讨论不直接创建。propose_create不写业务日程。create的name须为用户原话片段；明确时间用date+time。提议用proposalId和startAt（本地YYYY-MM-DDTHH:mm），confirm_time/reject_time用于唯一待确认提议。',
-    parameters:{action:{type:'string',required:true,enum:['create','propose_create','propose_time','confirm_time','reject_time']},operationId:{type:'string'},name:{type:'string'},date:{type:'string'},time:{type:'string'},proposalId:{type:'string'},reminderId:{type:'string'},startAt:{type:'string'}},
+    parameters:{action:{type:'string',required:true,enum:['create','propose_create','propose_time','confirm_time','reject_time']},name:{type:'string'},date:{type:'string'},time:{type:'string'},proposalId:{type:'string'},reminderId:{type:'string'},startAt:{type:'string'}},
     output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
     async execute(args,exec){
       const state=turns.get(exec.agent?.id);
