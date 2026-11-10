@@ -49,8 +49,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       const [reference,setReference]=React.useState(null);
       React.useEffect(()=>{const controller=new AbortController();void requestJSON('./api/qingsong/lesson-references?id='+encodeURIComponent(node.data.referenceId),{signal:controller.signal}).then(value=>setReference(value.references[0])).catch(()=>{});return()=>controller.abort();},[node.data.referenceId]);
       if(!reference)return React.createElement('span',{className:'qs-sent-lesson-reference'},'正在读取教案引用…');
-      const href='/?page=lesson-plan&preparationId='+encodeURIComponent(reference.preparationId)+'&documentId='+encodeURIComponent(reference.documentId);
-      return React.createElement('a',{className:'qs-sent-lesson-reference',href,title:'打开对应教案'},reference.selection ? '“'+reference.selection.text.slice(0,100)+'” · 选中文字' : reference.title+' · 教案');
+      return React.createElement('button',{type:'button',className:'qs-sent-lesson-reference',title:'预览教案引用',onClick:()=>openLessonPreview(reference.id)},reference.selection ? '“'+reference.selection.text.slice(0,100)+'” · 选中文字' : reference.title+' · 教案');
     }
     ctx.slots.inject('conversation.user.text.node',()=>ctx.slots.register({name:'conversation.user.text.node',key:lessonSource,priority:-100},props=>React.createElement(SentLessonReference,props)));
     function SentMaterialReference({node,sessionId}) {
@@ -59,14 +58,6 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
       return React.createElement('span',{className:'qs-sent-material-reference',title:name},'资料 · '+name);
     }
     ctx.slots.inject('conversation.user.text.node',()=>ctx.slots.register({name:'conversation.user.text.node',key:materialSource,priority:-100,inject:sessionId=>({sessionId})},props=>React.createElement(SentMaterialReference,props)));
-    const handleLessonLink=event=>{
-      const anchor=event.target.closest?.('a[href]');if(!anchor)return;
-      let url;try{url=new URL(anchor.getAttribute('href'),location.origin);}catch{return;}
-      if(url.origin!==location.origin||!['/','/api/assistant/official/'].includes(url.pathname)||url.searchParams.get('page')!=='lesson-plan')return;
-      const preparationId=url.searchParams.get('preparationId'),documentId=url.searchParams.get('documentId');if(!materialUuid.test(preparationId??'')||(documentId&&!materialUuid.test(documentId)))return;
-      event.preventDefault();event.stopPropagation();parent.postMessage({type:'qingsong:open-lesson',preparationId,documentId,connectionId},location.origin);
-    };
-    ctx.effect(()=>{document.addEventListener('click',handleLessonLink,true);return()=>document.removeEventListener('click',handleLessonLink,true);});
     const lessonToken=id=>"[[青松教案:"+id+"]]";
     const pendingReferences=new Map();
     const requestJSON = async (url, options = {}) => {
@@ -151,7 +142,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         retry ? React.createElement('p',null,current.retryState === 'scheduled' ? '系统正在按既定次数重试当前模型请求，请稍候；不会重发整轮操作。' : current.retryState === 'cancelled' ? '本次模型重试已取消。' : '已尝试重新连接模型服务。') : React.createElement('p',null,outcome),
         overflow&&!retry&&React.createElement('div',{className:'qs-failure-recovery'},React.createElement('button',{type:'button',disabled:recovering,onClick:()=>void compact()},recovering?'处理中…':'整理历史后继续'),compactFailed&&React.createElement('button',{type:'button',disabled:recovering,onClick:newSession},'新建会话继续'),recovery&&React.createElement('p',{role:'status'},recovery)),
         !retry && React.createElement('button',{type:'button',onClick:()=>setAttempt(value=>value+1)},'重新核对保存状态'),
-        React.createElement('details',null,React.createElement('summary',null,'技术详情'),React.createElement('pre',null,JSON.stringify({code:failure?.code,message:failure?.message,...(retry ? {delayMs:Math.round(current.delayMs),retry:current.retry,maxRetries:current.maxRetries} : {})},null,2))));
+        React.createElement('details',null,React.createElement('summary',null,'技术详情'),React.createElement('pre',null,JSON.stringify({code:globalThis.QingsongAssistantFailure.classifiedCode(failure),message:failure?.message,...(retry ? {delayMs:Math.round(current.delayMs),retry:current.retry,maxRetries:current.maxRetries} : {})},null,2))));
     }
     for (const [key,retry] of [['model-retry',true],['turn-error',false]]) {
       ctx.slots.inject('conversation.chat.node',()=>ctx.slots.register({name:'conversation.chat.node',key,priority:-100},props=>React.createElement(FailureNotice,{...props,retry})));

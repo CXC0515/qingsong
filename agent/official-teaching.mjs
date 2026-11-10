@@ -70,7 +70,11 @@ export function apply(ctx) {
         state.timer.unref();
       } catch (error) { finish(agent.id); throw error; }
     }
-    if (++state.steps > (state.budget?.steps??8)) throw Error('本轮已达到执行上限，已有内容保留，请缩小范围或继续未完成的备课。');
+    if (++state.steps > (state.budget?.steps??8)) {
+      const message='本轮备课尝试次数已用完，已有内容保留，请核对后从原会话继续未完成的备课。';
+      console.warn('[青松助手] 备课执行次数用尽',{sessionId:agent.id,turn,steps:state.steps,limit:state.budget?.steps??8,compactions:state.compactions??0});
+      throw Error(message);
+    }
     await bridge({kind: 'authorize'}, signal);
     if(!state.businessContext)state.businessContext=await bridge({kind:'business-context'},signal);
     const human = messages.filter(message => message.source?.kind === 'user').at(-1);
@@ -100,12 +104,22 @@ export function apply(ctx) {
     const config = await next();
     return applyGenerationPolicy(config,generationPolicy);
   });
-  ctx.on('session/event', (session, event) => { if (event.type === 'turn/end') finish(session.id); });
+  ctx.on('session/event', (session, event) => {
+    if(event.type==='compaction/start'){
+      const state=turns.get(session.id);
+      if(state)state.compactions=(state.compactions??0)+1;
+      console.info('[青松助手] 历史整理开始',{sessionId:session.id,turn:event.data?.turn,count:state?.compactions??1});
+    } else if(event.type==='compaction/end') {
+      console.info('[青松助手] 历史整理结束',{sessionId:session.id,turn:event.data?.turn,failed:Boolean(event.data?.error)});
+    }
+    if (event.type === 'turn/end') finish(session.id);
+  });
   ctx.effect(() => () => { for (const id of [...turns.keys()]) finish(id); });
   function guardTool(exec){
+    const state=turns.get(exec.agent?.id);
+    console.info('[青松助手] 工具调用',{sessionId:exec.agent?.id,tool:exec.name,action:exec.arguments?.action,step:state?.steps});
     if(exec.name==='skill'){
       if(!publishedSkillNames.has(exec.arguments?.name))return '此Skill不在青松发布目录中，不能加载。';
-      const state=turns.get(exec.agent?.id);
       if(!state?.enabledSkills?.has(exec.arguments?.name))return '此Skill当前未在管理员配置中披露，不能加载。';
       if(!state||++state.queries>(state.budget?.queries??12))return '本轮读取额度已用完，已有对话保留，请拆分问题后重试。';
       return undefined;

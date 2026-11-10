@@ -88,7 +88,7 @@ html,body{background:transparent!important;--dsw-alias-bg-base:transparent;--dsw
 .qs-lesson-updates button{min-height:44px;padding:6px 10px;border:1px solid #71887955;border-radius:10px;text-align:left}
 /* Business references use native message nodes; never expose wire ids as labels. */
 .qs-sent-lesson-reference,.qs-sent-material-reference{display:inline-flex;align-items:center;min-height:32px;padding:4px 10px;margin:2px;border:1px solid #ccd5dc;border-radius:10px;background:#f5f7f9;color:#243843;max-width:100%;white-space:normal;text-align:left;overflow-wrap:anywhere}
-.qs-sent-lesson-reference{cursor:pointer}
+.qs-sent-lesson-reference{min-height:44px;font:inherit;cursor:pointer}
 
 .qs-lesson-updates>.qs-selection-quote{flex-basis:100%;margin:2px 0;padding:8px 12px;overflow-wrap:anywhere}.qs-lesson-updates>.qs-selection-quote summary{min-height:36px;line-height:1.5;white-space:pre-wrap}.qs-lesson-updates>.qs-selection-quote button{min-height:44px;background:transparent;color:inherit}.qs-lesson-updates>.qs-selection-quote blockquote{max-height:160px}
 /* Keep schedule decisions above the native sticky composer when scrolled into view. */

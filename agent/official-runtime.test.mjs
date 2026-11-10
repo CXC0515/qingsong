@@ -180,3 +180,16 @@ test('lesson transcript references register on the native presentation service',
  plugin.apply({slots:{inject:()=>{}},effect:fn=>effects.push(fn),uiConversation:{userText:{register:rule=>rules.push(rule)}}});
  effects[0]();assert.equal(rules[0].id,'qingsong-lesson');const id='f2dc315d-33a5-54d5-a4b7-80e30b16d909',text='请修改[[青松教案:'+id+']]';const node=rules[0].match(text,0);assert.equal(node.data.referenceId,id);assert.equal(text.slice(node.start,node.end),'[[青松教案:'+id+']]');assert.equal(rules[0].match(text,node.end),undefined);
 });
+
+test('sent lesson references open the in-assistant preview instead of navigating away',async()=>{
+ const source=await readFile(new URL('./official-ui/client.js',import.meta.url),'utf8');
+ assert.match(source,/className:'qs-sent-lesson-reference',[^}]*onClick:\(\)=>openLessonPreview\(reference\.id\)/);
+ assert.doesNotMatch(source,/qingsong:open-lesson|handleLessonLink/);
+});
+
+test('execution step limit has a teacher-facing recovery message',async()=>{
+ const source=await readFile(new URL('./official-ui/failure.js',import.meta.url),'utf8');
+ const context={};vm.runInNewContext(source,context);
+ assert.match(context.QingsongAssistantFailure.reason({code:'UNKNOWN',message:'本轮备课尝试次数已用完，已有内容保留。'}),/尝试次数已用完/);
+ assert.equal(context.QingsongAssistantFailure.classifiedCode({code:'UNKNOWN',message:'本轮备课尝试次数已用完，已有内容保留。'}),'EXECUTION_STEP_LIMIT');
+});
