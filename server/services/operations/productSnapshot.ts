@@ -122,7 +122,7 @@ export interface ManagedProductSnapshotResult {
 export const createManagedProductSnapshot = async (
   sourceInput: string,
   automaticRootInput: string,
-  retention = 2,
+  retention = 1,
   now = new Date(),
 ): Promise<ManagedProductSnapshotResult> => {
   if (!Number.isInteger(retention) || retention < 1) throw new Error('INVALID_SNAPSHOT_RETENTION');

@@ -27,22 +27,22 @@ const createFixture = async () => {
   return { source, automatic };
 };
 
-test('skips unchanged data and retains only the latest two successful snapshots', async () => {
+test('skips unchanged data and retains only the latest successful snapshot', async () => {
   const { source, automatic } = await createFixture();
-  const first = await createManagedProductSnapshot(source, automatic, 2, new Date('2026-09-08T01:00:00Z'));
+  const first = await createManagedProductSnapshot(source, automatic, 1, new Date('2026-09-08T01:00:00Z'));
   assert.equal(first.status, 'created');
-  const duplicate = await createManagedProductSnapshot(source, automatic, 2, new Date('2026-09-08T02:00:00Z'));
+  const duplicate = await createManagedProductSnapshot(source, automatic, 1, new Date('2026-09-08T02:00:00Z'));
   assert.equal(duplicate.status, 'skipped');
 
   const resource = path.join(source, 'workspaces', 'workspace-test', 'uploads', 'resource.pdf');
   await writeFile(resource, 'second');
-  await createManagedProductSnapshot(source, automatic, 2, new Date('2026-09-08T03:00:00Z'));
+  await createManagedProductSnapshot(source, automatic, 1, new Date('2026-09-08T03:00:00Z'));
   await writeFile(resource, 'third');
-  const latest = await createManagedProductSnapshot(source, automatic, 2, new Date('2026-09-08T04:00:00Z'));
+  const latest = await createManagedProductSnapshot(source, automatic, 1, new Date('2026-09-08T04:00:00Z'));
   assert.equal(latest.status, 'created');
   assert.equal(latest.pruned.length, 1);
   const entries = (await readdir(automatic)).filter(name => name.startsWith('product-'));
-  assert.equal(entries.length, 2);
+  assert.equal(entries.length, 1);
   assert.equal((await readdir(automatic)).some(name => name.startsWith('.pending-')), false);
 });
 
