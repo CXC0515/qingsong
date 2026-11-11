@@ -2,7 +2,7 @@ import {preparationTool} from './official-preparation.mjs';
 import {buildContext,refreshContext,businessRuntimeContext} from './context-builder.mjs';
 import {capabilityToolParameters} from '../src/domain/assistantCapabilityDefinitions.mjs';
 import {executeCapability,httpReadFailure,ReadToolFailure} from './tool-contract-recovery.mjs';
-import {skillManifest,publishedSkillNames} from './official-skills.mjs';
+import {skillManifest,publishedSkillNames,publishedSkillSource} from './official-skills.mjs';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { applyGenerationPolicy } from './generation-policy.mjs';
 
@@ -20,6 +20,12 @@ export function apply(ctx) {
   ctx.effect(() => ctx.systemPrompt.context({name:'本轮相关记忆与材料', order:200, required:true, interpolate:false,
     text: ({agent}) => turns.get(agent?.id)?.contextParts?.dynamic ?? ''}));
   ctx.effect(() => ctx.systemPrompt.context({name:'当前备课',order:175,required:true,interpolate:false,text:({agent})=>{const c=turns.get(agent?.id)?.preparationContext;return c?JSON.stringify(c):'';}}));
+  ctx.effect(() => ctx.systemPrompt.context({name:'本轮备课连续状态',order:180,required:true,interpolate:false,text:({agent})=>{
+    const state=turns.get(agent?.id);if(!state)return '';
+    const loadedSkills=[...(state.loadedSkills??new Map())].map(([name,source])=>({name,source}));
+    const toolStates=[...(state.recentToolStates??[])].slice(-12);
+    return loadedSkills.length||toolStates.length?JSON.stringify({loadedSkills,toolStates,instructions:'Skill正文已加载时继续使用，不要重复调用skill。备课动作状态以成功核验回执为准；延续当前taskId与baseRevision，不重复begin、不更换版本或候选操作编号。失效资料引用先重新search核对当前来源，不得只换分页重读。'}):'';
+  }}));
   ctx.effect(() => ctx.systemPrompt.context({name:'当前业务与上海日期', order:150, required:true, interpolate:false,
     text: ({agent}) => businessRuntimeContext(turns.get(agent?.id)?.businessContext ?? {complete:false,guidance:'候选尚未加载，使用qingsong_search查找。'})}));
   const bridge = async (body, signal) => {
@@ -121,6 +127,7 @@ export function apply(ctx) {
     if(exec.name==='skill'){
       if(!publishedSkillNames.has(exec.arguments?.name))return '此Skill不在青松发布目录中，不能加载。';
       if(!state?.enabledSkills?.has(exec.arguments?.name))return '此Skill当前未在管理员配置中披露，不能加载。';
+      if(state.loadedSkills?.has(exec.arguments?.name))return '此Skill已在本轮加载，正文保留在本轮连续状态中，不要重复调用；继续按已加载内容完成任务。';
       if(!state||++state.queries>(state.budget?.queries??12))return '本轮读取额度已用完，已有对话保留，请拆分问题后重试。';
       return undefined;
     }
@@ -144,6 +151,18 @@ export function apply(ctx) {
     const decision=await next();
     const state=turns.get(exec.agent?.id),failure=state?.toolFailures?.get(exec.callId);
     if(failure)state.toolFailures.delete(exec.callId);
+    if(state&&exec.name==='skill'&&!result.isError){
+      const skillName=exec.arguments?.name,source=publishedSkillSource(skillName);
+      if(skillName&&source){state.loadedSkills??=new Map();state.loadedSkills.set(skillName,source);}
+    }
+    if(state&&exec.name==='qingsong_read'&&result.isError){
+      const text=result.content?.map(block=>block.type==='text'?block.text:'').join(' ')??'';
+      try{const parsed=JSON.parse(text);if(['OBJECT_NOT_FOUND','SOURCE_NOT_FOUND'].includes(parsed.code)){
+        state.recentToolStates??=[];
+        state.recentToolStates.push({action:'read',ref:exec.arguments?.ref,section:exec.arguments?.section,code:parsed.code,message:parsed.message});
+        state.recentToolStates=state.recentToolStates.slice(-12);
+      }}catch{}
+    }
     if(result.isError&&failure&&decision.kind==='accept'){
       const {value:_value,...accepted}=decision;
       return {...accepted,content:[{type:'text',text:JSON.stringify(failure)}]};

@@ -11,8 +11,9 @@ export function readFailure(error,signal){
 export function httpReadFailure(body,status){
  const code=typeof body?.code==='string'?body.code:'READ_SERVICE_UNAVAILABLE';
  const stop=['AUTH_EXPIRED','ACCESS_DENIED','DATA_CORRUPT','DATA_READ_FAILED','TURN_CANCELLED','CLOSING'];
- const recovery=stop.includes(code)||status===401||status===403?'stop':status===429||status>=500?'retry_once':['correct_arguments','clarify','retry_once','stop'].includes(body?.recovery)?body.recovery:'correct_arguments';
- return {code,message:body?.message||'读取未完成，数据未修改，请核对后重试。',recovery,...(Array.isArray(body?.issues)?{issues:body.issues}:{}),nextAction:body?.nextAction||(recovery==='stop'?'停止读取；权限错误先核对登录和访问范围，数据异常请联系管理员。':recovery==='retry_once'?'可重试一次，仍失败则停止并说明原因。':'按错误提示修改参数；不确定时调用qingsong_discover({})。')};
+ const missingObject=['OBJECT_NOT_FOUND','SOURCE_NOT_FOUND'].includes(code);
+ const recovery=stop.includes(code)||status===401||status===403?'stop':missingObject?'clarify':status===429||status>=500?'retry_once':['correct_arguments','clarify','retry_once','stop'].includes(body?.recovery)?body.recovery:'correct_arguments';
+ return {code,message:body?.message||'读取未完成，数据未修改，请核对后重试。',recovery,...(Array.isArray(body?.issues)?{issues:body.issues}:{}),nextAction:body?.nextAction||(missingObject?'按当前备课资料列表重新search核对；查不到时停止读取并请教师确认，不要换分页继续读。':recovery==='stop'?'停止读取；权限错误先核对登录和访问范围，数据异常请联系管理员。':recovery==='retry_once'?'可重试一次，仍失败则停止并说明原因。':'按错误提示修改参数；不确定时调用qingsong_discover({})。')};
 }
 function fingerprint(tool,args){
  const sort=value=>Array.isArray(value)?value.map(sort):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,sort(value[key])])):value;
@@ -21,6 +22,9 @@ function fingerprint(tool,args){
 export async function executeCapability({state,action,args,exec,execute}){
  const remember=failure=>{if(state){state.toolFailures??=new Map();state.toolFailures.set(exec.callId,failure);}throw new ReadToolFailure(failure);};
  if(!state)return remember({code:'TURN_NOT_ACTIVE',message:'读取轮次已经结束，数据未修改，请重新提问。',recovery:'stop'});
+ const referenceKey=action==='read'&&args?.ref?JSON.stringify([args.ref.type,args.ref.id,args.ref.parentId??null,args.section]):undefined;
+ const failedReference=referenceKey&&state.failedReferences?.get(referenceKey);
+ if(failedReference)return remember({code:'REPEATED_TOOL_FAILURE',message:'这份资料引用已经确认不可读取，本次没有再次请求，也没有读取其他资料。请先重新search核对当前备课资料；仍找不到时请教师确认。',recovery:'clarify',previousFailure:failedReference,nextAction:'停止对这个ref换offset重试；先重新search当前备课资料列表，列表中仍无此来源时询问教师。'});
  if(++state.queries>(state.budget?.queries??12))return remember({code:'TOOL_BUDGET_EXHAUSTED',message:'本轮读取次数已达上限，数据未修改。请缩小问题范围后继续。',recovery:'stop'});
  state.failedCalls??=new Map();
  const key=fingerprint('qingsong_'+action,args),prior=state.failedCalls.get(key);
@@ -34,6 +38,10 @@ export async function executeCapability({state,action,args,exec,execute}){
  }catch(error){
   const failure=readFailure(error,exec.signal);
   state.failedCalls.set(key,{failure,count:(prior?.count??0)+1});
+  if(referenceKey&&['OBJECT_NOT_FOUND','SOURCE_NOT_FOUND'].includes(failure.code)){
+   state.failedReferences??=new Map();
+   state.failedReferences.set(referenceKey,failure);
+  }
   if(failure.recovery==='stop')state.stopReading=failure;
   return remember(failure);
  }

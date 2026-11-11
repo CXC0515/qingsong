@@ -20,8 +20,10 @@
   function saved(outcome, failure) {
     if (!outcome?.bound) return '这条会话没有可核对的教案任务，无法据此确认其他操作是否完成。请核对对应页面后再继续。';
     const labels = {queued:'等待处理',running:'仍在处理中',completed:'已完成',interrupted:'已中断',cancelled:'已取消',failed:'失败', 'needs-input':'等待补充信息'};
+    const proposalLabels={pending:'已保存，待教师查看和应用',applied:'已由教师应用',discarded:'已被丢弃'};
     const last = outcome.tasks?.[0];
-    return `已核对：教案当前为第 ${outcome.revision} 版；此会话有 ${outcome.pending} 份待应用建议、${outcome.applied} 份已应用建议。${last ? '最近的备课任务' + (labels[last.status] ?? '状态待确认') + '。' : '此会话尚无备课任务记录。'}${isOverflow(failure)?'请先整理历史或新建会话，核对后再继续；不要直接重复整轮操作。':'请核对教案和建议后，在原会话继续；不要直接重复整轮操作。'}`;
+    const task=last?`最近任务${labels[last.status]??'状态待确认'}${last.stage?'（'+last.stage+'）':''}${last.proposalStatus?'；关联修改建议'+proposalLabels[last.proposalStatus]:'；没有保存修改建议'}`:'此会话尚无备课任务记录';
+    return `已核对：教案当前为第 ${outcome.revision} 版；本次会话有 ${outcome.pending} 份待应用建议、${outcome.applied} 份已应用建议；${task}。${isOverflow(failure)?'请先整理历史或新建会话，核对后再继续；不要直接重复整轮操作。':'请核对教案和建议后，在原会话继续；不要直接重复整轮操作。'}`;
   }
   globalThis.QingsongAssistantFailure = Object.freeze({reason, saved, isOverflow, classifiedCode});
 })();

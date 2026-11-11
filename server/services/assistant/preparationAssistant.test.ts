@@ -79,6 +79,27 @@ test('readback reports persisted revision, session-owned candidates and tasks wi
   await runWithWorkspace({...context,userId:'other-owner'},async () => assert.deepEqual(preparationSavedOutcome(target.sessionId!),{bound:false}));
 }));
 
+test('execution stop readback distinguishes an interrupted task from a saved pending candidate', async () => runWithWorkspace(context,async () => {
+  const {id,doc}=fixture(),native=nativeFixture();
+  const target=await resolvePreparationTarget({mode:'preparation',preparationId:id,documentId:doc.id},native.call);
+  const candidateTask:any=await preparationAssistantTool(target.sessionId!,{action:'begin',stage:'生成建议'},'修改第一段');
+  await preparationAssistantTool(target.sessionId!,{action:'propose',taskId:candidateTask.taskId,baseRevision:doc.revision,operationId:op(),summary:'第一段候选',content:JSON.stringify(document('候选第一段'))},'修改第一段');
+  const unfinished:any=await preparationAssistantTool(target.sessionId!,{action:'begin',stage:'核对后续内容'},'继续完善');
+  stopSessionTasks(target.sessionId!,'interrupted','本轮步数已用完，任务未完成。');
+
+  const outcome=preparationSavedOutcome(target.sessionId!);
+  assert.equal(outcome.bound,true);
+  if(outcome.bound){
+    assert.equal(outcome.pending,1);
+    assert.equal(outcome.applied,0);
+    assert.ok(outcome.tasks.some(task=>task.status==='interrupted'&&task.stage==='核对后续内容'));
+    assert.ok(outcome.tasks.some(task=>task.status==='completed'&&task.proposalStatus==='pending'));
+  }
+  assert.equal(prep.getTask(id,unfinished.taskId).status,'interrupted');
+  assert.equal(prep.listProposals(id).length,1);
+  assert.equal(prep.getDocument(id,doc.id).revision,doc.revision);
+}));
+
 test('selected paragraphs are a persisted task boundary; a later navigation cannot broaden an ongoing task', async () => runWithWorkspace(context,async () => {
   const {id,doc} = fixture(), native = nativeFixture();
   const target = await resolvePreparationTarget({mode:'preparation',preparationId:id,documentId:doc.id,revision:doc.revision,selection:{blockIds:['paragraph-first'],text:'原文第一段'}},native.call);

@@ -116,6 +116,11 @@ export function preparationToolParameters() {
       type: "string",
       enum: Object.keys(preparationActions),
       required: true,
+      description: "每次只调用一种动作，只传该动作列出的字段。" + Object.entries(preparationActions).map(([action, fields]) => {
+        const required = Object.entries(fields).filter(([, spec]) => !spec.optional && !Object.hasOwn(spec, "default")).map(([key]) => key);
+        const optional = Object.entries(fields).filter(([, spec]) => spec.optional || Object.hasOwn(spec, "default")).map(([key]) => key);
+        return action + "必填：" + (required.join("、") || "无") + "；可选/默认：" + (optional.join("、") || "无");
+      }).join("。"),
     },
   };
   for (const [action, fields] of Object.entries(preparationActions))

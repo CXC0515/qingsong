@@ -49,3 +49,13 @@ test('cancelled reads do not execute and a successful retry clears only its own 
  await assert.rejects(run('first'));fail=false;assert.equal(await run('retry'),'ok');fail=true;
  await assert.rejects(run('new-episode'));await assert.rejects(run('new-retry'));await assert.rejects(run('blocked'),error=>error.failure.code==='REPEATED_TOOL_FAILURE');assert.equal(calls,4);
 });
+test('missing preparation source blocks offset-only retries but allows a fresh reference',async()=>{
+ const state={queries:0};let calls=0;
+ const run=(ref,offset,id)=>executeCapability({state,action:'read',args:{ref,section:'original',offset,limit:10},exec:exec(id),execute:async()=>{calls++;throw new ReadToolFailure(httpReadFailure({code:'OBJECT_NOT_FOUND',message:'资料不可用',recovery:'clarify'},404));}});
+ const stale={type:'preparationSource',id:'source-a',parentId:'preparation-a'};
+ await assert.rejects(run(stale,0,'missing-1'),error=>error.failure.code==='OBJECT_NOT_FOUND');
+ await assert.rejects(run(stale,50,'missing-2'),error=>error.failure.code==='REPEATED_TOOL_FAILURE'&&error.failure.recovery==='clarify');
+ assert.equal(calls,1);
+ await assert.rejects(run({...stale,id:'source-b'},0,'fresh-ref'),error=>error.failure.code==='OBJECT_NOT_FOUND');
+ assert.equal(calls,2,'a fresh source reference may be checked normally');
+});

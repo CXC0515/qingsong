@@ -7,12 +7,25 @@ import {mkdtemp, rm, readFile, writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {request} from 'node:http';
-import {bootstrapModels} from './runtime.mjs';
+import {bootstrapModels,readProviders} from './runtime.mjs';
 import {prepareOfficialRuntime, startOfficialRuntime} from './official-runtime.mjs';
 import {allowOfficialCall} from './official-policy.mjs';
 import {BasicCompactionEngine} from '@deepseek-ai/dsh-compaction-basic';
 import {Session} from '@deepseek-ai/dsh-session';
 import {createUserMessage} from '@deepseek-ai/dsh-llm';
+
+test('GPT-6 Luna route is registered at 1.05M and compaction waits until 90 percent',async()=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'qs-gpt6-context-'));
+ try{
+  await bootstrapModels(root,{baseUrl:'http://127.0.0.1:9/v1',model:'gpt-6-luna'});
+  const providers=await readProviders(root);
+  assert.equal(providers.qingsong.models.find(model=>model.id==='gpt-6-luna').contextWindow,1_050_000);
+  const profile=await prepareOfficialRuntime({home:path.join(root,'teacher'),configHome:root});
+  const preset=profile.flatMap(row=>row.insert??[]).find(row=>row.id==='qingsong-preset');
+  const compact=preset.config.plugins.find(row=>row.id==='compaction').config.find(row=>row.id==='compaction-basic').config;
+  assert.equal(compact.thresholdRatio,0.9);
+ }finally{await rm(root,{recursive:true,force:true});}
+});
 
 test('teacher calls reject configuration, arbitrary directories and forged attachments', () => {
   assert.equal(allowOfficialCall('session/create', {args: {request: {}}}), true);
@@ -73,13 +86,21 @@ test('official process boots, serves extension, creates teaching sessions and st
     // DSH's unconfigured 65,536-token headroom fails on this same 32k route.
     const header={config:{provider:'qingsong',model:'fixture',maxTokens:4096}};
     const agent={session:{requestHeader:()=>header,seq:0,surface:{nodes:[],replaceGeneration:0}}};
-    let measured=24000,pruned=0;
+    let measured=25000,pruned=0;
     const ctx={reflect:{provide:()=>{}},on:()=>{},tokenMeter:{measure:()=>({totalTokens:measured,nodes:[]})},llm:{resolveModelInfo:async()=>({context:{contextWindow:32768},defaultMaxTokens:4096})},get:()=>({pruneSession:()=>{pruned++;measured=18000;}})};
     const defaults=new BasicCompactionEngine(ctx,{auto:false});
     await assert.rejects(defaults.compactIfNeeded(agent,'pressure',new AbortController().signal),/leaving no pressure budget/);
     const configured=new BasicCompactionEngine(ctx,compact);
     assert.equal(await configured.compactIfNeeded(agent,'pressure',new AbortController().signal),null);
     assert.equal(pruned,1,'native pressure path must trim oversized old tool results before another request');
+    let largeMeasured=944999,largePruned=0;
+    const largeCtx={reflect:{provide:()=>{}},on:()=>{},tokenMeter:{measure:()=>({totalTokens:largeMeasured,nodes:[]})},llm:{resolveModelInfo:async()=>({context:{contextWindow:1_050_000},defaultMaxTokens:4096})},get:()=>({pruneSession:()=>{largePruned++;if(largeMeasured===945000)largeMeasured=944999;}})};
+    const largeEngine=new BasicCompactionEngine(largeCtx,compact);
+    assert.equal(await largeEngine.compactIfNeeded(agent,'pressure',new AbortController().signal),null);
+    assert.equal(largePruned,0,'1.05M route stays untouched below 90 percent');
+    largeMeasured=945000;
+    assert.equal(await largeEngine.compactIfNeeded(agent,'pressure',new AbortController().signal),null);
+    assert.equal(largePruned,1,'1.05M route enters DSH pressure handling at 945,000 tokens');
     assert.match(prompt.personaPrefix,/明确要求创建个人提醒\/日程时，直接按其明确内容创建/u);
     assert.match(prompt.personaPrefix,/拒绝不删除原事项/u);
     assert.equal(prompt.includeHarnessIdentity, false);

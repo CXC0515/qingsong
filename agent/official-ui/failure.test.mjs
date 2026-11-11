@@ -11,6 +11,9 @@ test('503 explains provider failure; saved state comes only from readback',()=>{
   assert.match(reason({code:'AUTH'}),/连接或登录/);
   assert.match(saved({bound:false}),/无法.*确认/);
   assert.match(saved({bound:true,revision:7,pending:1,applied:0,tasks:[{status:'interrupted'}]}),/第 7 版.*1 份待应用建议.*已中断/);
+  assert.match(saved({bound:true,revision:7,pending:0,applied:0,tasks:[{status:'interrupted',stage:'生成完整教案'}]}),/中断（生成完整教案）；没有保存修改建议/);
+  assert.match(saved({bound:true,revision:7,pending:1,applied:0,tasks:[{status:'completed',stage:'修改候选已就绪',proposalStatus:'pending'}]}),/已保存，待教师查看和应用/);
+  assert.match(saved({bound:true,revision:7,pending:0,applied:0,tasks:[{status:'completed',proposalStatus:'discarded'}]}),/已被丢弃/);
   assert.doesNotMatch(saved({bound:true,revision:7,pending:0,applied:0,tasks:[]}),/正文未修改|全部保存/);
 });
 test('context overflow requires history recovery and preserves readback limits',()=>{

@@ -182,6 +182,11 @@ export function preparationTool(ctx, bridge, turns) {
         };
         return fail(state.preparationStopped);
       }
+      if(args.action!=='render'){
+        state.recentToolStates??=[];
+        state.recentToolStates.push({action:args.action,taskId:output.taskId??args.taskId,baseRevision:output.baseRevision,status:output.status??output.verification?.taskStatus,stage:output.stage,proposalId:output.proposalId??output.verification?.proposal?.id,proposalStatus:output.verification?.proposal?.status,message:output.message??output.verification?.message,verified:Boolean(output.verification?.verified)});
+        state.recentToolStates=state.recentToolStates.slice(-12);
+      }
       try {
         const { images = [], reservationId, ...result } = output;
         const imageRefs = [];

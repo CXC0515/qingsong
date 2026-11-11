@@ -19,6 +19,7 @@ const published=files.map(([file,requires])=>{
 export const skillManifest=published[0].manifest;
 export const skillManifests=Object.freeze(published.map(p=>p.manifest));
 export const publishedSkillNames=new Set(skillManifests.map(m=>m.name));
+export function publishedSkillSource(name){return published.find(item=>item.manifest.name===name)?.source;}
 export const name='qingsong-business-skills';
 export const inject=['skills'];
 async function promptNodes(signal){
