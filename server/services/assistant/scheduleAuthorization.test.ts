@@ -27,6 +27,8 @@ test('resolves explicit Shanghai dates at submission time and preserves incomple
  assert.equal(shanghaiDateAt(submitted),'2026-11-09');
  assert.equal(reminderNameFromText('下午三点提醒我交教案'),'交教案');
  assert.equal(reminderNameFromText('明天下午三点提醒我交教案'),'交教案');
+ assert.equal(reminderNameFromText('2026年11月12日上午九点半提醒我开会'),'开会');
+ assert.equal(reminderNameFromText('2026-11-12 09:30提醒我开会'),'开会');
  assert.equal(reminderNameFromText('提醒我交教案'),'交教案');
  assert.equal(reminderNameFromText('麻烦你提醒我交教案'),'交教案');
  assert.equal(reminderNameFromText('提醒我交教案周报'),'交教案周报');
