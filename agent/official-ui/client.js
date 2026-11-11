@@ -376,6 +376,7 @@ window.__ModuleLoader__.load({id: '@qingsong/assistant-ui', factory: require => 
         offWork=ctx.workspaces.list.subscribe(()=>check());
         offSessions=ctx.sessions.list.subscribe(()=>check());
         check();
+        parent.postMessage({type:'qingsong:interactive',connectionId},location.origin);
       }
       catch{parent.postMessage({type:'qingsong:connection',connectionId,phase:'error',pending:'initialization'},location.origin);}
       try{

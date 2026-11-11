@@ -20,6 +20,9 @@ test('resolves explicit Shanghai dates at submission time and preserves incomple
  assert.deepEqual(reminderTimeFromText('明天下午三点提醒我交教案',submitted),{date:'2026-11-10',time:'15:00'});
  assert.deepEqual(reminderTimeFromText('2026年11月12日上午九点半提醒我开会',submitted),{date:'2026-11-12',time:'09:30'});
  assert.deepEqual(reminderTimeFromText('明天下午提醒我交教案',submitted),{date:'2026-11-10',time:undefined});
+ assert.deepEqual(reminderTimeFromText('周三下午三点提醒我交教案',submitted),{date:'2026-11-11',time:'15:00'});
+ assert.deepEqual(reminderTimeFromText('下周一提醒我交教案',submitted),{date:'2026-11-16',time:undefined});
+ assert.deepEqual(reminderTimeFromText('提醒我交教案',submitted),{date:undefined,time:undefined});
 });
 
 test('time approval must be unqualified and rejection must be explicit',()=>{

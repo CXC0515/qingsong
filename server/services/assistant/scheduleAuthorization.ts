@@ -11,7 +11,17 @@ export const reminderTimeFromText = (text: string, submittedAt = Date.now()) => 
   const isoDay = (offset: number) => new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() + offset)).toISOString().slice(0,10);
   const explicit = text.match(/(20[0-9]{2})[-年/]([0-9]{1,2})[-月/]([0-9]{1,2})日?/u);
   const relative = text.match(/大后天|后天|明天|今天/u)?.[0];
-  const date = explicit ? explicit[1]+'-'+explicit[2].padStart(2,'0')+'-'+explicit[3].padStart(2,'0') : relative ? isoDay(({今天:0,明天:1,后天:2,大后天:3} as Record<string,number>)[relative]) : undefined;
+  const weekday = text.match(/(下周|下星期|本周|这周|本星期|这星期|周|星期)([一二三四五六日天])/u);
+  const currentWeekday = local.getUTCDay();
+  const targetWeekday = weekday ? ({一:1,二:2,三:3,四:4,五:5,六:6,日:0,天:0} as Record<string,number>)[weekday[2]] : undefined;
+  const weekdayOffset = weekday && targetWeekday !== undefined
+    ? /^(下周|下星期)$/u.test(weekday[1])
+      ? 7 - ((currentWeekday + 6) % 7) + ((targetWeekday + 6) % 7)
+      : /^(本周|这周|本星期|这星期)$/u.test(weekday[1])
+        ? ((targetWeekday + 6) % 7) - ((currentWeekday + 6) % 7)
+        : (targetWeekday - currentWeekday + 7) % 7
+    : undefined;
+  const date = explicit ? explicit[1]+'-'+explicit[2].padStart(2,'0')+'-'+explicit[3].padStart(2,'0') : relative ? isoDay(({今天:0,明天:1,后天:2,大后天:3} as Record<string,number>)[relative]) : weekdayOffset !== undefined ? isoDay(weekdayOffset) : undefined;
   const digits = (s:string):number => { if (/^[0-9]+$/.test(s)) return Number(s); const values:Record<string,number>={零:0,〇:0,一:1,二:2,两:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9}; if(s.includes('十')){const [a,b]=s.split('十');return (a?values[a]:1)*10+(b?values[b]:0);} return values[s]; };
   const clock = text.match(/([0-9]{1,2})[:：]([0-9]{2})/u);
   const chinese = text.match(/([零〇一二两三四五六七八九十0-9]+)点(?:(半)|([零〇一二两三四五六七八九十0-9]+)分?)?/u);
