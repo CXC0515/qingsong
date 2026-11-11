@@ -28,6 +28,7 @@ function OfficialAssistantPanel({entry}:Props) {
   const [elapsed,setElapsed]=useState(0);
   const [slow,setSlow]=useState(false);
   const [ready, setReady] = useState(false);
+  const [interfaceReady, setInterfaceReady] = useState(false);
   const [error, setError] = useState('');
   const [materialPick, setMaterialPick] = useState<MaterialPickRequest | null>(null);
   const [lessonPreview,setLessonPreview]=useState<{id:string;title:string;content?:RichDocument;url?:string;error?:string;selection?:string}|null>(null);
@@ -123,14 +124,14 @@ function OfficialAssistantPanel({entry}:Props) {
     }
   };
   useEffect(() => {
-    let started=performance.now(),connected=false,timer:ReturnType<typeof setInterval>|null=null;
+    let started=performance.now(),connected=false,interactive=false,timer:ReturnType<typeof setInterval>|null=null;
     let connectionPhase: 'page'|'catalogs' = 'page';
-    setReady(false);setError('');setPhase('page');setElapsed(0);setSlow(false);
+    setReady(false);setInterfaceReady(false);setError('');setPhase('page');setElapsed(0);setSlow(false);
     setSessionLoad(null);
-    const startTimer=()=>{if(timer!==null||connected)return;timer=setInterval(()=>{const seconds=Math.floor((performance.now()-started)/1000);setElapsed(seconds);if(seconds>=15)setSlow(true);if(seconds>=45)setError(current=>current||'连接尚未完成，已有会话保留。可重新连接；不会自动重发消息。');
+    const startTimer=()=>{if(timer!==null||connected)return;timer=setInterval(()=>{const seconds=Math.floor((performance.now()-started)/1000);setElapsed(seconds);if(seconds>=15&&!interactive)setSlow(true);if(seconds>=45&&!interactive)setError(current=>current||'连接尚未完成，已有会话保留。可重新连接；不会自动重发消息。');
       // A stale native auth/WS connection can leave DSH in catalogs forever.
       // Recreate the iframe before its long native retry loop becomes visible.
-      if(connectionPhase==='catalogs'&&seconds>=12&&automaticReconnects.current<2){
+      if(connectionPhase==='catalogs'&&!interactive&&seconds>=12&&automaticReconnects.current<2){
         automaticReconnects.current+=1;setError('正在刷新助手连接，已有会话保留；不会重发消息。');stopTimer();setConnectionId(crypto.randomUUID());
       }
     },1000);};
@@ -139,6 +140,10 @@ function OfficialAssistantPanel({entry}:Props) {
       if(event.origin!==location.origin||event.source!==frame.current?.contentWindow)return;
       if(event.data?.type==='qingsong:settings'){setSettings(true);return;}
       if(event.data?.connectionId!==connectionId)return;
+      if(event.data?.type==='qingsong:interactive'){
+        interactive=true;setInterfaceReady(true);setSlow(false);setError('');
+        return;
+      }
       if(event.data?.type==='qingsong:session-load'){
         if(event.data.phase==='empty'||event.data.phase==='ready')setSessionLoad(null);
         else if(['loading','slow','stalled','error'].includes(event.data.phase))setSessionLoad({phase:event.data.phase,durationMs:Number(event.data.durationMs)||0});
@@ -159,6 +164,7 @@ function OfficialAssistantPanel({entry}:Props) {
         connectionPhase='catalogs';
         if(!connected)console.info('[青松助手] 页面连接完成',{durationMs:Math.round(performance.now()-started)});
         connected=true;setReady(true);setError('');setSlow(false);stopTimer();
+        interactive=true;setInterfaceReady(true);
       }
     };
     window.addEventListener('message',receive);startTimer();
@@ -240,7 +246,8 @@ function OfficialAssistantPanel({entry}:Props) {
       {lessonPreview.url&&<GlassButton onClick={()=>{if(!window.dispatchEvent(new Event('qingsong:preparation-before-leave',{cancelable:true})))return;history.pushState(null,'',lessonPreview.url);window.dispatchEvent(new PopStateEvent('popstate'));setLessonPreview(null);}}>打开当前教案</GlassButton>}
     </ResponsiveDialog>}
     <style>{".qs-official-assistant>.lg-content{display:flex;flex-direction:column;min-height:0;flex:1;padding:0;gap:0;overflow:hidden}.qs-official-frame{display:flex;flex:1;min-height:0;margin:12px;border-radius:18px;overflow:hidden;background:#fff}"}</style>
-    {!ready&&<div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-sm"><p role={error?'alert':'status'} className={error?'text-red-700':'text-gray-500'}>{error||(phase==='page'?'正在载入助手界面…':'正在同步工作区与会话…')}{!error&&elapsed>0?` ${elapsed}秒`:''}{slow&&!error?'，连接较慢，已有会话保留。':''}</p>{(slow||error)&&<GlassButton disabled={busy} onClick={retry}>重新连接</GlassButton>}</div>}
+    {!interfaceReady&&<div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-sm"><p role={error?'alert':'status'} className={error?'text-red-700':'text-gray-500'}>{error||(phase==='page'?'正在载入助手界面…':'正在同步工作区与会话…')}{!error&&elapsed>0?` ${elapsed}秒`:''}{slow&&!error?'，连接较慢，已有会话保留。':''}</p>{(slow||error)&&<GlassButton disabled={busy} onClick={retry}>重新连接</GlassButton>}</div>}
+    {interfaceReady&&!ready&&error&&<div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2 text-sm"><p role="alert" className="text-red-700">{error}</p><GlassButton disabled={busy} onClick={retry}>重新连接</GlassButton></div>}
     {ready&&sessionLoad&&<p role={sessionLoad.phase==='error'?'alert':'status'} className={'shrink-0 px-4 py-2 text-sm '+(sessionLoad.phase==='error'?'text-red-700':'text-gray-600')}>
       {sessionLoad.phase==='loading'&&`正在读取当前会话，历史记录保留。${sessionLoad.durationMs>0?` ${Math.ceil(sessionLoad.durationMs/1000)}秒`:''}`}
       {sessionLoad.phase==='slow'&&`当前会话读取较慢，历史记录保留。${Math.ceil(sessionLoad.durationMs/1000)}秒`}

@@ -256,20 +256,16 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
           ]).parse(body.input);
           const reminderName=args.action==='create'?args.name:undefined;
           if(args.action==='create'&&(!reminderName||!trusted.includes(reminderName)||!hasDirectReminderIntent(trusted)))throw Error('SCHEDULE_INTENT_NOT_CONFIRMED');
-          if(args.action==='create'&&args.date&&!/(今天|明天|后天|大后天|\d{4}[-年/]\d{1,2}[-月/]\d{1,2}日?)/u.test(trusted))throw Error('SCHEDULE_DATE_NOT_IN_MESSAGE');
-          if(args.action==='create'&&args.time&&!/(\d{1,2}[:：]\d{2}|[零〇一二两三四五六七八九十\d]+点)/u.test(trusted))throw Error('SCHEDULE_TIME_NOT_IN_MESSAGE');
           const result=await runWithWorkspace(context,()=>{
             if(args.action==='create'){
               let startAt:string|undefined;
               const stated=reminderTimeFromText(trusted,source.submittedAt);
-              if((args.date&&args.date!==stated.date)||(args.time&&args.time!==stated.time))throw Error('SCHEDULE_TIME_NOT_IN_MESSAGE');
-              if(stated.date&&stated.time&&(!args.date||!args.time))throw Error('SCHEDULE_EXPLICIT_TIME_REQUIRED');
-              if(args.date){const [year,month,day]=args.date.split('-').map(Number);const calendarDate=new Date(Date.UTC(year,month-1,day,12));if(!Number.isFinite(calendarDate.getTime())||calendarDate.toISOString().slice(0,10)!==args.date)throw Error('INVALID_SCHEDULE_DATE');}
-              if(args.date&&args.time)startAt=args.date+'T'+args.time;
-              const [hour,minute]=args.time?.split(':').map(Number)??[];
-              if(args.time&&(!Number.isInteger(hour)||hour<0||hour>23||!Number.isInteger(minute)||minute<0||minute>59))throw Error('INVALID_SCHEDULE_TIME');
+              if(stated.date){const [year,month,day]=stated.date.split('-').map(Number);const calendarDate=new Date(Date.UTC(year,month-1,day,12));if(!Number.isFinite(calendarDate.getTime())||calendarDate.toISOString().slice(0,10)!==stated.date)throw Error('INVALID_SCHEDULE_DATE');}
+              const [hour,minute]=stated.time?.split(':').map(Number)??[];
+              if(stated.time&&(!Number.isInteger(hour)||hour<0||hour>23||!Number.isInteger(minute)||minute<0||minute>59))throw Error('INVALID_SCHEDULE_TIME');
+              if(stated.date&&stated.time)startAt=stated.date+'T'+stated.time;
               const timeLabel=!startAt?(trusted.match(/大后天|后天|明天|今天|下周[一二三四五六日天]?|周[一二三四五六日天]|上午|下午|晚上|中午|早上|\d{1,2}[:：]\d{2}|[一二两三四五六七八九十\d]+点(?:半|[一二三四五六七八九十\d]+分)?/gu)??[]).join(' ')||undefined:undefined;
-              return createAssistantReminder({operationId:randomUUID(),userId:context.userId,messageId:body.sessionId+':'+body.messageId,fingerprint:createHash('sha256').update(JSON.stringify({name:args.name,date:args.date,time:args.time})).digest('hex'),name:args.name,timeKind:startAt?'point':'none',startAt,timeLabel});
+              return createAssistantReminder({operationId:randomUUID(),userId:context.userId,messageId:body.sessionId+':'+body.messageId,fingerprint:createHash('sha256').update(JSON.stringify({name:args.name,date:stated.date,time:stated.time})).digest('hex'),name:args.name,timeKind:startAt?'point':'none',startAt,timeLabel});
             }
             if(args.action==='propose_create')return {action:'propose_create',...proposeAssistantReminderCreation({proposalId:args.proposalId,userId:context.userId,sessionId:body.sessionId,messageId:body.messageId,name:args.name,startAt:args.startAt})};
             if(args.action==='propose_time'){
