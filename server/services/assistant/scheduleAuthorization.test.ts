@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { hasDirectReminderIntent, reminderTimeFromText, hasScheduleTimeApproval, hasScheduleTimeRejection } from './scheduleAuthorization';
+import { hasDirectReminderIntent, reminderTimeFromText, reminderNameFromText, shanghaiDateAt, resolveReminderStartAt, hasScheduleTimeApproval, hasScheduleTimeRejection } from './scheduleAuthorization';
 
 test('accepts explicit personal reminder requests', () => {
   assert.equal(hasDirectReminderIntent('明天下午三点提醒我交教案'), true);
@@ -23,6 +23,18 @@ test('resolves explicit Shanghai dates at submission time and preserves incomple
  assert.deepEqual(reminderTimeFromText('周三下午三点提醒我交教案',submitted),{date:'2026-11-11',time:'15:00'});
  assert.deepEqual(reminderTimeFromText('下周一提醒我交教案',submitted),{date:'2026-11-16',time:undefined});
  assert.deepEqual(reminderTimeFromText('提醒我交教案',submitted),{date:undefined,time:undefined});
+ assert.deepEqual(reminderTimeFromText('下午三点提醒我交教案',submitted),{date:undefined,time:'15:00'});
+ assert.equal(shanghaiDateAt(submitted),'2026-11-09');
+ assert.equal(reminderNameFromText('下午三点提醒我交教案'),'交教案');
+ assert.equal(reminderNameFromText('明天下午三点提醒我交教案'),'交教案');
+ assert.equal(reminderNameFromText('2026年11月12日上午九点半提醒我开会'),'开会');
+ assert.equal(reminderNameFromText('2026-11-12 09:30提醒我开会'),'开会');
+ assert.equal(reminderNameFromText('提醒我交教案'),'交教案');
+ assert.equal(reminderNameFromText('麻烦你提醒我交教案'),'交教案');
+ assert.equal(reminderNameFromText('提醒我交教案周报'),'交教案周报');
+ assert.equal(resolveReminderStartAt('15:00',undefined,Date.parse('2026-11-09T06:59:00Z')),'2026-11-09T15:00');
+ assert.throws(()=>resolveReminderStartAt('15:00',undefined,Date.parse('2026-11-09T07:00:00Z')),/SCHEDULE_TIME_PASSED/);
+ assert.equal(resolveReminderStartAt('15:00','2026-11-10',Date.parse('2026-11-09T07:00:00Z')),'2026-11-10T15:00');
 });
 
 test('time approval must be unqualified and rejection must be explicit',()=>{

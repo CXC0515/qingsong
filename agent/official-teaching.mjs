@@ -174,7 +174,7 @@ export function apply(ctx) {
   ctx.effect(() => ctx.tools.register(preparationTool(ctx,bridge,turns)));
   ctx.effect(()=>ctx.tools.register(defineTool({
     name:'qingsong_schedule',
-    description:'管理当前教师自己的单条个人日程。只有教师明确委托创建时才直接创建；缺少时间先保存时间待定，保留用户给出的部分时间约束。先查询课表与节次，提议未来无课时段；只有教师接受后更新原事项，教师拒绝或暂不设置则只关闭建议并保留原事项。目标或内容依赖推测时用propose_create先展示名称、时间与假设，用户确认后才创建；找时间或一般讨论不直接创建。propose_create不写业务日程。create的name须为用户原话片段；明确时间用date+time。提议用proposalId和startAt（本地YYYY-MM-DDTHH:mm），confirm_time/reject_time用于唯一待确认提议。',
+    description:'管理当前教师自己的单条个人日程。只有教师明确委托创建时才直接创建；未说时间时先保存时间待定，保留用户给出的部分时间约束。日期和时间均明确时直接创建；只说未来时间（如“下午三点”）按上海当前日期写入，若该时间今天已过则先询问日期，不得顺延。创建名称来自用户原话，去掉日期、时间和提醒指令；不要把模型猜测的日期/时间写入参数。工具回执会返回实际保存时间，只有回执确认后才能报告已创建。先查询课表与节次，提议未来无课时段；只有教师接受后更新原事项，拒绝或暂不设置则保留原事项。目标依赖推测时用propose_create展示名称、时间与假设，确认后才创建；找时间或一般讨论不直接创建。propose_create不写业务日程。提议用proposalId和startAt（本地YYYY-MM-DDTHH:mm），confirm_time/reject_time用于唯一待确认提议。',
     parameters:{action:{type:'string',required:true,enum:['create','propose_create','propose_time','confirm_time','reject_time']},name:{type:'string'},date:{type:'string'},time:{type:'string'},proposalId:{type:'string'},reminderId:{type:'string'},startAt:{type:'string'}},
     output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
     async execute(args,exec){

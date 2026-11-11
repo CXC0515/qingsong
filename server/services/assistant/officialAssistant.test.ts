@@ -18,6 +18,7 @@ process.env.QS_MEMORY_ENABLED = 'false'; // Never inherit real memory credential
 const capturedRequests:any[] = [];
 let delayNext = false;
 let queryScenario: string | undefined;
+let reminderClock: string | undefined;
 const model = createServer(async (req, res) => {
   let text = ''; for await (const chunk of req) text += chunk;
   const input = JSON.parse(text);
@@ -53,7 +54,7 @@ const model = createServer(async (req, res) => {
     const latestUser=input.messages.findLastIndex((m:any)=>m.role==='user'&&!String(m.content).includes('Current runtime context.'));
     const previous=input.messages.slice(latestUser+1).filter((m:any)=>m.role==='tool').at(-1);
     const text=JSON.stringify(input.messages.filter((m:any)=>m.role==='user'&&!String(m.content).includes('Current runtime context.')));
-    const args=text.includes('安排')?{action:'propose_create',proposalId:crypto.randomUUID(),name:'备课安排',startAt:new Date(Date.now()+8*3600000+7*86400000).toISOString().slice(0,10)+'T18:00'}:{action:'create',name:'交教案',date:new Date(Date.now()+8*3600000+86400000).toISOString().slice(0,10),...(text.includes('三点')?{time:'15:00'}:{})};
+    const args=text.includes('安排')?{action:'propose_create',proposalId:crypto.randomUUID(),name:'备课安排',startAt:new Date(Date.now()+8*3600000+7*86400000).toISOString().slice(0,10)+'T18:00'}:{action:'create',name:text.includes('下午三点')?'下午三点提醒我交教案':'交教案',...(text.includes('明天')?{date:new Date(Date.now()+8*3600000+86400000).toISOString().slice(0,10)}:{}),...(reminderClock?{time:reminderClock}:text.includes('三点')?{time:'15:00'}:{})};
     const delta=previous?{role:'assistant',content:previous.content}:{role:'assistant',tool_calls:[{index:0,id:crypto.randomUUID(),type:'function',function:{name:'qingsong_schedule',arguments:JSON.stringify(args)}}]};
     res.write('data: '+JSON.stringify(frame(delta))+'\n\n');res.end('data: '+JSON.stringify(frame({},previous?'stop':'tool_calls'))+'\n\ndata: [DONE]\n\n');return;
   }
@@ -767,15 +768,23 @@ test('schedule writes through native DSH preserve explicit time, reject negative
  const workspace=createWorkspaceContext(member.user_id,member.workspace_id,member.role);
  const {listReminders}=await import('../../repositories/scheduleRepository');
  const read=()=>runWithWorkspace(workspace,()=>listReminders().filter(item=>item.name==='交教案'));
+ const localNow=new Date(Date.now()+8*3600000), currentMinute=localNow.getUTCHours()*60+localNow.getUTCMinutes();
+ const targetMinute=Math.min(currentMinute+(currentMinute+30===15*60?31:30),23*60+59), requestedTime=String(Math.floor(targetMinute/60)).padStart(2,'0')+':'+String(targetMinute%60).padStart(2,'0');
  queryScenario='reminder-write';
  try{
-  for(const [text,count] of [['提醒我交教案',1],['明天下午三点提醒我交教案',2],['不要提醒我交教案',2]] as const){
+  for(const [text,count] of [['提醒我交教案',1],['明天下午三点提醒我交教案',2],[requestedTime+'提醒我交教案',3],['不要提醒我交教案',3]] as const){
+   reminderClock=text===requestedTime+'提醒我交教案'?requestedTime:undefined;
    const sid=(await rpc(cookie,'session/create',{request:{}})).value.sessionId;
    assert.ok((await rpc(cookie,'session/prompt',{request:{sessionId:sid,requestId:crypto.randomUUID(),mode:'queue',content:[{type:'text',text}]}})).ok);
    await until(async()=>JSON.stringify(await page(cookie,sid)).includes('qingsong_schedule'));
    await until(()=>officialBudget.size.active===0);
    assert.equal(read().length,count,JSON.stringify(await page(cookie,sid)));
   }
-  assert.equal(read()[0].timeKind,'none');assert.equal(read()[0].startAt,undefined,'the model-invented date must not be persisted');assert.equal(read()[1].startAt?.slice(11),'15:00');
- }finally{queryScenario=undefined;}
+  const reminders=read(),unset=reminders.find(item=>!item.startAt),explicit=reminders.find(item=>item.startAt?.endsWith('15:00')),sameDay=reminders.find(item=>item.startAt?.endsWith(requestedTime));
+  assert.equal(unset?.timeKind,'none');assert.equal(unset?.startAt,undefined,'the model-invented date must not be persisted');
+  assert.equal(explicit?.name,'交教案','time phrases returned in the model title must be removed');
+  assert.equal(explicit?.startAt?.slice(0,10),new Date(Date.now()+8*3600000+86400000).toISOString().slice(0,10));
+  assert.equal(sameDay?.startAt?.slice(0,10),new Date(Date.now()+8*3600000).toISOString().slice(0,10));
+  assert.match(sameDay?.time??'',/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/,'saved reminder uses an unambiguous 24-hour timestamp');
+ }finally{queryScenario=undefined;reminderClock=undefined;}
 });
