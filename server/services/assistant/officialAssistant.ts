@@ -35,7 +35,7 @@ import { agentDirectory } from '../../../agent/runtime.mjs';
 import { allowOfficialCall } from '../../../agent/official-policy.mjs';
 import { relayOfficialSocket } from '../../../agent/official-relay.mjs';
 import {loadGenerationPolicy,generationFingerprint} from './generationPolicy';
-import {hasDirectReminderIntent,reminderTimeFromText,hasScheduleTimeApproval,hasScheduleTimeRejection} from './scheduleAuthorization';
+import {hasDirectReminderIntent,reminderNameFromText,reminderTimeFromText,resolveReminderStartAt,hasScheduleTimeApproval,hasScheduleTimeRejection} from './scheduleAuthorization';
 import { readDshPromptConfig } from './dshPromptConfig';
 
 import { Transform } from 'node:stream';
@@ -254,8 +254,8 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
             z.object({action:z.literal('confirm_time'),proposalId:z.uuid()}).strict(),
             z.object({action:z.literal('reject_time'),proposalId:z.uuid()}).strict()
           ]).parse(body.input);
-          const reminderName=args.action==='create'?args.name:undefined;
-          if(args.action==='create'&&(!reminderName||!trusted.includes(reminderName)||!hasDirectReminderIntent(trusted)))throw Error('SCHEDULE_INTENT_NOT_CONFIRMED');
+          const reminderName=args.action==='create'?reminderNameFromText(trusted):undefined;
+          if(args.action==='create'&&(!reminderName||!hasDirectReminderIntent(trusted)))throw Error('SCHEDULE_INTENT_NOT_CONFIRMED');
           const result=await runWithWorkspace(context,()=>{
             if(args.action==='create'){
               let startAt:string|undefined;
@@ -263,9 +263,9 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
               if(stated.date){const [year,month,day]=stated.date.split('-').map(Number);const calendarDate=new Date(Date.UTC(year,month-1,day,12));if(!Number.isFinite(calendarDate.getTime())||calendarDate.toISOString().slice(0,10)!==stated.date)throw Error('INVALID_SCHEDULE_DATE');}
               const [hour,minute]=stated.time?.split(':').map(Number)??[];
               if(stated.time&&(!Number.isInteger(hour)||hour<0||hour>23||!Number.isInteger(minute)||minute<0||minute>59))throw Error('INVALID_SCHEDULE_TIME');
-              if(stated.date&&stated.time)startAt=stated.date+'T'+stated.time;
+              startAt=resolveReminderStartAt(stated.time,stated.date,source.submittedAt);
               const timeLabel=!startAt?(trusted.match(/大后天|后天|明天|今天|下周[一二三四五六日天]?|周[一二三四五六日天]|上午|下午|晚上|中午|早上|\d{1,2}[:：]\d{2}|[一二两三四五六七八九十\d]+点(?:半|[一二三四五六七八九十\d]+分)?/gu)??[]).join(' ')||undefined:undefined;
-              return createAssistantReminder({operationId:randomUUID(),userId:context.userId,messageId:body.sessionId+':'+body.messageId,fingerprint:createHash('sha256').update(JSON.stringify({name:args.name,date:stated.date,time:stated.time})).digest('hex'),name:args.name,timeKind:startAt?'point':'none',startAt,timeLabel});
+              return createAssistantReminder({operationId:randomUUID(),userId:context.userId,messageId:body.sessionId+':'+body.messageId,fingerprint:createHash('sha256').update(JSON.stringify({name:reminderName,date:startAt?.slice(0,10),time:startAt?.slice(11)})).digest('hex'),name:reminderName!,timeKind:startAt?'point':'none',startAt,timeLabel});
             }
             if(args.action==='propose_create')return {action:'propose_create',...proposeAssistantReminderCreation({proposalId:args.proposalId,userId:context.userId,sessionId:body.sessionId,messageId:body.messageId,name:args.name,startAt:args.startAt})};
             if(args.action==='propose_time'){
@@ -314,7 +314,7 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
         else throw Error('INVALID_OPERATION');
       } catch (error) {
         if (!res.headersSent) res.writeHead(400);
-        const failure = requestKind==='schedule-tool' ? {code:error instanceof Error?error.message:'SCHEDULE_RESULT_UNKNOWN',message:'本次日程操作未能核实。已保存的事项不会因建议失败而删除；请先查看日程，再核对请求或重新提出时间建议，避免重复创建。',recovery:'clarify',nextAction:'读取原日程和待确认建议，确认实际保存状态后继续；不要声称此前创建失败。'} : error instanceof PreparationContractError ? {code:error.code,message:error.message,issues:error.issues,recovery:error.recovery,nextAction:error.nextAction} : error instanceof CapabilityError ? error.toFailure() : error instanceof PreparationError ? {code:error.code,message:error.message,recovery:['TASK_SCOPE_MISMATCH','TASK_TURN_MISMATCH','TASK_ALREADY_FINISHED','PREPARATION_VERIFY_FAILED'].includes(error.code)?'stop':'correct_arguments',nextAction:'按备课错误核对任务、版本和选区；结果不明先用status查状态，不重复写入。'} : error instanceof ZodError ? {code:'INVALID_TOOL_INPUT',message:'操作参数格式不正确，已有内容保留，请按字段说明修正。',issues:error.issues.map(issue=>({field:issue.path.join('.'),problem:issue.message})),recovery:'correct_arguments'} : error instanceof WorkspaceDataReadError || error instanceof PersonalContextError || error instanceof AssistantMaterialError || error instanceof AssistantMaterialReadError ? {code:error.code,message:error.message} : (error as Error).message === 'MATERIAL_STORAGE_LIMIT' ? { code: 'MATERIAL_STORAGE_LIMIT', message: '附件与解析缓存已达到当前用户512MB限制，原件和对话仍保留，请减少材料或联系管理员。' } : teachingFailure(error);
+        const failure = requestKind==='schedule-tool' ? {code:error instanceof Error?error.message:'SCHEDULE_RESULT_UNKNOWN',message:(error as Error)?.message==='SCHEDULE_TIME_PASSED'?'你说的时间今天已经过去了，因此没有创建日程。请先问教师希望设在哪一天，不要自行改到明天。':'本次日程操作未能核实。若是时间建议失败，已保存的事项仍保留；请先核对日程，避免重复创建。',recovery:'clarify',nextAction:(error as Error)?.message==='SCHEDULE_TIME_PASSED'?'询问具体日期，确认后再创建；不要把已过去的时间自动顺延。':'确认实际保存状态后再继续；不要声称未核实的操作已成功或失败。'} : error instanceof PreparationContractError ? {code:error.code,message:error.message,issues:error.issues,recovery:error.recovery,nextAction:error.nextAction} : error instanceof CapabilityError ? error.toFailure() : error instanceof PreparationError ? {code:error.code,message:error.message,recovery:['TASK_SCOPE_MISMATCH','TASK_TURN_MISMATCH','TASK_ALREADY_FINISHED','PREPARATION_VERIFY_FAILED'].includes(error.code)?'stop':'correct_arguments',nextAction:'按备课错误核对任务、版本和选区；结果不明先用status查状态，不重复写入。'} : error instanceof ZodError ? {code:'INVALID_TOOL_INPUT',message:'操作参数格式不正确，已有内容保留，请按字段说明修正。',issues:error.issues.map(issue=>({field:issue.path.join('.'),problem:issue.message})),recovery:'correct_arguments'} : error instanceof WorkspaceDataReadError || error instanceof PersonalContextError || error instanceof AssistantMaterialError || error instanceof AssistantMaterialReadError ? {code:error.code,message:error.message} : (error as Error).message === 'MATERIAL_STORAGE_LIMIT' ? { code: 'MATERIAL_STORAGE_LIMIT', message: '附件与解析缓存已达到当前用户512MB限制，原件和对话仍保留，请减少材料或联系管理员。' } : teachingFailure(error);
         logEvent('warn', 'assistant_tool_failed', {code: failure.code});
         res.end(JSON.stringify(failure));
       }
