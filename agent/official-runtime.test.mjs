@@ -182,7 +182,7 @@ test('connection observer reports catalog failures, recovers, answers trusted pr
  const workStore=store(workspace),sessionStore=store(sessions);let plugin;
  vm.runInNewContext(source,{window:{name:'qingsong-assistant:attempt-one',__ModuleLoader__:{load:module=>{plugin=module.factory(require);}},QingsongAssistantNavigation:{observeSelectedSession:()=>()=>{}},addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:(name)=>listeners.delete(name)},parent,location:{origin:'https://fixture.test',search:'?connection=removed-by-router'},URLSearchParams,performance,crypto:globalThis.crypto});
  plugin.apply({slots:{inject:()=>{}},effect:fn=>effects.push(fn),workspaces:{list:workStore},sessions:{list:sessionStore}});
- const dispose=effects.at(-1)();assert.equal(messages.at(-1).data.phase,'catalogs');
+ const dispose=effects.at(-1)();assert.ok(messages.some(message=>message.data.type==='qingsong:interactive'),'interactive UI readiness must not wait for directory sync');assert.equal(messages.at(-2).data.phase,'catalogs');
  workspace.state='error';workStore.notify();assert.equal(messages.at(-1).data.phase,'error');assert.equal(messages.at(-1).data.pending,'workspace');
  workspace.state='idle';workspace.phase='ready';sessions.state='error';sessionStore.notify();assert.equal(messages.at(-1).data.pending,'sessions');
  sessions.phase='ready';sessions.state='idle';sessionStore.notify();assert.equal(messages.at(-1).data.type,'qingsong:ready');
