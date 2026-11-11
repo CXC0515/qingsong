@@ -82,8 +82,8 @@ export async function prepareOfficialRuntime({home, configHome}) {
         // Web profiles disable host-plane compaction. Like the native standard
         // preset, mount the durable history backend in each Agent's own scope.
         {id:'compaction',name:'cordis:group',group:true,isolate:{compaction:true,toolResultPruner:true},config:[
-          // DSH's 65,536-token default headroom cannot fit our 32k routes.
-          {id:'compaction-basic',name:'@deepseek-ai/dsh-compaction-basic',config:{auto:true,thresholdRatio:0.7,headroomTokens:4096,maxTokens:2048,retainRatio:0.16,compactionRetries:1,maxOverflowRetries:1}},
+          // Preserve a 10% buffer for the registered 1.05M GPT-6 Luna route.
+          {id:'compaction-basic',name:'@deepseek-ai/dsh-compaction-basic',config:{auto:true,thresholdRatio:0.9,headroomTokens:4096,maxTokens:2048,retainRatio:0.16,compactionRetries:1,maxOverflowRetries:1}},
           {id:'command-compact',name:'@deepseek-ai/dsh-command-compact'},
           {id:'tool-result-pruner',name:'@deepseek-ai/dsh-compaction-tool-result-pruner',config:{thresholdChars:8192,headChars:4096,tailChars:1024}},
         ]},

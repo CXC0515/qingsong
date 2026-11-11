@@ -4,6 +4,9 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 export const agentDirectory = path.dirname(fileURLToPath(import.meta.url));
+export const modelContextWindowOverrides = Object.freeze({
+  'qingsong/gpt-6-luna': 1_050_000,
+});
 export const disabledTools = [
   'session-log-deepseek',
   'tool-fs',
@@ -21,7 +24,16 @@ export async function readProviders(configHome) {
         'utf8',
       ),
     );
-    return rows?.find((row) => row.id === 'llm-pi-ai')?.config?.providers ?? {};
+    const providers = rows?.find((row) => row.id === 'llm-pi-ai')?.config?.providers ?? {};
+    for (const [route, contextWindow] of Object.entries(modelContextWindowOverrides)) {
+      const separator = route.indexOf('/');
+      const providerId = route.slice(0, separator), modelId = route.slice(separator + 1);
+      const provider = providers[providerId];
+      if (provider?.models?.some((model) => model.id === modelId)) {
+        provider.models = provider.models.map((model) => model.id === modelId ? {...model, contextWindow} : model);
+      }
+    }
+    return providers;
   } catch (error) {
     if (error.code === 'ENOENT') return {};
     throw error;
@@ -46,7 +58,7 @@ export async function bootstrapModels(configHome, config) {
                   {
                     id: config.model,
                     name: config.model,
-                    contextWindow: 32768,
+                    contextWindow: config.model === 'gpt-6-luna' ? modelContextWindowOverrides['qingsong/gpt-6-luna'] : 32768,
                     maxTokens: 4096,
                     reasoningEfforts: false,
                   },
