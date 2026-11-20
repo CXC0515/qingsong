@@ -605,16 +605,27 @@
 .hc-live .hc-heading-actions{display:flex;align-items:center;gap:12px}
 .hc-live .hc-editor{min-height:240px;flex:1}.hc-live .hc-inspector-shell>.lg-content{display:flex;flex-direction:column;height:100%;min-height:0}
 .hc-live .hc-memory-config{display:flex;flex:1;flex-direction:column;min-height:0}
-.hc-live .hc-tool-panes{display:grid;grid-template-columns:240px minmax(0,1fr);flex:1;min-height:0;overflow:hidden}
-.hc-live :is(.hc-tools-list,.hc-tool-content){overflow:auto;min-width:0;padding:16px}
-.hc-live .hc-tools-list button{width:100%;display:flex;align-items:center;gap:12px;min-height:56px;padding:12px;text-align:left;border:0;border-bottom:.5px solid var(--hc-line);background:var(--sage-1)}
-.hc-live .hc-tools-list .is-selected{background:var(--jade-3)}.hc-live pre{white-space:pre-wrap;overflow-wrap:anywhere}
+.hc-live pre{white-space:pre-wrap;overflow-wrap:anywhere}
 .hc-live .hc-events{min-height:84px}.hc-live .hc-timeline{padding:8px 0 0}
-@media(max-width:760px){.hc-live{height:calc(100dvh - 220px);min-height:480px}.hc-live .hc-main{padding:8px}.hc-live .hc-run-toolbar{gap:4px}.hc-live .hc-run-toolbar select{max-width:200px}.hc-live .hc-tool-panes{grid-template-columns:1fr}.hc-live .hc-tools-list{max-height:150px}.hc-live :is(textarea,input,select){font-size:16px}.hc-live .hc-heading h2{font-size:16px}}
-.hc-live .hc-tools-list{display:block;width:auto}
-.hc-live .hc-tool-content{display:block}
+@media(max-width:760px){.hc-live{height:calc(100dvh - 220px);min-height:480px}.hc-live .hc-main{padding:8px}.hc-live .hc-run-toolbar{gap:4px}.hc-live .hc-run-toolbar select{max-width:200px}.hc-live :is(textarea,input,select){font-size:16px}.hc-live .hc-heading h2{font-size:16px}}
 .hc-live .hc-inspector-head h3{font-size:16px;font-weight:600;margin:4px 0 0}
 .hc-live .hc-config-readonly{min-height:100px}
 .hc-live .hc-config-expanded{grid-template-columns:minmax(0,1fr) minmax(320px,50%)}
 .hc-live .hc-skill-toolbar{flex-wrap:wrap;min-height:60px}
 .hc-live .hc-part-top .hc-error-dot{background:var(--tomato-11)}
+
+/* Configuration is independent of trace selection and playback. */
+.hc-mode-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;flex:none}
+.hc-mode-toolbar>span{font-size:12px;color:var(--amber-11)}
+.hc-config-index{overflow:auto;padding:12px;min-height:0}
+.hc-config-index h4{margin:4px 8px 12px;font-size:12px;font-weight:500;color:var(--sage-11)}
+.hc-config-index button{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;border:0;border-radius:6px;background:transparent;padding:8px;text-align:left}
+.hc-config-index button:hover{background:var(--sage-3)}
+.hc-config-index button span{flex:1;font-size:14px}
+.hc-live .hc-system-config{flex:1;min-height:0;overflow:auto}
+.hc-live .hc-system-config>.hc-editor{min-height:280px;flex:none}
+.hc-fixed-rules{padding:16px;font-size:12px;border-top:.5px solid var(--hc-line)}
+.hc-fixed-rules summary{cursor:pointer;min-height:28px}
+.hc-live .hc-tools-panes{overflow:hidden}
+.hc-live .hc-heading-actions{flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:760px){.hc-live .hc-heading{align-items:flex-start;gap:8px}.hc-live .hc-heading-actions{gap:4px}.hc-live .hc-tools-list{max-height:none}.hc-mode-toolbar .qs-segment-scroll{max-width:100%}}

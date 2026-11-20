@@ -1,6 +1,6 @@
+import {toolDefinition} from '../src/domain/harnessToolDefinitions.mjs';
 import {
   parsePreparationInput,
-  preparationToolParameters,
   PreparationContractError,
 } from "../src/domain/preparationToolContract.mjs";
 import { ReadToolFailure } from "./tool-contract-recovery.mjs";
@@ -10,10 +10,7 @@ import { requireImageModel } from "./official-materials.mjs";
 /** Produces reviewable candidates. This tool cannot apply a candidate to a teacher document. */
 export function preparationTool(ctx, bridge, turns) {
   return defineTool({
-    name: "qingsong_preparation",
-    description:
-      "处理会话中教师已发送的教案引用。begin用referenceId明确本次目标并建立任务并返回taskId和baseRevision；progress记录实际进度；propose提交完整的Tiptap文档JSON候选（content为JSON字符串），保留未修改段落与稳定id，必须使用任务起点baseRevision。候选不改正式正文，由教师在备课页应用。finish仅用于没有正文修改的讨论/检查或需要补充信息。render按本次sourceId查看最多3页图片，需图片模型。status回读当前轮次任务及候选保存状态；propose成功不再finish。先用统一读取工具读当前正文和所选资料。不读取整个材料池，不更改其他教学业务。",
-    parameters: preparationToolParameters(),
+    ...toolDefinition('qingsong_preparation'),
     output: {
       schema: { type: "string" },
       render: (_args, value) => {

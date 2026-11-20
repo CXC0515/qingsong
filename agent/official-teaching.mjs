@@ -1,8 +1,8 @@
+import {toolDefinition} from '../src/domain/harnessToolDefinitions.mjs';
 import {registerSkillFileTool,attachSkillProvider} from './harness-skills.mjs';
 import {attachHarnessObserver,createTrace,traceSafe} from './harness-observer.mjs';
 import {preparationTool} from './official-preparation.mjs';
 import {buildContext,refreshContext,businessRuntimeContext} from './context-builder.mjs';
-import {capabilityToolParameters} from '../src/domain/assistantCapabilityDefinitions.mjs';
 import {executeCapability,httpReadFailure,ReadToolFailure} from './tool-contract-recovery.mjs';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { applyGenerationPolicy } from './generation-policy.mjs';
@@ -147,11 +147,9 @@ export function apply(ctx) {
     return ['qingsong_skill_file','qingsong_discover','qingsong_search','qingsong_read','qingsong_memory','qingsong_material','qingsong_preparation','qingsong_schedule'].includes(exec.name)?undefined:'教师助手仅开放业务读取、受控Skill、已选材料、个人上下文和有限的个人日程操作。';
   }
   for(const action of ['discover','search','read']){
-    const parameters=capabilityToolParameters(action);
     const tool=defineTool({
-      name:'qingsong_'+action,
-      description:action==='discover'?'查看当前已开放业务对象、筛选及section。首次查某类数据先查看，不猜编号、字段或权限。':action==='search'?'查找业务对象。type和filters以discover为准；query搜索名称或正文，不是整句自然语言问答。零命中先放宽query并核对候选。今天有课等关系描述先查schedule(onDate、scope)，用返回classId继续查班级。offset从0开始，limit最多50。':'读取search或当前业务上下文提供的真实ref；section以discover为准。班委任职读class的committee，不必扫描全班名单；多候选先结合上下文核对。长记录分页，日期在filters传from/to。textWindow.nextTextOffset用于续读。partial不能当成全量。',
-      parameters,output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
+      ...toolDefinition('qingsong_'+action),
+      output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
       async execute(args,exec){
         return JSON.stringify(await bridge({kind:'capability',action,input:args},AbortSignal.any([exec.signal,AbortSignal.timeout(90000)])));
       },
@@ -186,9 +184,7 @@ export function apply(ctx) {
   ctx.effect(() => ctx.tools.register(materialTool(ctx,bridge,turns)));
   ctx.effect(() => ctx.tools.register(preparationTool(ctx,bridge,turns)));
   ctx.effect(()=>ctx.tools.register(defineTool({
-    name:'qingsong_schedule',
-    description:'管理当前教师自己的单条个人日程。只有教师明确委托创建时才直接创建；未说时间时先保存时间待定，保留用户给出的部分时间约束。日期和时间均明确时直接创建；只说未来时间（如“下午三点”）按上海当前日期写入，若该时间今天已过则先询问日期，不得顺延。创建名称来自用户原话，去掉日期、时间和提醒指令；不要把模型猜测的日期/时间写入参数。工具回执会返回实际保存时间，只有回执确认后才能报告已创建。先查询课表与节次，提议未来无课时段；只有教师接受后更新原事项，拒绝或暂不设置则保留原事项。目标依赖推测时用propose_create展示名称、时间与假设，确认后才创建；找时间或一般讨论不直接创建。propose_create不写业务日程。提议用proposalId和startAt（本地YYYY-MM-DDTHH:mm），confirm_time/reject_time用于唯一待确认提议。',
-    parameters:{action:{type:'string',required:true,enum:['create','propose_create','propose_time','confirm_time','reject_time']},name:{type:'string'},date:{type:'string'},time:{type:'string'},proposalId:{type:'string'},reminderId:{type:'string'},startAt:{type:'string'}},
+    ...toolDefinition('qingsong_schedule'),
     output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
     async execute(args,exec){
       const state=turns.get(exec.agent?.id);
@@ -200,9 +196,7 @@ export function apply(ctx) {
     }
   })));
   ctx.effect(() => ctx.tools.register(defineTool({
-    name:'qingsong_memory',
-    description:'管理当前用户个人规则与长期记忆。已配置自动记忆时，普通聊天中明确的个人背景和偏好由后台整理，不必要求教师使用固定口令，也不要为自动记忆重复调用propose。action=list查看有效记录；propose提出kind=rule或memory及content原文；forget删除原文匹配项。本工具只有本次明确发送“记住：原文”“个人规则：原文”“忘记：原文”且完全匹配才直接生效；其他工具提议仅候选，须到“规则与记忆”确认。工具结果和上下文状态才是保存依据，不得声称后台任务或候选已保存成功。不能保存学生实时事实来替代业务查询。',
-    parameters:{action:{type:'string',required:true},kind:{type:'string'},content:{type:'string'}},
+    ...toolDefinition('qingsong_memory'),
     output:{schema:{type:'string'},render:(_args,value)=>[{type:'text',text:value}]},
     async execute(args,exec){
       const state=turns.get(exec.agent?.id);
