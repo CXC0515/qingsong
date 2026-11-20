@@ -1,3 +1,5 @@
+import {recordHarnessEvent} from './harnessTrace';
+import {harnessLibrary} from './dshPromptConfig';
 import {registerPreparationReferences,sessionPreparationReferences,listPreparationReferenceCandidates,createPreparationReference,preparationReferenceStatus,updatePreparationReference,previewPreparationReference} from "./preparationReferences";
 import {preparationRepository} from "../../repositories/preparationRepository";
 import type { PreparationTask } from '../../../src/domain/preparation';
@@ -155,6 +157,7 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
     const generationPolicy=await loadGenerationPolicy();
     const leases = new Map<string, AbortController>();
     let instance: Instance | undefined;
+    const harnessSnapshots=new Map<string,Awaited<ReturnType<typeof readDshPromptConfig>>>();
     const bridge = createServer(async (req, res) => {
       res.setHeader('content-type', 'application/json');
       if (req.method !== 'POST' || req.url !== '/' || req.headers.authorization !== 'Bearer ' + token || !instance) { res.writeHead(403).end('{}'); return; }
@@ -174,9 +177,11 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
           res.end('{}'); return;
         }
         await authorizeInstance(instance); if (instance.closing) throw Error('CLOSING'); instance.touched = Date.now();
-        if (body.kind === 'dsh-prompts') {
+        if(body.kind==='harness-event'){recordHarnessEvent(context,body.event);res.end('{}');}
+        else if (body.kind === 'dsh-prompts') {
           const config = await readDshPromptConfig();
-          res.end(JSON.stringify({ revision: config.revision, nodes: config.nodes.filter(node => node.editable).map(({id, kind, enabled, content, description, requires, version, hash}) => ({id, kind, enabled, content, description, requires, version, hash})) }));
+          if(typeof body.sessionId==='string'&&body.sessionId.length<=160){harnessSnapshots.set(body.sessionId,config);if(harnessSnapshots.size>100)harnessSnapshots.delete(harnessSnapshots.keys().next().value!);}
+          res.end(JSON.stringify({ revision: config.revision, library:harnessLibrary(config), nodes: config.nodes.filter(node => node.editable).map(({id, kind, enabled, content, description, requires, version, hash}) => ({id, kind, enabled, content, description, requires, version, hash})) }));
         } else if (body.kind === 'reference-titles') {
           const ids=z.array(z.uuid()).max(20).parse(body.referenceIds);
           const titles=runWithWorkspace(context,()=>ids.flatMap(id=>{try{return [preparationReferenceStatus(id).title];}catch{return [];}}));
@@ -297,7 +302,7 @@ async function ensureInstance(context: WorkspaceContext, authorize: () => Promis
             res.end(JSON.stringify(result));return;
           }
           const result = await runWithWorkspace(context, () => body.kind === 'personal-context'
-            ? semanticPersonalContext(body.query??body.sourceText)
+            ? semanticPersonalContext(body.query??body.sourceText,harnessSnapshots.get(body.sessionId))
             : personalTool(body.input, {type:'chat',sessionId:body.sessionId,workspaceId:context.workspaceId,messageId:body.messageId,turn:body.turn}, trusted));
           res.end(JSON.stringify(result));
         }
