@@ -1,6 +1,6 @@
 # Harness 管理工作台接入
 
-版本：v6；日期：2026-11-21；状态：断流恢复修复已获批准，实施及部署中。
+版本：v6；日期：2026-11-21；状态：v6 经 PR #178 合并并部署，真实模型对话待用户验收。
 
 用户已批准本次断流修复及部署。执行代码 review、静态检查、构建与上线健康核对；用户负责网页、手机与真实模型验收，不运行测试和浏览器。
 
@@ -117,3 +117,12 @@ Memory 按写入规则、调取规则、存储与隔离组织；实际代码约�
 修改历史：v6 记录已批准断流恢复方案与实施边界。
 
 本地检查：三个修改模块 node --check、TypeScript、生产构建及 git diff --check 均通过。保留既有大 chunk 提示。没有运行测试、浏览器或真实模型。代码 review 已核对 DSH agent/request-error、原生重试预算按 step 重置和工具执行位于成功 finish 之后的顺序。
+
+
+### v6 发布记录
+2026-11-21 04:29 Asia/Shanghai，应用 PR #178 合并为 df2660462395617d1c3f2a392f996fa4929ce86a，母文件夹 main 同步后 git archive 打包，SHA256 9d5f67c515ffeb10c0f8eb5ebde75213d88c418e55cb61e9b878d3c95a1542ca。current 已切换至同 SHA 的 release，原 6b7c08d 发布目录保留。
+
+- Linux Node 24.22.1 根目录与 Agent 独立锁文件安装、TypeScript、构建、7 模块语法及运行时/SQLite 模块加载通过，三个修改源码哈希与母文件夹一致。
+- 无进行中任务及会话时停写，在线恢复点 /var/lib/teacher-dashboard/backups/manual/product-2026-11-21-pre-stream-df26604 校验通过，765 文件、13 SQLite、193 表；切换前后表计数一致，完整性与外键通过。
+- 应用、记忆服务与备份 timer active；应用 running，NRestarts=0。公网 live/ready 与管理页 200，匿名配置/运行接口 401。入口 JS/CSS 与 HarnessCanvas-GMI_v7Xs.js 全文哈希一致。
+- 发布证据 /var/log/teacher-dashboard-stream-recovery-2026-11-21，安装及构建日志 /tmp/qs-stream-recovery-*。未运行测试、浏览器、真实模型或故意中断生产请求；恢复行为与真实模型交付仍需用户实际对话验收。没有改动数据结构、工具权限和生产凭据。
