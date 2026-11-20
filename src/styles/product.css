@@ -642,3 +642,9 @@
 .hc-mode-actions .hc-heading-actions{gap:8px;padding-left:12px;border-left:.5px solid var(--hc-line)}
 .hc-mode-actions .hc-heading-actions>span{font-size:12px;color:var(--sage-11);white-space:nowrap}
 @media(max-width:760px){.hc-mode-actions .hc-heading-actions{padding-left:0;border-left:0}}
+
+.hc-mode-actions .hc-run-toolbar{flex-wrap:nowrap;gap:8px;min-width:0;max-width:100%}
+.hc-mode-actions .hc-run-toolbar label{font-size:12px;white-space:nowrap;min-width:0}
+.hc-mode-actions .hc-run-toolbar select{width:220px;max-width:100%;font-size:12px}
+.hc-mode-actions .hc-run-toolbar>button{flex:none;width:44px;padding:8px}
+@media(max-width:760px){.hc-mode-actions .hc-run-toolbar select{width:180px;font-size:16px}}
