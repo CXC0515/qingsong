@@ -62,21 +62,22 @@ export function apply(ctx) {
     if (state && state.turn !== turn) { finish(agent.id); state = undefined; }
     if (!state) {
       const lease = agent.id + ':' + turn;
-      state = {turn, lease, steps: 0, queries: 0, timer: undefined}; turns.set(agent.id, state);
+      state = {turn, lease, steps: 0, queries: 0, timer: undefined, revision:0, runId:agent.id+':'+turn+':'+Date.now()};
+      state.trace=createTrace(bridge,state,agent.id);
+      turns.set(agent.id, state);
       state.timer = setTimeout(() => agent.cancel({kind: 'user'}), 180000);
       state.timer.unref();
       const human=messages.filter(message=>message.source?.kind==="user").at(-1);
       try {
+        await state.trace('orchestrator','本轮开始','running',{configLoaded:false,messages:traceSafe(messages)});
         const promptConfig = await bridge({kind:'dsh-prompts',sessionId:agent.id}, signal);
         const promptNode = promptConfig.nodes?.find(node => node.id === 'teaching-context' && node.enabled);
         state.revision=promptConfig.revision;
-        state.runId=agent.id+':'+turn+':'+Date.now();
-        state.trace=createTrace(bridge,state,agent.id);
         state.config=promptConfig;
-        skillProviders.get(agent)?.();skillProviders.set(agent,attachSkillProvider(agent,turns,bridge));
+        await state.trace('orchestrator','配置载入完成','ok',{revision:state.revision});
+        await skillProviders.get(agent)?.();skillProviders.set(agent,attachSkillProvider(ctx,agent,turns,bridge));
         state.verifyPrompt=promptConfig.nodes.find(n=>n.id==='verify')?.content??'核对教师要求与执行回执，不确定不得通过。';
         state.adminPrompt = [promptNode?.content,...['main-agent','reply-format'].map(id=>promptConfig.nodes.find(n=>n.id===id)?.content)].filter(Boolean).join('\n\n');
-        await state.trace('orchestrator','本轮开始','running',{revision:state.revision,messages:traceSafe(messages)});
         state.enabledSkills = new Set((promptConfig.library??[]).filter(skill=>!skill.archived).map(skill=>skill.id));
         state.preparationContext = await registerLessonReferences(agent.id, messages, human, signal);
         state.referenceMessageId = human?.id;
@@ -85,7 +86,11 @@ export function apply(ctx) {
         clearTimeout(state.timer);
         state.timer = setTimeout(() => agent.cancel({kind: 'user'}), state.budget.timeoutMs);
         state.timer.unref();
-      } catch (error) { finish(agent.id); throw error; }
+      } catch (error) {
+        await state.trace('orchestrator','初始化失败','error',{configLoaded:!!state.config,error:{message:String(error?.message??error)},traceIncomplete:!!state.traceIncomplete});
+        await state.trace('orchestrator','本轮结束','error',{configLoaded:!!state.config,reason:{kind:'error',error:{message:String(error?.message??error)}},traceIncomplete:!!state.traceIncomplete});
+        finish(agent.id); throw error;
+      }
     }
     if (++state.steps > (state.budget?.steps??8)) {
       const message='本轮备课尝试次数已用完，已有内容保留，请核对后从原会话继续未完成的备课。';
@@ -132,7 +137,15 @@ export function apply(ctx) {
     } else if(event.type==='compaction/end') {
       console.info('[青松助手] 历史整理结束',{sessionId:session.id,turn:event.data?.turn,failed:Boolean(event.data?.error)});
     }
-    if (event.type === 'turn/end') { const state=turns.get(session.id);if(state)void state.trace('orchestrator','本轮结束',event.data?.error?'error':'ok',{event,traceIncomplete:!!state.traceIncomplete});finish(session.id); }
+    if (event.type === 'turn/end') {
+      const state=turns.get(session.id);
+      if(state){
+        const reason=event.data?.reason;
+        const status=reason?.kind==='error'?'error':reason?.kind==='completed'?'ok':'unverified';
+        void state.trace('orchestrator','本轮结束',status,{event,traceIncomplete:!!state.traceIncomplete});
+      }
+      finish(session.id);
+    }
   });
   ctx.effect(() => () => { for (const id of [...turns.keys()]) finish(id); });
   function guardTool(exec){
