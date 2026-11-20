@@ -633,9 +633,12 @@
 .hc-live[data-mode=trace] .hc-part.is-current{border-color:var(--jade-8);background:var(--jade-3)}
 .hc-live[data-mode=trace] .hc-part.has-error{border-color:var(--tomato-7);background:var(--tomato-3)}
 
-.hc-live .hc-heading-compact{justify-content:flex-end}
 .hc-mode-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;margin-left:auto}
 .hc-mode-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:8px 12px;border:.5px solid var(--hc-line);border-radius:6px;background:var(--sage-1);font-size:14px;white-space:nowrap}
 .hc-mode-actions button:hover{background:var(--sage-3)}
 .hc-mode-actions button svg{flex:none}
 @media(max-width:760px){.hc-mode-toolbar{gap:8px}.hc-mode-actions{gap:4px}.hc-mode-actions button{padding:8px;font-size:12px}}
+
+.hc-mode-actions .hc-heading-actions{gap:8px;padding-left:12px;border-left:.5px solid var(--hc-line)}
+.hc-mode-actions .hc-heading-actions>span{font-size:12px;color:var(--sage-11);white-space:nowrap}
+@media(max-width:760px){.hc-mode-actions .hc-heading-actions{padding-left:0;border-left:0}}
