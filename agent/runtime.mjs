@@ -25,6 +25,8 @@ export async function readProviders(configHome) {
       ),
     );
     const providers = rows?.find((row) => row.id === 'llm-pi-ai')?.config?.providers ?? {};
+    // Apply to persisted profiles as well as new providers.
+    if(providers.qingsong)providers.qingsong.retryPolicy={mode:'normal',maxRetries:1};
     for (const [route, contextWindow] of Object.entries(modelContextWindowOverrides)) {
       const separator = route.indexOf('/');
       const providerId = route.slice(0, separator), modelId = route.slice(separator + 1);

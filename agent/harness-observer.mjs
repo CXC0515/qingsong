@@ -1,4 +1,11 @@
 import {BlockAssembler,isAgentLoopRequest} from '@deepseek-ai/dsh-llm';
+// Preserve provider diagnostics while bridging the adapter's missing transport classification.
+function normalizeFinish(chunk){
+ if(chunk.type!=='finish'||chunk.reason.kind!=='error')return chunk;
+ const failure=chunk.reason.failure;
+ if(failure.code!=='PI_AI_ERROR'||!/^Upstream HTTP\/2 stream failed[.!]?$/i.test(failure.message.trim()))return chunk;
+ return {...chunk,reason:{...chunk.reason,failure:{...failure,code:'TRANSPORT',originalCode:failure.code}}};
+}
 const textOf=blocks=>blocks.filter(b=>b.type==='text').map(b=>b.text).join('\n');
 /** Keep business content, exclude private reasoning, binary payloads and transport credentials. */
 export function traceSafe(value){
@@ -33,8 +40,12 @@ export function attachHarnessObserver(ctx,turns){
   await trace('agent','模型请求','running',{provider:options.provider,model:options.model,messages:traceSafe(options.messages)});
   await trace('tools','本轮工具定义','ok',{tools:options.tools??[]});
   const chunks=[],assembler=new BlockAssembler();let bytes=0,toolStep=false,streaming=false;
-  for await(const chunk of next()){
+  for await(const rawChunk of next()){
+   const chunk=normalizeFinish(rawChunk);
    assembler.push(chunk);
+   if(chunk.type==='finish'&&['error','aborted'].includes(chunk.reason.kind)){
+    await trace('agent',chunk.reason.kind==='aborted'?'生成已中断':'模型生成失败','error',{finish:chunk.reason});
+   }
    if(chunk.type==='tool-call-delta'||chunk.type==='block-start'&&chunk.blockType==='tool-call'||chunk.type==='block-end'&&chunk.block.type==='tool-call')toolStep=true;
    if(streaming){yield chunk;continue;}
    bytes+=JSON.stringify(chunk).length;
@@ -43,7 +54,13 @@ export function attachHarnessObserver(ctx,turns){
    if(toolStep){for(const saved of chunks)yield saved;chunks.length=0;streaming=true;}
   }
   if(streaming)return;
-  if(assembler.finish.kind!=='stop'){await trace('verify','生成未完成','unverified',{finish:assembler.finish});throw Error('回答未完整生成，已有操作保留，请稍后继续。');}
+  if(assembler.finish.kind!=='stop'){
+   // Let the native loop retry only this model request.
+   // Do not release an incomplete candidate as a verified answer.
+   if(!['error','aborted'].includes(assembler.finish.kind))await trace('agent','生成未完成','unverified',{finish:assembler.finish});
+   for(const chunk of chunks)if(chunk.type==='finish'||chunk.type==='usage')yield chunk;
+   return;
+  }
   let candidate=textOf(assembler.blocks());
   if(!candidate.trim()){for(const chunk of chunks)yield chunk;return;}
   const request=async(system,input,maxTokens)=>{
