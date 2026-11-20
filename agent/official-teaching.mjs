@@ -137,6 +137,10 @@ export function apply(ctx) {
     } else if(event.type==='compaction/end') {
       console.info('[青松助手] 历史整理结束',{sessionId:session.id,turn:event.data?.turn,failed:Boolean(event.data?.error)});
     }
+    if(event.type==='llm/retry'||event.type==='llm/retry-started'){
+      const state=turns.get(session.id);
+      if(state)void state.trace('agent',event.type==='llm/retry'?'等待重试模型请求':'重新请求模型','running',{event});
+    }
     if (event.type === 'turn/end') {
       const state=turns.get(session.id);
       if(state){
