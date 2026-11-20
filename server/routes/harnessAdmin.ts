@@ -1,0 +1,11 @@
+import {Router} from 'express';
+import {requireOwner} from '../middleware/authenticated';
+import {getWorkspaceContext} from '../context/workspaceContext';
+import {dshPromptAdminState,saveDshPromptConfig,harnessLibrary,DshPromptConfigError} from '../services/assistant/dshPromptConfig';
+import {listHarnessRuns,readHarnessRun} from '../services/assistant/harnessTrace';
+const router=Router();router.use('/admin/assistant/harness',requireOwner);
+router.get('/admin/assistant/harness',async(_req,res)=>{try{const state=await dshPromptAdminState();res.json({...state,library:harnessLibrary(state)});}catch(e){res.status(503).json({message:e instanceof Error?e.message:'配置读取失败，已有配置保留。'});}});
+router.put('/admin/assistant/harness',async(req,res)=>{try{const state=await saveDshPromptConfig(req.body,res.locals.authSession.user.id);res.json({...state,library:harnessLibrary(state)});}catch(e){res.status(e instanceof DshPromptConfigError?e.status:400).json({message:e instanceof Error?e.message:'配置未保存，草稿保留。'});}});
+router.get('/admin/assistant/harness/runs',(_req,res)=>{try{res.json({runs:listHarnessRuns(getWorkspaceContext())});}catch{res.status(503).json({message:'运行记录暂时无法读取，请重试。已有记录保留。'});}});
+router.get('/admin/assistant/harness/runs/:id', (req,res)=>{if(req.params.id.length>200){res.sendStatus(400);return;}try{res.json({events:readHarnessRun(getWorkspaceContext(),req.params.id)});}catch{res.status(503).json({message:'事件读取失败，已有记录保留，请重试。'});}});
+export default router;

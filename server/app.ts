@@ -35,6 +35,7 @@ import registrationRouter from './routes/registration';
 import accountRouter from './routes/account';
 import assistantRouter from './routes/assistant';
 import generationPolicyRouter from './routes/generationPolicy';
+import harnessAdminRouter from './routes/harnessAdmin';
 import dshPromptsRouter from './routes/dshPrompts';
 import { modelAdminProxy } from './services/assistant/modelAdmin';
 import { requireOwner, requireAuthenticatedWorkspace } from './middleware/authenticated';
@@ -130,6 +131,7 @@ export const createApp = (config: RuntimeConfig = runtimeConfig) => {
   app.use('/api', requireSameOriginMutation);
   app.use('/api', generationPolicyRouter);
   app.use('/api', dshPromptsRouter);
+  app.use('/api', harnessAdminRouter);
   app.use('/api', assistantRouter);
   app.use('/api', personalContextRouter);
   app.use('/api', preparationRouter);

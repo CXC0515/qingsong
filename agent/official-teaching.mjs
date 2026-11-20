@@ -1,18 +1,20 @@
+import {registerSkillFileTool,attachSkillProvider} from './harness-skills.mjs';
+import {attachHarnessObserver,createTrace,traceSafe} from './harness-observer.mjs';
 import {preparationTool} from './official-preparation.mjs';
 import {buildContext,refreshContext,businessRuntimeContext} from './context-builder.mjs';
 import {capabilityToolParameters} from '../src/domain/assistantCapabilityDefinitions.mjs';
 import {executeCapability,httpReadFailure,ReadToolFailure} from './tool-contract-recovery.mjs';
-import {skillManifest,publishedSkillNames,publishedSkillSource} from './official-skills.mjs';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { applyGenerationPolicy } from './generation-policy.mjs';
 
 import {synchronizeMaterials,materialTool,requireImageModel} from './official-materials.mjs';
 export const name = 'qingsong-official-teaching';
-export const inject = ['tools', 'systemPrompt', 'attachments', 'llm'];
+export const inject = ['tools', 'systemPrompt', 'attachments', 'llm', 'skills'];
 export function apply(ctx) {
   const generationPolicy=JSON.parse(process.env.QS_GENERATION_POLICY??'{"entries":{}}');
   const turns = new Map();
   const registeredMaterials = new Map();
+  const skillProviders=new WeakMap();
   ctx.effect(() => ctx.systemPrompt.context({name:'管理员配置的教学提示词', order:110, required:true, interpolate:false,
     text: ({agent}) => turns.get(agent?.id)?.adminPrompt ?? ''}));
   ctx.effect(() => ctx.systemPrompt.context({name:'教师个人规则', order:100, required:true, interpolate:false,
@@ -36,6 +38,8 @@ export function apply(ctx) {
     if(!response.ok){const body=await response.json();if(body&&typeof body==='object')throw new ReadToolFailure(httpReadFailure(body,response.status));throw Error('READ_SERVICE_UNAVAILABLE');}
     return response.json();
   };
+  attachHarnessObserver(ctx,turns,bridge);
+  registerSkillFileTool(ctx,turns);
   const registerLessonReferences = (sessionId, messages, human, signal) => {
     const ids = message => (message?.content ?? [])
       .filter(part => part.type === 'text')
@@ -63,10 +67,17 @@ export function apply(ctx) {
       state.timer.unref();
       const human=messages.filter(message=>message.source?.kind==="user").at(-1);
       try {
-        const promptConfig = await bridge({kind:'dsh-prompts'}, signal);
+        const promptConfig = await bridge({kind:'dsh-prompts',sessionId:agent.id}, signal);
         const promptNode = promptConfig.nodes?.find(node => node.id === 'teaching-context' && node.enabled);
-        state.adminPrompt = promptNode?.content ?? '';
-        state.enabledSkills = new Set((promptConfig.nodes ?? []).filter(node => node.kind === 'skill' && node.enabled).map(node => node.id.slice('skill:'.length)));
+        state.revision=promptConfig.revision;
+        state.runId=agent.id+':'+turn+':'+Date.now();
+        state.trace=createTrace(bridge,state,agent.id);
+        state.config=promptConfig;
+        skillProviders.get(agent)?.();skillProviders.set(agent,attachSkillProvider(agent,turns,bridge));
+        state.verifyPrompt=promptConfig.nodes.find(n=>n.id==='verify')?.content??'核对教师要求与执行回执，不确定不得通过。';
+        state.adminPrompt = [promptNode?.content,...['main-agent','reply-format'].map(id=>promptConfig.nodes.find(n=>n.id===id)?.content)].filter(Boolean).join('\n\n');
+        await state.trace('orchestrator','本轮开始','running',{revision:state.revision,messages:traceSafe(messages)});
+        state.enabledSkills = new Set((promptConfig.library??[]).filter(skill=>!skill.archived).map(skill=>skill.id));
         state.preparationContext = await registerLessonReferences(agent.id, messages, human, signal);
         state.referenceMessageId = human?.id;
         const acquired = await bridge({kind: 'acquire', lease, sessionId: agent.id}, signal);
@@ -82,6 +93,7 @@ export function apply(ctx) {
       throw Error(message);
     }
     await bridge({kind: 'authorize'}, signal);
+    await state.trace('guard','步骤授权与预算','ok',{step:state.steps,budget:state.budget});
     if(!state.businessContext)state.businessContext=await bridge({kind:'business-context'},signal);
     const human = messages.filter(message => message.source?.kind === 'user').at(-1);
     if (human && state.referenceMessageId !== human.id) {
@@ -104,6 +116,8 @@ export function apply(ctx) {
     await refreshContext(state,{messageId:human?.id ?? 'empty',messages,
       loadPersonal:query=>bridge({kind:'personal-context',sessionId:agent.id,sourceText:state.sourceText??'',query},signal),
       loadMaterials:()=>state.syncMaterials(signal)});
+    await state.trace('context','上下文准备完成','ok',{context:state.contextParts,preparation:state.preparationContext});
+    await state.trace('memory','本轮记忆召回','ok',{snapshot:state.contextSnapshot});
     return next();
   });
   ctx.on('agent/request', async (_payload, next) => {
@@ -118,20 +132,19 @@ export function apply(ctx) {
     } else if(event.type==='compaction/end') {
       console.info('[青松助手] 历史整理结束',{sessionId:session.id,turn:event.data?.turn,failed:Boolean(event.data?.error)});
     }
-    if (event.type === 'turn/end') finish(session.id);
+    if (event.type === 'turn/end') { const state=turns.get(session.id);if(state)void state.trace('orchestrator','本轮结束',event.data?.error?'error':'ok',{event,traceIncomplete:!!state.traceIncomplete});finish(session.id); }
   });
   ctx.effect(() => () => { for (const id of [...turns.keys()]) finish(id); });
   function guardTool(exec){
     const state=turns.get(exec.agent?.id);
     console.info('[青松助手] 工具调用',{sessionId:exec.agent?.id,tool:exec.name,action:exec.arguments?.action,step:state?.steps});
     if(exec.name==='skill'){
-      if(!publishedSkillNames.has(exec.arguments?.name))return '此Skill不在青松发布目录中，不能加载。';
       if(!state?.enabledSkills?.has(exec.arguments?.name))return '此Skill当前未在管理员配置中披露，不能加载。';
-      if(state.loadedSkills?.has(exec.arguments?.name))return '此Skill已在本轮加载，正文保留在本轮连续状态中，不要重复调用；继续按已加载内容完成任务。';
+
       if(!state||++state.queries>(state.budget?.queries??12))return '本轮读取额度已用完，已有对话保留，请拆分问题后重试。';
       return undefined;
     }
-    return ['qingsong_discover','qingsong_search','qingsong_read','qingsong_memory','qingsong_material','qingsong_preparation','qingsong_schedule'].includes(exec.name)?undefined:'教师助手仅开放业务读取、受控Skill、已选材料、个人上下文和有限的个人日程操作。';
+    return ['qingsong_skill_file','qingsong_discover','qingsong_search','qingsong_read','qingsong_memory','qingsong_material','qingsong_preparation','qingsong_schedule'].includes(exec.name)?undefined:'教师助手仅开放业务读取、受控Skill、已选材料、个人上下文和有限的个人日程操作。';
   }
   for(const action of ['discover','search','read']){
     const parameters=capabilityToolParameters(action);
@@ -152,7 +165,7 @@ export function apply(ctx) {
     const state=turns.get(exec.agent?.id),failure=state?.toolFailures?.get(exec.callId);
     if(failure)state.toolFailures.delete(exec.callId);
     if(state&&exec.name==='skill'&&!result.isError){
-      const skillName=exec.arguments?.name,source=publishedSkillSource(skillName);
+      const skillName=exec.arguments?.name,source=state.config?.library?.find(s=>s.id===skillName)?.files.find(f=>f.name==='SKILL.md')?.content;
       if(skillName&&source){state.loadedSkills??=new Map();state.loadedSkills.set(skillName,source);}
     }
     if(state&&exec.name==='qingsong_read'&&result.isError){

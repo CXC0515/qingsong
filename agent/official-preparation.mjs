@@ -87,6 +87,13 @@ export function preparationTool(ctx, bridge, turns) {
         args.action !== "status"
       )
         return fail(state.preparationStopped ?? state.stopReading);
+      if(args.action === 'propose'){
+        try{
+          if(!state.verifyCandidate)throw Error('校验上下文缺失');
+          const verdict=await state.verifyCandidate({kind:'preparation',input:args},exec.signal);
+          if(verdict.decision!=='pass')return fail({code:'PREPARATION_VERIFY_FAILED',message:'教案候选尚未保存：'+verdict.issues.join('；'),recovery:'correct_arguments',nextAction:'根据校验意见修订候选后再提交。'});
+        }catch(error){if(error instanceof ReadToolFailure)throw error;return fail({code:'PREPARATION_VERIFY_UNAVAILABLE',message:'教案候选检查未完成，未保存；已有正文保留。',recovery:'stop'});}
+      }
       if (args.action === "render") await requireImageModel(ctx, exec);
       const call = (input) =>
         bridge(
