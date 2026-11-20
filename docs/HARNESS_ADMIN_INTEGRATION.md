@@ -1,6 +1,6 @@
 # Harness 管理工作台接入
 
-版本：v3；日期：2026-11-21；状态：代码接入完成，待用户验收，未合并、未部署。
+版本：v4；日期：2026-11-21；状态：本地界面已由用户确认，PR #174 已合并并部署；正式账号、真实模型与手机待验收。
 
 用户批准整张画布真实接入；只做代码及 review，用户负责网页、手机与模型验收。不运行测试和浏览器，不推送、不部署。
 
@@ -53,3 +53,18 @@ Memory 按写入规则、调取规则、存储与隔离组织；实际代码约�
 用户要求提供可见的模拟事件。新增前端内存示例“课表查询与日程校验”，17 个事件，覆盖记忆、上下文、Skill、工具、Guardrail、Verify 失败暂停及文本修订。基础设置工具栏可直接进入模拟示例，也可从运行列表选择；示例固定标识，详情带模拟数据标签，不调用模型或业务工具，不写入真实 Trace。配置草稿保持独立。
 
 检查范围：TypeScript 与 Git 差异检查，未运行测试或浏览器验收。
+
+## v4 正式发布记录（2026-11-21）
+
+用户确认当前 UI 版本并授权推送、PR、合并和部署。应用 PR #174 已合并为 858d18f5eb9f798a8b619fbce788b026f2c6bd8f；母文件夹 main 快进同步后使用 git archive 打包，未包含母文件夹已有交接批注和未跟踪文件。归档 SHA256 为 088e916154dd390b3766f1bf1dc0fb34e8b449378b8f4560611b32155f01c7da。
+
+服务器 current 已切换至 /opt/teacher-dashboard/releases/858d18f5eb9f798a8b619fbce788b026f2c6bd8f。原线上 613d30ca00b813f43e70c3a0f917a7a9d0f5d136 与其他既有发布均保留，没有清理生产数据、备份或旧目录。供应商、模型和生产凭据未改。
+
+- 固定 Node 24.22.1 独立安装根目录和 Agent 锁文件依赖，Linux TypeScript、生产构建、6 个模块语法检查以及 SQLite/运行时模块加载检查通过。构建保留既有大 chunk 提示。遵照用户要求未运行测试或浏览器。
+- 切换前确认无进行中的业务任务和原生会话；停写后创建在线恢复点 /var/lib/teacher-dashboard/backups/manual/product-2026-11-21-pre-harness-858d18f，753 个文件、12 个 SQLite，快照哈希及数据库完整性回读通过。
+- 切换前后原有 12 库、192 张表计数一致，完整性与外键检查通过。Trace 新库按首次使用创建，不把尚未产生真实 Trace 当成接入失败。
+- 应用、记忆服务、自动备份 timer 均 active，应用 SubState=running、NRestarts=0。公网 live/ready 与 /admin/harness 返回 200，匿名配置与运行记录接口返回 401。
+- 公网入口 JS/CSS 与 release 哈希一致；懒加载 HarnessCanvas-CE0NCFPN.js 全文下载哈希一致。仅作资源与协议核对，不等于登录态界面或真实模型体验验收。
+- 受限发布证据：/var/log/teacher-dashboard-harness-2026-11-21。安装/构建日志为 /tmp/qs-harness-root-install.log、/tmp/qs-harness-agent-install.log、/tmp/qs-harness-linux-build.log。
+
+正式入口：https://td.unreached.top/admin/harness 。模拟示例为前端内存数据，不调用业务工具、不写入真实 Trace。Verify 的真实模型开销、修订质量与多轮供应商兼容性仍由用户在正式账号中验收。
