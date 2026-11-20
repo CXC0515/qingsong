@@ -1,6 +1,6 @@
 # Harness 管理工作台接入
 
-版本：v5；日期：2026-11-21；状态：v4 已部署；v5 修复在独立分支实施，未推送或部署，真实对话待验收。
+版本：v5；日期：2026-11-21；状态：v5 修复经 PR #176 合并并部署，真实对话待用户验收。
 
 用户批准整张画布真实接入；只做代码及 review，用户负责网页、手机与模型验收。不运行测试和浏览器，不推送、不部署。
 
@@ -83,3 +83,16 @@ Memory 按写入规则、调取规则、存储与隔离组织；实际代码约�
 - 受限发布证据：/var/log/teacher-dashboard-harness-2026-11-21。安装/构建日志为 /tmp/qs-harness-root-install.log、/tmp/qs-harness-agent-install.log、/tmp/qs-harness-linux-build.log。
 
 正式入口：https://td.unreached.top/admin/harness 。模拟示例为前端内存数据，不调用业务工具、不写入真实 Trace。Verify 的真实模型开销、修订质量与多轮供应商兼容性仍由用户在正式账号中验收。
+
+
+### v5 发布记录（2026-11-21）
+
+用户明确授权部署后，PR #176 合并为 6b7c08dfee6a3bfc9644d281b25b16b01052161c。母文件夹 main 快进后使用 git archive 打包，SHA256 为 47661c900e7ba08324b16610dd30db05f748853b040e0ba72f713e61596085d4，未包含母文件夹已有未提交改动。
+
+- 服务器固定 Node 24.22.1，独立安装根和 agent 锁文件依赖；TypeScript、生产构建、模块语法、SQLite 及实际模块导入检查通过。未运行测试、浏览器或真实模型。
+- 切换前无活动任务或原生会话；停写并暂停记忆服务和自动备份 timer 后创建手工恢复点 /var/lib/teacher-dashboard/backups/manual/product-2026-11-21-pre-trace-6b7c08d，762 文件、13 SQLite，校验通过。切换前后 193 张表计数一致，完整性和外键检查通过。
+- current 为 /opt/teacher-dashboard/releases/6b7c08dfee6a3bfc9644d281b25b16b01052161c，应用 running、NRestarts=0；记忆服务和备份 timer 恢复 active。原 858d18f 与既有数据、备份和发布目录保留。
+- 公网 live/ready、后台路由 200，匿名 Harness 配置和运行接口 401；入口 JS/CSS 与 HarnessCanvas-GMI_v7Xs.js 全文哈希匹配 release。此为服务和资源核对，不代表真实对话与 Skill 调用已验收。
+- 受限发布证据 /var/log/teacher-dashboard-trace-recovery-2026-11-21，服务器安装及构建日志 /tmp/qs-trace-recovery-*.log。未改变供应商、模型、凭据、跨工作区权限或历史对话。
+
+用户验收：刷新正式站，新建会话发一条消息，再到 Harness 的运行回放查看真实记录。若之前正在模拟回放，点击返回真实记录。此前缺失的历史 Trace 未补造。
