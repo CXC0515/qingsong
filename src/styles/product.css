@@ -629,3 +629,6 @@
 .hc-live .hc-tools-panes{overflow:hidden}
 .hc-live .hc-heading-actions{flex-wrap:wrap;justify-content:flex-end}
 @media(max-width:760px){.hc-live .hc-heading{align-items:flex-start;gap:8px}.hc-live .hc-heading-actions{gap:4px}.hc-live .hc-tools-list{max-height:none}.hc-mode-toolbar .qs-segment-scroll{max-width:100%}}
+
+.hc-live[data-mode=trace] .hc-part.is-current{border-color:var(--jade-8);background:var(--jade-3)}
+.hc-live[data-mode=trace] .hc-part.has-error{border-color:var(--tomato-7);background:var(--tomato-3)}
