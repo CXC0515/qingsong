@@ -12,7 +12,6 @@ import {
   KnowledgeTag,
   KnowledgeRelation,
   KnowledgeRelationType,
-  KnowledgeTreeSnapshot,
   LibraryResource,
   ResourceDetail,
   ResourcePageState,
@@ -206,34 +205,10 @@ export const updateKnowledgeNode = async (
     )
   ).node;
 
-export const getKnowledgeTree = async (subject: string) =>
-  requestJson<KnowledgeTreeSnapshot>(
-    `/api/knowledge/tree?subject=${encodeURIComponent(subject)}`,
-  );
-
 export const getKnowledgeFocus = async (nodeId: string) =>
   requestJson<KnowledgeFocusSnapshot>(
     `/api/knowledge/nodes/${nodeId}/focus`,
   );
-
-export const updateKnowledgeStructure = async (
-  nodeId: string,
-  input: {
-    primaryMotherId?: string | null;
-    trainable?: boolean;
-    sortOrder?: number;
-  },
-) =>
-  (
-    await requestJson<{ node: KnowledgeEntity }>(
-      `/api/knowledge/nodes/${nodeId}/structure`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      },
-    )
-  ).node;
 
 export const createKnowledgeSubject = async (input: { name: string; code: string }) =>
   (await requestJson<{ subject: KnowledgeSubject }>("/api/knowledge/subjects", {
