@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CommitteeAssignment, CommitteeRole, RosterSnapshot, RosterStudent, SchoolClass, Student, SubmissionRosterMatch } from '../domain/types';
+import { CommitteeAssignment, CommitteeRole, RosterSnapshot, RosterStudent, SchoolClass, Student } from '../domain/types';
 import { apiFetch } from './apiClient';
 
 export type RosterImportField = 'studentNo' | 'name' | 'gender' | 'parentName' | 'parentPhone' | 'parentRelation' | 'parentRemark';
@@ -172,17 +172,4 @@ export const importRosterStudents = (classId: string, grid: RosterImportGrid) =>
   requestJson<RosterImportResult>(
     `/api/classes/${encodeURIComponent(classId)}/students/import`,
     jsonRequest('POST', grid)
-  );
-
-export const findRosterStudentByNo = async (classId: string, studentNo: string) => {
-  const body = await requestJson<{ student: RosterStudent }>(
-    `/api/classes/${encodeURIComponent(classId)}/student-by-no/${encodeURIComponent(studentNo)}`
-  );
-  return body.student;
-};
-
-export const matchRosterSubmissions = (classId: string, studentNos: string[]) =>
-  requestJson<SubmissionRosterMatch>(
-    `/api/classes/${encodeURIComponent(classId)}/submission-match`,
-    jsonRequest('POST', { studentNos })
   );
